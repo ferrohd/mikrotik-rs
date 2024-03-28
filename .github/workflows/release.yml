@@ -28,7 +28,8 @@ jobs:
               run: |
                 cargo clippy
 
-  create-release-and-publish-crate:
+  publish-and-release:
+    name: 🚀 Publish and Release
     runs-on: ubuntu-latest
     needs: clippy
     steps:
