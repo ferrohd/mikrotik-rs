@@ -16,18 +16,29 @@ jobs:
             rustc --version
             cargo clippy --version
 
+  clippy:
+        name: 📎 Clippy
+        needs: toolchain
+        runs-on: ubuntu-latest
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v4
+
+            - name: 📎 Clippy
+              run: |
+                cargo clippy
+
   create-release-and-publish-crate:
     runs-on: ubuntu-latest
-    needs: toolchain
+    needs: clippy
     steps:
       - name: 🛒 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Publish Crate to Crates.io
+      - name: 📦 Publish Crate to Crates.io
         run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
 
-      - name: Create GitHub Release
-        id: create_release
+      - name: 📢 Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           release_name: Release ${{ github.ref }}
