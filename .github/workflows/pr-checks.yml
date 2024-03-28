@@ -1,0 +1,56 @@
+name: PR Cargo Preflight Checks
+
+on:
+  pull_request:
+    branches:
+      - master
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+    toolchain:
+        name: ⚒️ Toolchain
+        runs-on: ubuntu-latest
+        steps:
+          - name: ⚒️ Toolchain Info
+            run: |
+              cargo --version --verbose
+              rustc --version
+              cargo clippy --version
+
+    clippy:
+        name: 📎 Clippy
+        needs: toolchain
+        runs-on: ubuntu-latest
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v4
+
+            - name: 📎 Clippy
+              run: |
+                cargo clippy --
+
+    build:
+        name: 🔨 Build
+        needs: toolchain
+        runs-on: ubuntu-latest
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v4
+
+            - name: 🔨 Build
+              run: |
+                cargo build
+
+    test:
+        name: 🧪 Test
+        needs: toolchain
+        runs-on: ubuntu-latest
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v4
+
+            - name: 🧪 Test
+              run: |
+                cargo test --all

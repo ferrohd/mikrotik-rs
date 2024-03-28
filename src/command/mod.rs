@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, mem::size_of};
-
 use getrandom;
+
 /// Internal module for handling command responses.
 pub mod reader;
 /// Module with structures for command responses.

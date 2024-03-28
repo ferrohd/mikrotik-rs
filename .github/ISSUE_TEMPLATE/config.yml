@@ -1,0 +1,4 @@
+contact_links:
+    - name: 🤔 Questions and Help
+      url: https://github.com/ferrohd/mikrotik-rs/discussions
+      about: This issue tracker is not for support questions. Please refer to the GitHub Discussion section.

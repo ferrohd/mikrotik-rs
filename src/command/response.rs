@@ -1,5 +1,7 @@
 use std::{
-    collections::HashMap, fmt::{Debug, Formatter}, str::Utf8Error
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    str::Utf8Error,
 };
 
 use super::reader::{parse_tag, Sentence};

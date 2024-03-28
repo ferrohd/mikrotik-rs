@@ -84,10 +84,10 @@ impl DeviceConnectionActor {
                                             CommandResponse::Reply(reply) => {
                                                 let tag = reply.tag;
                                                 if let Some(sender) = running_commands.get(&tag) {
-                                                    if let Err(_) = sender.send(Ok(CommandResponse::Reply(reply))).await {
+                                                    if sender.send(Ok(CommandResponse::Reply(reply))).await.is_err() {
                                                         // Cancel the command if the channel is closed
                                                         let cancel_cmd = CommandBuilder::cancel(tag);
-                                                        if let Err(_) = tcp_tx.write_all(cancel_cmd.data.as_ref()).await {
+                                                        if tcp_tx.write_all(cancel_cmd.data.as_ref()).await.is_err() {
                                                             // Error writing the cancel command to the device, shutdown the connection
                                                             shutdown = true;
                                                         }
