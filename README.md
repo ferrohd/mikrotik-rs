@@ -1,5 +1,8 @@
 # mikrotik-rs 📟
 
+![Crates.io](https://img.shields.io/crates/v/mikrotik-rs)
+![docs.rs](https://img.shields.io/docsrs/mikrotik-rs)
+
 This Rust library provides an asynchronous interface to interact with the Mikrotik Command Line Interface (CLI) API.
 
 ## Features 🌟
