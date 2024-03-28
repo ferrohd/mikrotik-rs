@@ -11,6 +11,9 @@ authors = ["Alessandro Ferrara"]
 license = "MIT"
 repository = "https://github.com/ferrohd/mikrotik-rs"
 
+[lib]
+doctest = false
+
 [lints.rust]
 unsafe_code = "forbid"
 
