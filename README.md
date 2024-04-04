@@ -1,9 +1,13 @@
 # mikrotik-rs 📟
 
 ![Crates.io](https://img.shields.io/crates/v/mikrotik-rs)
+![Crates.io License](https://img.shields.io/crates/l/mikrotik-rs)
 ![docs.rs](https://img.shields.io/docsrs/mikrotik-rs)
+![Libraries.io dependency status for latest release](https://img.shields.io/librariesio/release/cargo/mikrotik-rs)
+![Crates.io Total Downloads](https://img.shields.io/crates/d/mikrotik-rs)
 
-This Rust library provides an asynchronous interface to interact with the Mikrotik Command Line Interface (CLI) API.
+
+This Rust library provides an asynchronous interface to interact with the [Mikrotik API](https://wiki.mikrotik.com/wiki/Manual:API).
 
 ## Features 🌟
 
@@ -51,6 +55,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+### Documentation 📚
+
+For more detailed information on the library's API, please refer to the [documentation](https://docs.rs/mikrotik-rs).
 
 ## Contributing 🤝
 
