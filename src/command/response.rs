@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::{Debug, Formatter},
+    num::ParseIntError,
     str::Utf8Error,
 };
 
@@ -44,16 +45,19 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
     type Error = ParsingError;
 
     fn try_from(mut sentence_iter: Sentence) -> Result<Self, Self::Error> {
-        let reply_word = sentence_iter
-            .next()
-            .ok_or(ParsingError::ResponseType("Missing sentence category"))??;
+        let reply_word =
+            sentence_iter
+                .next()
+                .ok_or(ParsingError::Sentence(SentenceError::CategoryError(
+                    SentenceCategoryError::Missing,
+                )))??;
 
         match reply_word {
             "!done" => {
                 let tag = parse_tag(
                     sentence_iter
                         .next()
-                        .ok_or(ParsingError::Tag("Missing tag word"))??,
+                        .ok_or(ParsingError::Tag(TagError::Missing))??,
                 )?;
                 Ok(CommandResponse::Done(DoneResponse { tag }))
             }
@@ -87,7 +91,7 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                 }
 
                 Ok(CommandResponse::Reply(ReplyResponse {
-                    tag: tag.ok_or(ParsingError::Tag("Missing tag"))?,
+                    tag: tag.ok_or(ParsingError::Tag(TagError::Missing))?,
                     attributes,
                 }))
             }
@@ -134,7 +138,7 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                 }
 
                 Ok(CommandResponse::Trap(TrapResponse {
-                    tag: tag.ok_or(ParsingError::Tag("Missing tag"))?,
+                    tag: tag.ok_or(ParsingError::Tag(TagError::Missing))?,
                     category,
                     message: message
                         .ok_or(ParsingError::Attribute("Missing trap message attribute"))?,
@@ -146,7 +150,9 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                     .ok_or(ParsingError::Attribute("Missing fatal reason"))?;
                 Ok(CommandResponse::Fatal(reason?.to_string()))
             }
-            _ => Err(ParsingError::ResponseType("Unrecognized reply: {x}")),
+            s => Err(ParsingError::Sentence(SentenceError::CategoryError(
+                SentenceCategoryError::Invalid(s.to_string()),
+            ))),
         }
     }
 }
@@ -228,7 +234,7 @@ impl TryFrom<u8> for TrapCategory {
             5 => Ok(TrapCategory::APIFailure),
             6 => Ok(TrapCategory::TTYFailure),
             7 => Ok(TrapCategory::ReturnValue),
-            _ => Err(ParsingError::TrapCategory("Invalid trap category")),
+            _ => Err(ParsingError::TrapCategory(TrapCategoryError::OutOfRange)),
         }
     }
 }
@@ -254,7 +260,7 @@ impl TryFrom<&str> for TrapCategory {
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         let n = s
             .parse::<u8>()
-            .map_err(|_| ParsingError::TrapCategory("Category must be a number"))?;
+            .map_err(|e| ParsingError::TrapCategory(TrapCategoryError::Parsing(e)))?;
         TrapCategory::try_from(n)
     }
 }
@@ -265,9 +271,7 @@ impl TryFrom<Attribute> for TrapCategory {
     fn try_from(attribute: Attribute) -> Result<Self, Self::Error> {
         match attribute {
             Attribute::Value(s) => TrapCategory::try_from(s.as_str()),
-            Attribute::Empty => Err(ParsingError::TrapCategory(
-                "Missing trap category attribute",
-            )),
+            Attribute::Empty => Err(ParsingError::TrapCategory(TrapCategoryError::Missing)),
         }
     }
 }
@@ -319,7 +323,7 @@ impl From<Attribute> for Option<String> {
     }
 }
 
-/// An enumeration of possible errors while parsing network command responses.
+/// Possible errors while parsing network command responses.
 ///
 /// This enum aids in identifying and responding to different parsing issues that can arise,
 /// such as invalid input or unexpected response formats.
@@ -329,18 +333,13 @@ pub enum ParsingError {
     ///
     /// This variant encapsulates errors that occur due to issues in parsing a single
     /// `Sentence` from a command response.
-    SentenceError(SentenceError),
-    /// Error related to identifying the type of response.
-    ///
-    /// Indicates that the parser was unable to match the response type to known response formats.
-    /// This generally indicates either a misformatted response or an unsupported response type.
-    ResponseType(&'static str),
+    Sentence(SentenceError),
     /// Error related to identifying or parsing a `Trap` response category.
     ///
     /// Indicates that an invalid category was encountered during parsing,
     /// which likely points to either a malformed response or a new category that's not
     /// yet supported by the parser.
-    TrapCategory(&'static str),
+    TrapCategory(TrapCategoryError),
     /// Error involving attributes in a response.
     ///
     /// Indicates issues related to parsing or expected presence of attributes within a response.
@@ -349,10 +348,37 @@ pub enum ParsingError {
     ///
     /// Command tags are expected in most response types to correlate them with their request.
     /// This error indicates a parsing issue or an outright missing tag.
-    Tag(&'static str),
+    Tag(TagError),
 }
 
-/// Enumeration of specific errors that can occur while processing individual sentences
+/// Errors that can occur while parsing trap categories in response sentences.
+///
+/// This enum provides more detailed information about issues that can arise while parsing trap
+/// categories, such as missing categories, errors while converting category strings to integers,
+/// or categories that are out of range.
+#[derive(Debug)]
+pub enum TrapCategoryError {
+    /// Error indicating that a trap category is missing from the response sentence.
+    Missing,
+    /// Error indicating that a trap category could not be parsed as an integer.
+    Parsing(ParseIntError),
+    /// Error indicating that a trap category is out of range. Valid categories are 0-7.
+    OutOfRange,
+}
+
+/// Errors that can occur while parsing tags in response sentences.
+///
+/// This enum provides more detailed information about issues that can arise while parsing tags,
+/// such as missing tags or errors while converting tag strings to integers.
+#[derive(Debug)]
+pub enum TagError {
+    /// Error indicating that a tag is missing from the response sentence.
+    Missing,
+    /// Error indicating that a tag could not be parsed as an integer.
+    Invalid(ParseIntError),
+}
+
+/// Specific errors that can occur while processing individual sentences
 /// in a network command response.
 ///
 /// Designed to provide more granular error information, particularly for issues related to
@@ -369,6 +395,19 @@ pub enum SentenceError {
     /// This could happen if the sentence does not comply with the expected structure or
     /// if essential parts of the sentence are missing, making it too short to parse correctly.
     LengthError,
+    /// Error indicating that the category of the sentence is invalid.
+    /// This could happen if the sentence does not start with a recognized category.
+    /// Valid categories are `!done`, `!re`, `!trap`, and `!fatal`.
+    CategoryError(SentenceCategoryError),
+}
+
+/// Errors that can occur while parsing sentence categories.
+#[derive(Debug)]
+pub enum SentenceCategoryError {
+    /// Error indicating that the category of the sentence is missing.
+    Missing,
+    /// Error indicating that the category of the sentence is invalid.
+    Invalid(String),
 }
 
 impl From<Utf8Error> for SentenceError {
@@ -379,6 +418,6 @@ impl From<Utf8Error> for SentenceError {
 
 impl From<SentenceError> for ParsingError {
     fn from(e: SentenceError) -> Self {
-        ParsingError::SentenceError(e)
+        ParsingError::Sentence(e)
     }
 }

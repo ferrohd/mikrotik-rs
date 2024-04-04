@@ -1,4 +1,4 @@
-use super::response::{ParsingError, SentenceError};
+use super::response::{ParsingError, SentenceError, TagError};
 
 /// A parser for parsing sentences in the Mikrotik API sentence format.
 ///
@@ -130,9 +130,9 @@ pub fn parse_tag(str: &str) -> Result<u16, ParsingError> {
     let tag = str
         .split('=')
         .nth(1)
-        .ok_or(ParsingError::Tag("Missing tag value"))?
+        .ok_or(ParsingError::Tag(TagError::Missing))?
         .parse()
-        .map_err(|_| ParsingError::Tag("Invalid tag value"))?;
+        .map_err(|e| ParsingError::Tag(TagError::Invalid(e)))?;
 
     Ok(tag)
 }
