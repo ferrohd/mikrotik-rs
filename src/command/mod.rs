@@ -6,15 +6,16 @@ pub mod reader;
 /// Module with structures for command responses.
 pub mod response;
 
-/// Represents an empty command. Used as a marker in `CommandBuilder`.
+/// Represents an empty command. Used as a marker in [`CommandBuilder`].
 pub struct NoCmd;
 
 /// Represents a command that has at least one operation (e.g., a login or a query).
+/// Used as a marker in [`CommandBuilder`].
 #[derive(Clone)]
 pub struct Cmd;
 
-/// `CommandBuilder` is used to construct commands to be sent to MikroTik routers.
-/// It transitions from `NoCmd` state to `Cmd` state as parts of the command
+/// [`CommandBuilder`] is used to construct commands to be sent to MikroTik routers.
+/// It transitions from [`NoCmd`] state to [`Cmd`] state as parts of the command
 /// are being specified. This enforces at compile time that only complete commands can be built.
 #[derive(Clone)]
 pub struct CommandBuilder<Cmd> {

@@ -53,4 +53,6 @@ mod actor;
 /// Command module for building and sending commands to MikroTik routers.
 pub mod command;
 /// Device module for connecting to MikroTik routers and sending commands.
-pub mod device;
+mod device;
+
+pub use device::MikrotikDevice;

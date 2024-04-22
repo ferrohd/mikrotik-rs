@@ -62,7 +62,7 @@ impl<'a> Iterator for Sentence<'a> {
                 // Update the position for the next iteration
                 self.position = end;
 
-                // Convert the bytes to a string
+                // Convert the bytes to a string slice
                 match std::str::from_utf8(&self.data[start..end]) {
                     Ok(s) => Some(Ok(s)),
                     Err(e) => Some(Err(e.into())),
@@ -73,6 +73,7 @@ impl<'a> Iterator for Sentence<'a> {
     }
 }
 
+/// Returns the length and the number of bytes read.
 fn read_length(data: &[u8]) -> Result<(u32, usize), SentenceError> {
     let mut c: u32 = data[0] as u32;
     if c & 0x80 == 0x00 {
