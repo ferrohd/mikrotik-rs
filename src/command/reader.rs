@@ -1,3 +1,5 @@
+use std::{num::ParseIntError, str::Utf8Error};
+
 use super::response::{ParsingError, SentenceError, TagError};
 
 /// A parser for parsing sentences in the Mikrotik API sentence format.
@@ -28,9 +30,9 @@ impl<'a> Sentence<'a> {
 }
 
 impl<'a> Iterator for Sentence<'a> {
-    type Item = Result<&'a str, SentenceError>;
+    type Item = Result<Word<'a>, SentenceError>;
 
-    /// Advances the iterator and returns the next word in the sentence.
+    /// Advances the [`Iterator`] and returns the next word in the [`Sentence`].
     ///
     /// The word is returned as a slice of the original data. This avoids copying
     /// data but means the lifetime of the returned slice is tied to the lifetime
@@ -62,14 +64,97 @@ impl<'a> Iterator for Sentence<'a> {
                 // Update the position for the next iteration
                 self.position = end;
 
-                // Convert the bytes to a string slice
-                match std::str::from_utf8(&self.data[start..end]) {
-                    Ok(s) => Some(Ok(s)),
-                    Err(e) => Some(Err(e.into())),
-                }
+                // Return the word
+                let word =
+                    Word::try_from(&self.data[start..end]).map_err(|e| SentenceError::WordError(e));
+                Some(word)
             }
             Err(e) => Some(Err(e)),
         }
+    }
+}
+
+pub enum Word<'a> {
+    Category(&'a str),
+    Tag(u16),
+    Attribute((&'a str, Option<&'a str>)),
+}
+
+impl<'a> Word<'a> {
+    pub fn category(&self) -> Option<&str> {
+        match self {
+            Word::Category(category) => Some(category),
+            _ => None,
+        }
+    }
+
+    pub fn tag(&self) -> Option<u16> {
+        match self {
+            Word::Tag(tag) => Some(*tag),
+            _ => None,
+        }
+    }
+
+    pub fn attribute(&self) -> Option<(&str, Option<&str>)> {
+        match self {
+            Word::Attribute((key, value)) => Some((*key, *value)),
+            _ => None,
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for Word<'a> {
+    type Error = WordError;
+
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        let s = std::str::from_utf8(value)?;
+
+        // Parse tag
+        if s.starts_with(".tag=") {
+            let tag = s[5..].parse::<u16>()?;
+            return Ok(Word::Tag(tag));
+        }
+
+        // Parse attribute pair
+        if s.starts_with("=") {
+            let mut parts = s[1..].splitn(2, '=');
+            let key = parts.next().ok_or(WordError::Attribute)?;
+            let value = parts.next();
+            return Ok(Word::Attribute((key, value)));
+        }
+
+        // Parse category
+        if s == "!done" || s == "!re" || s == "!trap" || s == "!fatal" {
+            return Ok(Word::Category(s));
+        }
+
+        Err(WordError::Unrecognized)
+    }
+}
+
+impl<'a> Word<'a> {}
+
+#[derive(Debug)]
+pub enum WordError {
+    // The word is not a valid UTF-8 string.
+    Utf8(Utf8Error),
+    // The word is a tag, but the tag value is invalid.
+    Tag(TagError),
+    // The word is a attribute word, but the key is missing.
+    Attribute,
+    // The [`Word`] is not a recognized type.
+    Unrecognized,
+}
+
+impl From<Utf8Error> for WordError {
+    fn from(e: Utf8Error) -> Self {
+        Self::Utf8(e)
+    }
+}
+
+impl From<ParseIntError> for WordError {
+    fn from(e: ParseIntError) -> Self {
+        Self::Tag(TagError::Invalid(e))
     }
 }
 
@@ -111,29 +196,4 @@ fn read_length(data: &[u8]) -> Result<(u32, usize), SentenceError> {
     } else {
         Err(SentenceError::LengthError)
     }
-}
-
-/// Parses a command tag from a given string slice.
-///
-/// The tag is expected to be in the form of `.tag=<value>`, where `<value>` is a
-/// numeric string representing the tag's value.
-///
-/// # Arguments
-///
-/// * `str` - A string slice containing the tag to be parsed.
-///
-/// # Errors
-///
-/// Returns a `ParsingError::Tag` error if the tag format is incorrect or if the
-/// tag value is not a valid unsigned 16-bit integer.
-pub fn parse_tag(str: &str) -> Result<u16, ParsingError> {
-    // The tag in in the form of ".tag=1234"
-    let tag = str
-        .split('=')
-        .nth(1)
-        .ok_or(ParsingError::Tag(TagError::Missing))?
-        .parse()
-        .map_err(|e| ParsingError::Tag(TagError::Invalid(e)))?;
-
-    Ok(tag)
 }

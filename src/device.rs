@@ -1,6 +1,6 @@
 use crate::{
-    actor::{ActorResult, DeviceConnectionActor, ReadActorMessage},
-    command::{response::CommandResponse, Command},
+    actor::{CommandResult, DeviceConnectionActor, ReadActorMessage},
+    command::Command,
 };
 use tokio::{io, net::ToSocketAddrs, sync::mpsc};
 
@@ -20,21 +20,21 @@ impl MikrotikDevice {
     /// and returns an instance of `MikrotikDevice` that can be used to send commands to the device.
     ///
     /// # Parameters
-    /// - `addr`: The address of the MikroTik device. This can be an IP address or a hostname with an optional port number.
+    /// - `addr`: The address of the MikroTik device. This can be an IP address or a hostname.
     /// - `username`: The username for authenticating with the device.
     /// - `password`: An optional password for authentication. If `None`, no password will be sent.
     ///
     /// # Returns
-    /// - `Ok(Self)`: An instance of `MikrotikDevice` on successful connection.
+    /// - `Ok(Self)`: An instance of [`MikrotikDevice`] on successful connection.
     /// - `Err(io::Error)`: An error if the connection could not be established.
     ///
     /// # Examples
     /// ```no_run
-    /// # async fn connect_device() -> io::Result<()> {
     /// let device = MikrotikDevice::connect("192.168.88.1:8728", "admin", Some("password")).await?;
-    /// # Ok(())
-    /// # }
     /// ```
+    /// # Attention 🚨
+    /// The connection to the MikroTik device is not encrypted (plaintext API connection over 8728/tcp port).
+    /// In the future, support for encrypted connections (e.g., API-SSL) will be added.
     pub async fn connect<A: ToSocketAddrs>(
         addr: A,
         username: &str,
@@ -51,11 +51,11 @@ impl MikrotikDevice {
     /// that will receive the command execution results.
     ///
     /// # Parameters
-    /// - `command`: The `Command` to send to the device, consisting of a tag and data associated with the command.
+    /// - `command`: The [`Command`] to send to the device, consisting of a tag and data associated with the command.
     ///
     /// # Returns
-    /// A `mpsc::Receiver<io::Result<CommandResponse>>` that can be awaited to receive the response to the command.
-    /// Responses are wrapped in `io::Result` to handle any I/O related errors during command execution or response retrieval.
+    /// A [`mpsc::Receiver`] that can be awaited to receive the response to the command.
+    /// Responses are wrapped in [`io::Result`] to handle any I/O related errors during command execution or response retrieval.
     ///
     /// # Panics
     /// This method panics if sending the command message to the `DeviceConnectionActor` fails,
@@ -63,22 +63,15 @@ impl MikrotikDevice {
     ///
     /// # Examples
     /// ```no_run
-    /// # use tokio::sync::mpsc;
-    /// # async fn send_command(device: MikrotikDevice) -> io::Result<()> {
     /// let command = CommandBuilder::new().command("/interface/print").build();
     /// let mut response_rx = device.send_command(command).await;
     ///
     /// while let Some(response) = response_rx.recv().await {
     ///     println!("{:?}", response?);
     /// }
-    /// # Ok(())
-    /// # }
     /// ```
-    pub async fn send_command(
-        &self,
-        command: Command,
-    ) -> mpsc::Receiver<io::Result<CommandResponse>> {
-        let (response_tx, response_rx) = mpsc::channel::<ActorResult>(16);
+    pub async fn send_command(&self, command: Command) -> mpsc::Receiver<CommandResult> {
+        let (response_tx, response_rx) = mpsc::channel::<CommandResult>(16);
 
         let msg = ReadActorMessage {
             tag: command.tag,

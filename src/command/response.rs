@@ -2,16 +2,15 @@ use std::{
     collections::HashMap,
     fmt::{Debug, Formatter},
     num::ParseIntError,
-    str::Utf8Error,
 };
 
-use super::reader::{parse_tag, Sentence};
+use super::reader::{Sentence, WordError};
 
 /// Type alias for representing a fatal response string.
 pub type FatalResponse = String;
-/// Type alias for attribute keys in a `ReplyResponse`.
+/// Type alias for attribute keys in a [`ReplyResponse`].
 pub type AttributeKey = String;
-/// Type alias for a map of attributes in a `ReplyResponse`.
+/// Type alias for a map of attributes in a [`ReplyResponse`].
 pub type AttributeMap = HashMap<AttributeKey, Attribute>;
 
 /// Enum representing the various types of responses a command can produce.
@@ -45,15 +44,23 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
     type Error = ParsingError;
 
     fn try_from(mut sentence_iter: Sentence) -> Result<Self, Self::Error> {
-        let reply_word =
-            sentence_iter
-                .next()
-                .ok_or(ParsingError::Sentence(SentenceError::CategoryError(
-                    SentenceCategoryError::Missing,
-                )))??;
+        let reply_word = sentence_iter
+            .next()
+            .ok_or(ParsingError::Sentence(SentenceError::CategoryError(
+                SentenceCategoryError::Missing,
+            )))??
+            .category()
+            .ok_or(ParsingError::Sentence(SentenceError::CategoryError(
+                SentenceCategoryError::Missing,
+            )))?;
 
         match reply_word {
             "!done" => {
+                let tag = sentence_iter.next().and_then(|w| w.ok()?.tag()).ok_or(
+                    ParsingError::Sentence(SentenceError::CategoryError(
+                        SentenceCategoryError::Missing,
+                    )),
+                )?;
                 let tag = parse_tag(
                     sentence_iter
                         .next()
@@ -389,7 +396,7 @@ pub enum SentenceError {
     ///
     /// This could occur if the byte sequence contains invalid UTF-8 patterns, which is
     /// possible when receiving malformed or unexpected input.
-    Utf8Error(Utf8Error),
+    WordError(WordError),
     /// Error indicating that an issue occurred due to incorrect length or format.
     ///
     /// This could happen if the sentence does not comply with the expected structure or
@@ -408,12 +415,6 @@ pub enum SentenceCategoryError {
     Missing,
     /// Error indicating that the category of the sentence is invalid.
     Invalid(String),
-}
-
-impl From<Utf8Error> for SentenceError {
-    fn from(e: Utf8Error) -> Self {
-        SentenceError::Utf8Error(e)
-    }
 }
 
 impl From<SentenceError> for ParsingError {

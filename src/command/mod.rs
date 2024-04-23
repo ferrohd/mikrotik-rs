@@ -31,13 +31,7 @@ impl Default for CommandBuilder<NoCmd> {
 }
 
 impl CommandBuilder<NoCmd> {
-    /// Creates a new command builder instance with a randomly generated tag.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let builder = CommandBuilder::<NoCmd>::new();
-    /// ```
+    /// Begin building a new [`Command`] with a randomly generated tag.
     pub fn new() -> Self {
         let mut dest = [0_u8; size_of::<u16>()];
         getrandom::getrandom(&mut dest).expect("Failed to generate random tag");
@@ -47,7 +41,7 @@ impl CommandBuilder<NoCmd> {
             state: PhantomData,
         }
     }
-    /// Creates a new command builder instance with the specified tag.
+    /// Begin building a new [`Command`] with a specified tag.
     ///
     /// # Arguments
     ///
@@ -56,7 +50,7 @@ impl CommandBuilder<NoCmd> {
     /// # Examples
     ///
     /// ```rust
-    /// let builder = CommandBuilder::<NoCmd>::with_tag(1234);
+    /// let builder = CommandBuilder::with_tag(1234);
     /// ```
     pub fn with_tag(tag: u16) -> Self {
         Self {
@@ -169,7 +163,7 @@ impl CommandBuilder<Cmd> {
         }
     }
 
-    /// Finalizes the command construction process, producing a `Command`.
+    /// Finalizes the command construction process, producing a [`Command`].
     ///
     /// # Returns
     ///
@@ -183,6 +177,16 @@ impl CommandBuilder<Cmd> {
 }
 
 /// Represents a final command, complete with a tag and data, ready to be sent to the router.
+/// To create a [`Command`], use a [`CommandBuilder`].
+///
+/// - `tag` is used to identify the command and correlate with its [`response::CommandResponse`]s when it is received.
+/// - `data` contains the command itself, which is a sequence of bytes, null-terminated.
+///
+/// # Examples
+///
+/// ```rust
+/// let cmd = CommandBuilder::new().command("/interface/print").build();
+/// ```
 #[derive(Debug)]
 pub struct Command {
     /// The tag of the command.
