@@ -4,14 +4,10 @@ use std::{
     num::ParseIntError,
 };
 
-use super::reader::{Sentence, WordError};
+use super::sentence::{ResponseType, Sentence, SentenceError, Word};
 
 /// Type alias for representing a fatal response string.
 pub type FatalResponse = String;
-/// Type alias for attribute keys in a [`ReplyResponse`].
-pub type AttributeKey = String;
-/// Type alias for a map of attributes in a [`ReplyResponse`].
-pub type AttributeMap = HashMap<AttributeKey, Attribute>;
 
 /// Enum representing the various types of responses a command can produce.
 #[derive(Debug)]
@@ -41,125 +37,105 @@ impl CommandResponse {
 }
 
 impl TryFrom<Sentence<'_>> for CommandResponse {
-    type Error = ParsingError;
+    type Error = ResponseError;
 
     fn try_from(mut sentence_iter: Sentence) -> Result<Self, Self::Error> {
-        let reply_word = sentence_iter
-            .next()
-            .ok_or(ParsingError::Sentence(SentenceError::CategoryError(
-                SentenceCategoryError::Missing,
-            )))??
+        let word = sentence_iter.next().ok_or(ResponseError::Length(
+            "Missing category (!done, !repl, !trap, !fatal",
+        ))??;
+        let category = word
             .category()
-            .ok_or(ParsingError::Sentence(SentenceError::CategoryError(
-                SentenceCategoryError::Missing,
-            )))?;
+            .ok_or(ResponseError::Sentence(SentenceError::CategoryError))?;
 
-        match reply_word {
-            "!done" => {
-                let tag = sentence_iter.next().and_then(|w| w.ok()?.tag()).ok_or(
-                    ParsingError::Sentence(SentenceError::CategoryError(
-                        SentenceCategoryError::Missing,
-                    )),
-                )?;
-                let tag = parse_tag(
-                    sentence_iter
-                        .next()
-                        .ok_or(ParsingError::Tag(TagError::Missing))??,
-                )?;
+        match category {
+            ResponseType::Done => {
+                let tag = sentence_iter
+                    .next()
+                    .ok_or(ResponseError::Length("Missing tag in the response"))??
+                    .tag()
+                    .ok_or(ResponseError::Tag)?;
                 Ok(CommandResponse::Done(DoneResponse { tag }))
             }
-            "!re" => {
+            ResponseType::Reply => {
                 // !re is composed of a tag and a list of attributes
                 let mut tag = None;
-                let mut attributes = HashMap::<AttributeKey, Attribute>::new();
+                let mut attributes = HashMap::<String, Option<String>>::new();
 
                 for word in sentence_iter {
                     let word = word?;
-                    match word.chars().next() {
-                        Some('.') => {
-                            tag = Some(parse_tag(word)?);
+                    match word {
+                        Word::Tag(t) => tag = Some(t),
+                        Word::Attribute((key, value)) => {
+                            attributes.insert(key.to_owned(), value.map(String::from));
                         }
-                        Some('=') => {
-                            // Attributes are in the format `=key=value`
-                            let mut attr = word.splitn(3, '=');
-                            let key = attr
-                                .nth(1)
-                                .ok_or(ParsingError::Attribute("Missing attribute key"))?
-                                .to_owned();
-                            let value = attr.next().map(String::from).into();
-                            attributes.insert(key, value);
-                        }
-                        _ => {
-                            return Err(ParsingError::Attribute(
-                                "Unexpected attribute in !re response",
-                            ));
+                        word => {
+                            return Err(ResponseError::UnexpectedWord(format!(
+                                "Unexpected word: {}",
+                                word
+                            )));
                         }
                     }
                 }
 
-                Ok(CommandResponse::Reply(ReplyResponse {
-                    tag: tag.ok_or(ParsingError::Tag(TagError::Missing))?,
-                    attributes,
-                }))
+                let tag = tag.ok_or(ResponseError::Tag)?;
+
+                Ok(CommandResponse::Reply(ReplyResponse { tag, attributes }))
             }
-            "!trap" => {
+            ResponseType::Trap => {
                 let mut tag = None;
                 let mut category = None;
                 let mut message = None;
 
                 for word in sentence_iter {
                     let word = word?;
-                    match word.chars().next() {
-                        Some('.') => {
-                            tag = Some(parse_tag(word)?);
-                        }
-                        Some('=') => {
-                            // Attributes are in the format `=key=value`
-                            let mut attr = word.splitn(3, '=');
-                            let key = attr
-                                .nth(1)
-                                .ok_or(ParsingError::Attribute("Missing attribute key"))?;
-                            match key {
-                                "category" => {
-                                    category =
-                                        attr.next().map(TrapCategory::try_from).transpose()?
-                                }
-                                "message" => {
-                                    message = Some(
-                                        attr.next()
-                                            .ok_or(ParsingError::Attribute("Missing trap message"))?
-                                            .to_owned(),
-                                    )
-                                }
-                                _ => Err(ParsingError::Attribute(
-                                    "Unexpected attribute in !trap response",
-                                ))?,
+                    match word {
+                        Word::Tag(t) => tag = Some(t),
+                        Word::Attribute((key, value)) => match key {
+                            "category" => {
+                                category = value.map(TrapCategory::try_from).transpose()?;
                             }
-                        }
-                        _ => {
-                            return Err(ParsingError::Attribute(
-                                "Unexpected attribute in !trap response",
-                            ));
+                            "message" => {
+                                message = value.map(String::from);
+                            }
+                            key => {
+                                return Err(ResponseError::UnexpectedWord(format!(
+                                    "Expected only =message= and =category= attributes, ={}={} found",
+                                    key,
+                                    value.unwrap_or("")
+                                )));
+                            }
+                        },
+                        word => {
+                            return Err(ResponseError::UnexpectedWord(format!(
+                                "Unexpected word: {}",
+                                word
+                            )));
                         }
                     }
                 }
 
+                let tag = tag.ok_or(ResponseError::Tag)?;
+                let message = message.ok_or(ResponseError::UnexpectedWord(
+                    "The trap response is missing the =message= body".to_string(),
+                ))?;
+
                 Ok(CommandResponse::Trap(TrapResponse {
-                    tag: tag.ok_or(ParsingError::Tag(TagError::Missing))?,
+                    tag,
                     category,
-                    message: message
-                        .ok_or(ParsingError::Attribute("Missing trap message attribute"))?,
+                    message,
                 }))
             }
-            "!fatal" => {
-                let reason = sentence_iter
+            ResponseType::Fatal => {
+                let word = sentence_iter
                     .next()
-                    .ok_or(ParsingError::Attribute("Missing fatal reason"))?;
-                Ok(CommandResponse::Fatal(reason?.to_string()))
+                    .ok_or(ResponseError::Length("Missing fatal reason"))??;
+                let reason = word.generic().ok_or(ResponseError::UnexpectedWord(format!(
+                    "Expected Fatal reason, found: {}",
+                    word
+                )))?;
+
+                Ok(CommandResponse::Fatal(reason.to_string()))
             }
-            s => Err(ParsingError::Sentence(SentenceError::CategoryError(
-                SentenceCategoryError::Invalid(s.to_string()),
-            ))),
         }
     }
 }
@@ -177,7 +153,7 @@ pub struct ReplyResponse {
     /// The tag associated with the command.
     pub tag: u16,
     /// The attributes of the reply.
-    pub attributes: AttributeMap,
+    pub attributes: HashMap<String, Option<String>>,
 }
 
 /// Represents an error or warning while executing a command, including a tag and message.
@@ -229,7 +205,7 @@ impl Debug for TrapCategory {
 }
 
 impl TryFrom<u8> for TrapCategory {
-    type Error = ParsingError;
+    type Error = TrapCategoryError;
 
     fn try_from(n: u8) -> Result<Self, Self::Error> {
         match n {
@@ -241,44 +217,29 @@ impl TryFrom<u8> for TrapCategory {
             5 => Ok(TrapCategory::APIFailure),
             6 => Ok(TrapCategory::TTYFailure),
             7 => Ok(TrapCategory::ReturnValue),
-            _ => Err(ParsingError::TrapCategory(TrapCategoryError::OutOfRange)),
-        }
-    }
-}
-
-impl From<&TrapCategory> for u8 {
-    fn from(val: &TrapCategory) -> Self {
-        match val {
-            TrapCategory::MissingItemOrCommand => 0,
-            TrapCategory::ArgumentValueFailure => 1,
-            TrapCategory::CommandExecutionInterrupted => 2,
-            TrapCategory::ScriptingFailure => 3,
-            TrapCategory::GeneralFailure => 4,
-            TrapCategory::APIFailure => 5,
-            TrapCategory::TTYFailure => 6,
-            TrapCategory::ReturnValue => 7,
+            n => Err(TrapCategoryError::OutOfRange(n)),
         }
     }
 }
 
 impl TryFrom<&str> for TrapCategory {
-    type Error = ParsingError;
+    type Error = ResponseError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         let n = s
             .parse::<u8>()
-            .map_err(|e| ParsingError::TrapCategory(TrapCategoryError::Parsing(e)))?;
-        TrapCategory::try_from(n)
+            .map_err(|e| ResponseError::TrapCategory(TrapCategoryError::Invalid(e)))?;
+        TrapCategory::try_from(n).map_err(ResponseError::TrapCategory)
     }
 }
 
 impl TryFrom<Attribute> for TrapCategory {
-    type Error = ParsingError;
+    type Error = ResponseError;
 
     fn try_from(attribute: Attribute) -> Result<Self, Self::Error> {
         match attribute {
             Attribute::Value(s) => TrapCategory::try_from(s.as_str()),
-            Attribute::Empty => Err(ParsingError::TrapCategory(TrapCategoryError::Missing)),
+            Attribute::Empty => Err(ResponseError::TrapCategory(TrapCategoryError::Missing)),
         }
     }
 }
@@ -330,17 +291,23 @@ impl From<Attribute> for Option<String> {
     }
 }
 
-/// Possible errors while parsing network command responses.
+/// Possible errors while construting a [`CommandResponse`] from a [`Sentence`].
 ///
-/// This enum aids in identifying and responding to different parsing issues that can arise,
-/// such as invalid input or unexpected response formats.
+/// This enum provides more detailed information about issues that can arise while parsing
+/// command responses, such as missing tags, missing attributes, or unexpected attributes.
 #[derive(Debug)]
-pub enum ParsingError {
-    /// Error related to parsing individual `Sentence` elements.
+pub enum ResponseError {
+    /// Error related to the [`Sentence`].
     ///
     /// This variant encapsulates errors that occur due to issues in parsing a single
-    /// `Sentence` from a command response.
+    /// [`Sentence`] from the bytes.
     Sentence(SentenceError),
+    /// Error related to the length of a response.
+    ///
+    /// Indicates that the response is missing some words to be a valid response.
+    Length(&'static str),
+    /// The response is missing a tag.
+    Tag,
     /// Error related to identifying or parsing a `Trap` response category.
     ///
     /// Indicates that an invalid category was encountered during parsing,
@@ -349,13 +316,8 @@ pub enum ParsingError {
     TrapCategory(TrapCategoryError),
     /// Error involving attributes in a response.
     ///
-    /// Indicates issues related to parsing or expected presence of attributes within a response.
-    Attribute(&'static str),
-    /// Error related to parsing or missing command tags.
-    ///
-    /// Command tags are expected in most response types to correlate them with their request.
-    /// This error indicates a parsing issue or an outright missing tag.
-    Tag(TagError),
+    /// Indicates issues related to the unexpected presence of attributes within a response.
+    UnexpectedWord(String),
 }
 
 /// Errors that can occur while parsing trap categories in response sentences.
@@ -367,58 +329,14 @@ pub enum ParsingError {
 pub enum TrapCategoryError {
     /// Error indicating that a trap category is missing from the response sentence.
     Missing,
-    /// Error indicating that a trap category could not be parsed as an integer.
-    Parsing(ParseIntError),
-    /// Error indicating that a trap category is out of range. Valid categories are 0-7.
-    OutOfRange,
-}
-
-/// Errors that can occur while parsing tags in response sentences.
-///
-/// This enum provides more detailed information about issues that can arise while parsing tags,
-/// such as missing tags or errors while converting tag strings to integers.
-#[derive(Debug)]
-pub enum TagError {
-    /// Error indicating that a tag is missing from the response sentence.
-    Missing,
-    /// Error indicating that a tag could not be parsed as an integer.
+    /// Inv
     Invalid(ParseIntError),
+    /// Error indicating that a trap category is out of range. Valid categories are 0-7.
+    OutOfRange(u8),
 }
 
-/// Specific errors that can occur while processing individual sentences
-/// in a network command response.
-///
-/// Designed to provide more granular error information, particularly for issues related to
-/// converting a sequence of bytes into a UTF-8 string or the integrity of the sentence data.
-#[derive(Debug)]
-pub enum SentenceError {
-    /// Error indicating that a sequence of bytes could not be converted to a UTF-8 string.
-    ///
-    /// This could occur if the byte sequence contains invalid UTF-8 patterns, which is
-    /// possible when receiving malformed or unexpected input.
-    WordError(WordError),
-    /// Error indicating that an issue occurred due to incorrect length or format.
-    ///
-    /// This could happen if the sentence does not comply with the expected structure or
-    /// if essential parts of the sentence are missing, making it too short to parse correctly.
-    LengthError,
-    /// Error indicating that the category of the sentence is invalid.
-    /// This could happen if the sentence does not start with a recognized category.
-    /// Valid categories are `!done`, `!re`, `!trap`, and `!fatal`.
-    CategoryError(SentenceCategoryError),
-}
-
-/// Errors that can occur while parsing sentence categories.
-#[derive(Debug)]
-pub enum SentenceCategoryError {
-    /// Error indicating that the category of the sentence is missing.
-    Missing,
-    /// Error indicating that the category of the sentence is invalid.
-    Invalid(String),
-}
-
-impl From<SentenceError> for ParsingError {
+impl From<SentenceError> for ResponseError {
     fn from(e: SentenceError) -> Self {
-        ParsingError::Sentence(e)
+        ResponseError::Sentence(e)
     }
 }

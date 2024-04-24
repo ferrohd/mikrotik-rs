@@ -1,8 +1,8 @@
-use std::{marker::PhantomData, mem::size_of};
 use getrandom;
+use std::{marker::PhantomData, mem::size_of};
 
 /// Internal module for handling command responses.
-pub mod reader;
+pub mod sentence;
 /// Module with structures for command responses.
 pub mod response;
 

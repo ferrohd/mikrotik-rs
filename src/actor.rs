@@ -5,7 +5,7 @@ use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::mpsc::{self, Sender};
 
-use crate::command::reader::Sentence;
+use crate::command::sentence::Sentence;
 use crate::command::response::CommandResponse;
 use crate::command::CommandBuilder;
 
