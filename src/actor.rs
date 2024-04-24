@@ -5,16 +5,20 @@ use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::mpsc::{self, Sender};
 
-use crate::command::reader::Sentence;
+use crate::command::sentence::Sentence;
 use crate::command::response::CommandResponse;
 use crate::command::CommandBuilder;
 
-pub type ActorResult = io::Result<CommandResponse>;
+/// A command result sent back to the client.
+///
+/// The result of a command execution, which can be either a successful response or an error.
+/// The [`CommandResult`] is a type alias for [`io::Result<CommandResponse>`]
+pub type CommandResult = io::Result<CommandResponse>;
 
 pub struct ReadActorMessage {
     pub tag: u16,
     pub data: Vec<u8>,
-    pub respond_to: mpsc::Sender<ActorResult>,
+    pub respond_to: mpsc::Sender<CommandResult>,
 }
 
 pub struct DeviceConnectionActor;
@@ -36,7 +40,7 @@ impl DeviceConnectionActor {
 
         tokio::spawn({
             async move {
-                let mut running_commands = HashMap::<u16, mpsc::Sender<ActorResult>>::new();
+                let mut running_commands = HashMap::<u16, mpsc::Sender<CommandResult>>::new();
                 let mut packet_buf = Vec::<u8>::new();
 
                 while !shutdown {
@@ -163,7 +167,7 @@ async fn login(
 
 // Notify all the running commands about the error
 async fn notify_error(
-    running_commands: &mut HashMap<u16, mpsc::Sender<ActorResult>>,
+    running_commands: &mut HashMap<u16, mpsc::Sender<CommandResult>>,
     error: io::Error,
 ) {
     let kind = error.kind();

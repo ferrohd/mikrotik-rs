@@ -1,28 +1,34 @@
 # mikrotik-rs 📟
 
+![docs.rs](https://img.shields.io/docsrs/mikrotik-rs)
 ![Crates.io](https://img.shields.io/crates/v/mikrotik-rs)
 ![Crates.io License](https://img.shields.io/crates/l/mikrotik-rs)
-![docs.rs](https://img.shields.io/docsrs/mikrotik-rs)
 ![Libraries.io dependency status for latest release](https://img.shields.io/librariesio/release/cargo/mikrotik-rs)
 ![Crates.io Total Downloads](https://img.shields.io/crates/d/mikrotik-rs)
-
+![GitHub Repo stars](https://img.shields.io/github/stars/ferrohd/mikrotik-rs)
 
 This Rust library provides an asynchronous interface to interact with the [Mikrotik API](https://wiki.mikrotik.com/wiki/Manual:API).
 
 ## Features 🌟
 
-- **Asynchronous** 🕒: Built on top of the Tokio runtime, this library offers non-blocking I/O operations.
-- **Actor Pattern** 🎭: Implements an actor pattern for robust and organized handling of command execution and response retrieval.
+- **No Unsafe Code** 🛑: Built entirely in safe Rust, ensuring that your application is secure and free from memory-related vulnerabilities.
 - **Concurrent Commands** 🚦: Supports running multiple Mikrotik commands concurrently, with each command and its response efficiently managed via dedicated channels.
+- **Asynchronous** 🕒: Built on top of the Tokio runtime, this library offers non-blocking I/O operations.
 - **Error Handling** ⚠️: Designed with error handling in mind, ensuring that network or parsing errors are gracefully handled and reported back to the caller.
 
 ## Getting Started 🚀
 
-To use this library in your project, first, add it to your `Cargo.toml`:
+To use this library in your project, run the following command in your project's directory:
+
+```bash
+cargo add mikrotik-rs
+```
+
+Alternatively, you can add the library to your `Cargo.toml` file manually:
 
 ```toml
 [dependencies]
-mikrotik-rust-async = "0.1.0"
+mikrotik-rs = "0.2.0"
 tokio = { version = "1", features = ["full"] }
 ```
 

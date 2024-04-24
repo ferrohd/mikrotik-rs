@@ -1,20 +1,21 @@
-use std::{marker::PhantomData, mem::size_of};
 use getrandom;
+use std::{marker::PhantomData, mem::size_of};
 
 /// Internal module for handling command responses.
-pub mod reader;
+pub mod sentence;
 /// Module with structures for command responses.
 pub mod response;
 
-/// Represents an empty command. Used as a marker in `CommandBuilder`.
+/// Represents an empty command. Used as a marker in [`CommandBuilder`].
 pub struct NoCmd;
 
 /// Represents a command that has at least one operation (e.g., a login or a query).
+/// Used as a marker in [`CommandBuilder`].
 #[derive(Clone)]
 pub struct Cmd;
 
-/// `CommandBuilder` is used to construct commands to be sent to MikroTik routers.
-/// It transitions from `NoCmd` state to `Cmd` state as parts of the command
+/// [`CommandBuilder`] is used to construct commands to be sent to MikroTik routers.
+/// It transitions from [`NoCmd`] state to [`Cmd`] state as parts of the command
 /// are being specified. This enforces at compile time that only complete commands can be built.
 #[derive(Clone)]
 pub struct CommandBuilder<Cmd> {
@@ -30,13 +31,7 @@ impl Default for CommandBuilder<NoCmd> {
 }
 
 impl CommandBuilder<NoCmd> {
-    /// Creates a new command builder instance with a randomly generated tag.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let builder = CommandBuilder::<NoCmd>::new();
-    /// ```
+    /// Begin building a new [`Command`] with a randomly generated tag.
     pub fn new() -> Self {
         let mut dest = [0_u8; size_of::<u16>()];
         getrandom::getrandom(&mut dest).expect("Failed to generate random tag");
@@ -46,7 +41,7 @@ impl CommandBuilder<NoCmd> {
             state: PhantomData,
         }
     }
-    /// Creates a new command builder instance with the specified tag.
+    /// Begin building a new [`Command`] with a specified tag.
     ///
     /// # Arguments
     ///
@@ -55,7 +50,7 @@ impl CommandBuilder<NoCmd> {
     /// # Examples
     ///
     /// ```rust
-    /// let builder = CommandBuilder::<NoCmd>::with_tag(1234);
+    /// let builder = CommandBuilder::with_tag(1234);
     /// ```
     pub fn with_tag(tag: u16) -> Self {
         Self {
@@ -168,7 +163,7 @@ impl CommandBuilder<Cmd> {
         }
     }
 
-    /// Finalizes the command construction process, producing a `Command`.
+    /// Finalizes the command construction process, producing a [`Command`].
     ///
     /// # Returns
     ///
@@ -182,6 +177,16 @@ impl CommandBuilder<Cmd> {
 }
 
 /// Represents a final command, complete with a tag and data, ready to be sent to the router.
+/// To create a [`Command`], use a [`CommandBuilder`].
+///
+/// - `tag` is used to identify the command and correlate with its [`response::CommandResponse`]s when it is received.
+/// - `data` contains the command itself, which is a sequence of bytes, null-terminated.
+///
+/// # Examples
+///
+/// ```rust
+/// let cmd = CommandBuilder::new().command("/interface/print").build();
+/// ```
 #[derive(Debug)]
 pub struct Command {
     /// The tag of the command.
