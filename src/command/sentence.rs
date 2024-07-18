@@ -15,6 +15,7 @@ use std::{
 ///
 /// More details about the protocol can be found in the Mikrotik Wiki:
 /// [Mikrotik API Protocol](https://wiki.mikrotik.com/wiki/Manual:API#Protocol)
+#[derive(Debug)]
 pub struct Sentence<'a> {
     data: &'a [u8],
     position: usize,
@@ -97,7 +98,7 @@ impl<'a> Iterator for Sentence<'a> {
 /// Specific errors that can occur while processing a byte sequence into a [`Sentence`].
 ///
 /// Provides information about issues related to converting a sequence of bytes into a [`Sentence`].
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SentenceError {
     /// Error indicating that a sequence of bytes could not be converted to a [`Word`].
     ///
@@ -132,6 +133,7 @@ pub enum SentenceError {
 /// let word = Word::try_from(b"=name=ether1");
 /// assert_eq!(word.unwrap().attribute(), Some(("name", Some("ether1"))));
 /// ```
+#[derive(Debug, PartialEq)]
 pub enum Word<'a> {
     /// A category word, such as `!done`, `!re`, `!trap`, or `!fatal`.
     Category(ResponseType),
@@ -248,7 +250,7 @@ impl Display for ResponseType {
 }
 
 /// Represents an error that occurred while parsing a [`Word`].
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum WordError {
     /// The word is not a valid UTF-8 string.
     Utf8(Utf8Error),
@@ -313,5 +315,244 @@ fn read_length(data: &[u8]) -> Result<(u32, usize), SentenceError> {
         return Ok((c, 5));
     } else {
         Err(SentenceError::LengthError)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_word_parsing() {
+        // Test cases for `Word::try_from` function
+        assert_eq!(
+            Word::try_from(b"!done".as_ref()).unwrap(),
+            Word::Category(ResponseType::Done)
+        );
+
+        assert_eq!(
+            Word::try_from(b".tag=123".as_ref()).unwrap(),
+            Word::Tag(123)
+        );
+
+        assert_eq!(
+            Word::try_from(b"=name=ether1".as_ref()).unwrap(),
+            Word::Attribute(("name", Some("ether1")))
+        );
+
+        assert_eq!(
+            Word::try_from(b"!fatal".as_ref()).unwrap(),
+            Word::Category(ResponseType::Fatal)
+        );
+
+        assert_eq!(
+            Word::try_from(b"unknownword".as_ref()).unwrap(),
+            Word::Generic("unknownword")
+        );
+
+        // Invalid tag value
+        assert!(Word::try_from(b".tag=notanumber".as_ref()).is_err());
+
+        // Invalid UTF-8 sequence
+        assert!(Word::try_from(b"\xFF\xFF".as_ref()).is_err());
+    }
+
+    #[test]
+    fn test_display_for_word() {
+        // Test cases for `Display` implementation for `Word`
+        let word = Word::Category(ResponseType::Done);
+        assert_eq!(format!("{}", word), "!done");
+
+        let word = Word::Tag(123);
+        assert_eq!(format!("{}", word), ".tag=123");
+
+        let word = Word::Attribute(("name", Some("ether1")));
+        assert_eq!(format!("{}", word), "=name=ether1");
+
+        let word = Word::Generic("unknownword");
+        assert_eq!(format!("{}", word), "unknownword");
+    }
+
+    #[test]
+    fn test_sentence_iterator() {
+        let data: &[u8] = &[
+            0x05, b'!', b'd', b'o', b'n', b'e', // Word: !done
+            0x08, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
+            0x0C, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r',
+            b'1', // Word: =name=ether1
+            0x00, // End of sentence
+        ];
+
+        let mut sentence = Sentence::new(data);
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Category(ResponseType::Done)
+        );
+
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(123));
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Attribute(("name", Some("ether1")))
+        );
+
+        assert_eq!(sentence.next(), None);
+    }
+
+    #[test]
+    fn test_sentence_category_error() {
+        // Test case where the first word is not a category
+        let data: &[u8] = &[
+            0x0A, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
+            0x0D, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r',
+            b'1', // Word: =name=ether1
+        ];
+
+        let mut sentence = Sentence::new(data);
+
+        assert!(sentence.next().unwrap().is_err());
+    }
+
+    #[test]
+    fn test_sentence_length_error() {
+        // Test case where length is invalid
+        let data: &[u8] = &[
+            0xF8, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Invalid length prefix
+        ];
+
+        let mut sentence = Sentence::new(data);
+
+        assert!(sentence.next().unwrap().is_err());
+    }
+
+    #[test]
+    fn test_complete_sentence_parsing() {
+        let data: &[u8] = &[
+            0x05, b'!', b'd', b'o', b'n', b'e', // Word: !done
+            0x08, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
+            0x0C, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r', b'1', // Word: =name=ether1
+            0x00, // End of sentence
+        ];
+
+        let mut sentence = Sentence::new(data);
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Category(ResponseType::Done)
+        );
+
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(123));
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Attribute(("name", Some("ether1")))
+        );
+
+        assert_eq!(sentence.next(), None);
+    }
+
+    #[test]
+    fn test_sentence_with_invalid_length() {
+        let data: &[u8] = &[
+            0xF8, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Invalid length prefix
+        ];
+
+        let mut sentence = Sentence::new(data);
+
+        assert!(sentence.next().unwrap().is_err());
+    }
+
+    #[test]
+    fn test_sentence_without_category() {
+        let data: &[u8] = &[
+            0x0A, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
+            0x0D, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r',
+            b'1', // Word: =name=ether1
+        ];
+
+        let mut sentence = Sentence::new(data);
+
+        assert!(sentence.next().unwrap().is_err());
+    }
+
+    #[test]
+    fn test_mixed_words_sentence() {
+        let data: &[u8] = &[
+            0x03, b'!', b'r', b'e', // Word: !re
+            0x04, b'=', b'a', b'=', b'b', // Word: =a=b
+            0x08, b'.', b't', b'a', b'g', b'=', b'4', b'5', b'6', // Word: .tag=456
+            0x00, // End of sentence
+        ];
+
+        let mut sentence = Sentence::new(data);
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Category(ResponseType::Reply)
+        );
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Attribute(("a", Some("b")))
+        );
+
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(456));
+
+        assert_eq!(sentence.next(), None);
+    }
+
+    #[test]
+    fn test_sentence_with_fatal_message() {
+        let data: &[u8] = &[
+            0x06, b'!', b'f', b'a', b't', b'a', b'l',
+            0x0B,  b's', b'e', b'r', b'v', b'e', b'r', b' ', b'd', b'o', b'w', b'n', // Word: !fatal server down
+            0x00, // End of sentence
+        ];
+
+        let mut sentence = Sentence::new(data);
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Category(ResponseType::Fatal)
+        );
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Generic("server down")
+        );
+
+        assert_eq!(sentence.next(), None);
+    }
+
+    #[test]
+    fn test_complete_sentence_with_extra_data() {
+        let data: &[u8] = &[
+            0x05, b'!', b'd', b'o', b'n', b'e', // Word: !done
+            0x08, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
+            0x0C, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r',
+            b'1', // Word: =name=ether1
+            0x00, // End of sentence
+            0x07, b'!', b'd', b'o', b'n', b'e', // Extra data: !done
+        ];
+
+        let mut sentence = Sentence::new(data);
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Category(ResponseType::Done)
+        );
+
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(123));
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Attribute(("name", Some("ether1")))
+        );
+
+        assert_eq!(sentence.next(), None);
+
+        // Confirm that extra data is ignored after the end of the sentence
+        assert_eq!(sentence.next(), None);
     }
 }

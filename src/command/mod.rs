@@ -285,3 +285,120 @@ impl std::fmt::Display for QueryOperator {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str;
+
+    #[test]
+    fn test_command_builder_new() {
+        let builder = CommandBuilder::<NoCmd>::new();
+        assert_eq!(builder.cmd.0.len(), 0);
+        assert!(builder.tag != 0); // Ensure that random tag is generated
+    }
+
+    #[test]
+    fn test_command_builder_with_tag() {
+        let tag = 1234;
+        let builder = CommandBuilder::<NoCmd>::with_tag(tag);
+        assert_eq!(builder.tag, tag);
+    }
+
+    #[test]
+    fn test_command_builder_command() {
+        let builder = CommandBuilder::<NoCmd>::with_tag(1234).command("/interface/print");
+        println!("{:?}", builder.cmd.0);
+        assert_eq!(builder.cmd.0.len(), 27);
+        assert_eq!(builder.cmd.0[1..17], b"/interface/print"[..]);
+        assert_eq!(builder.cmd.0[18..27], b".tag=1234"[..]);
+    }
+
+    #[test]
+    fn test_command_builder_attribute() {
+        let builder = CommandBuilder::<NoCmd>::with_tag(1234)
+            .command("/interface/print")
+            .attribute("name", Some("ether1"));
+
+        assert_eq!(
+            builder.cmd.0[28..40],
+            b"=name=ether1"[..]
+        );
+    }
+
+    //#[test]
+    //fn test_command_builder_build() {
+    //    let command = CommandBuilder::<NoCmd>::with_tag(1234)
+    //        .command("/interface/print")
+    //        .attribute("name", Some("ether1"))
+    //        .attribute("disabled", None)
+    //        .build();
+//
+    //    let expected_data: &[u8] = [
+    //        b"\x10/interface/print",
+    //        b"\x09.tag=1234",
+    //        b"\x0C=name=ether1",
+    //        b"\x0A=disabled=",
+    //        b"\x00",
+    //    ].concat();
+//
+    //    assert_eq!(command.data, expected_data);
+    //}
+
+    #[test]
+    fn test_command_builder_login() {
+        let command = CommandBuilder::<NoCmd>::login("admin", Some("password"));
+
+        assert!(str::from_utf8(&command.data).unwrap().contains("/login"));
+        assert!(str::from_utf8(&command.data).unwrap().contains("name=admin"));
+        assert!(str::from_utf8(&command.data).unwrap().contains("password=password"));
+    }
+
+    #[test]
+    fn test_command_builder_cancel() {
+        let command = CommandBuilder::<NoCmd>::cancel(1234);
+
+        assert!(str::from_utf8(&command.data).unwrap().contains("/cancel"));
+        assert!(str::from_utf8(&command.data).unwrap().contains("tag=1234"));
+    }
+
+    #[test]
+    fn test_command_buffer_write_len() {
+        let mut buffer = CommandBuffer::default();
+
+        buffer.write_len(0x7F);
+        assert_eq!(buffer.0, vec![0x7F]);
+
+        buffer.0.clear();
+        buffer.write_len(0x80);
+        assert_eq!(buffer.0, vec![0x80, 0x80]);
+
+        buffer.0.clear();
+        buffer.write_len(0x4000);
+        assert_eq!(buffer.0, vec![0xC0, 0x40, 0x00]);
+
+        buffer.0.clear();
+        buffer.write_len(0x200000);
+        assert_eq!(buffer.0, vec![0xE0, 0x20, 0x00, 0x00]);
+
+        buffer.0.clear();
+        buffer.write_len(0x10000000);
+        assert_eq!(buffer.0, vec![0xF0, 0x10, 0x00, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn test_command_buffer_write_word() {
+        let mut buffer = CommandBuffer::default();
+        buffer.write_word(b"test");
+        assert_eq!(buffer.0, vec![0x04, b't', b'e', b's', b't']);
+    }
+
+    #[test]
+    fn test_query_operator_to_string() {
+        assert_eq!(QueryOperator::Not.to_string(), "!");
+        assert_eq!(QueryOperator::And.to_string(), "&");
+        assert_eq!(QueryOperator::Or.to_string(), "|");
+        assert_eq!(QueryOperator::Dot.to_string(), ".");
+    }
+}
