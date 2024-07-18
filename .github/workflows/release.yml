@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: clippy
     permissions:
-        contents: read
+        contents: write
         packages: write
     steps:
       - name: 🛒 Checkout Repository
