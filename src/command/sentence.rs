@@ -431,7 +431,8 @@ mod tests {
         let data: &[u8] = &[
             0x05, b'!', b'd', b'o', b'n', b'e', // Word: !done
             0x08, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
-            0x0C, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r', b'1', // Word: =name=ether1
+            0x0C, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r',
+            b'1', // Word: =name=ether1
             0x00, // End of sentence
         ];
 
@@ -505,8 +506,8 @@ mod tests {
     #[test]
     fn test_sentence_with_fatal_message() {
         let data: &[u8] = &[
-            0x06, b'!', b'f', b'a', b't', b'a', b'l',
-            0x0B,  b's', b'e', b'r', b'v', b'e', b'r', b' ', b'd', b'o', b'w', b'n', // Word: !fatal server down
+            0x06, b'!', b'f', b'a', b't', b'a', b'l', 0x0B, b's', b'e', b'r', b'v', b'e', b'r',
+            b' ', b'd', b'o', b'w', b'n', // Word: !fatal server down
             0x00, // End of sentence
         ];
 

@@ -1,10 +1,10 @@
 use getrandom;
 use std::{marker::PhantomData, mem::size_of};
 
-/// Internal module for handling command responses.
-pub mod sentence;
 /// Module with structures for command responses.
 pub mod response;
+/// Internal module for handling command responses.
+pub mod sentence;
 
 /// Represents an empty command. Used as a marker in [`CommandBuilder`].
 pub struct NoCmd;
@@ -286,7 +286,6 @@ impl std::fmt::Display for QueryOperator {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,10 +320,7 @@ mod tests {
             .command("/interface/print")
             .attribute("name", Some("ether1"));
 
-        assert_eq!(
-            builder.cmd.0[28..40],
-            b"=name=ether1"[..]
-        );
+        assert_eq!(builder.cmd.0[28..40], b"=name=ether1"[..]);
     }
 
     //#[test]
@@ -334,7 +330,7 @@ mod tests {
     //        .attribute("name", Some("ether1"))
     //        .attribute("disabled", None)
     //        .build();
-//
+    //
     //    let expected_data: &[u8] = [
     //        b"\x10/interface/print",
     //        b"\x09.tag=1234",
@@ -342,7 +338,7 @@ mod tests {
     //        b"\x0A=disabled=",
     //        b"\x00",
     //    ].concat();
-//
+    //
     //    assert_eq!(command.data, expected_data);
     //}
 
@@ -351,8 +347,12 @@ mod tests {
         let command = CommandBuilder::<NoCmd>::login("admin", Some("password"));
 
         assert!(str::from_utf8(&command.data).unwrap().contains("/login"));
-        assert!(str::from_utf8(&command.data).unwrap().contains("name=admin"));
-        assert!(str::from_utf8(&command.data).unwrap().contains("password=password"));
+        assert!(str::from_utf8(&command.data)
+            .unwrap()
+            .contains("name=admin"));
+        assert!(str::from_utf8(&command.data)
+            .unwrap()
+            .contains("password=password"));
     }
 
     #[test]
