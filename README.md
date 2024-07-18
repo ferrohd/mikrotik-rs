@@ -11,9 +11,9 @@ This Rust library provides an asynchronous interface to interact with the [Mikro
 
 ## Features 🌟
 
-- **No Unsafe Code** 🛑: Built entirely in safe Rust, ensuring that your application is secure and free from memory-related vulnerabilities.
-- **Concurrent Commands** 🚦: Supports running multiple Mikrotik commands concurrently, with each command and its response efficiently managed via dedicated channels.
-- **Asynchronous** 🕒: Built on top of the Tokio runtime, this library offers non-blocking I/O operations.
+- **No Unsafe Code** 💥: Built entirely in safe Rust 🦀
+- **Zero-copy Parsing**: Avoid unnecessary memory allocations by parsing the API responses in-place.
+- **Concurrent Commands** 🚦: Supports running multiple Mikrotik commands concurrently, with each command and its response managed via dedicated channels.
 - **Error Handling** ⚠️: Designed with error handling in mind, ensuring that network or parsing errors are gracefully handled and reported back to the caller.
 
 ## Getting Started 🚀
@@ -28,7 +28,7 @@ Alternatively, you can add the library to your `Cargo.toml` file manually:
 
 ```toml
 [dependencies]
-mikrotik-rs = "0.2.0"
+mikrotik-rs = "0.3.0"
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -46,12 +46,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let device = MikrotikDevice::connect("192.168.122.144:8728", "admin", Some("admin")).await?;
 
     // Execute a command 📝
-    let get_system_res = CommandBuilder::new()
+    let system_resource_cmd = CommandBuilder::new()
         .command("/system/resource/print")
         // Send the update response every 1 second
         .attribute("interval", Some("1"))
         .build();
-    let response_channel = device.send_command(get_system_res).await;
+
+    // Send the command to the device 📡
+    // Returns a channel to listen for the command's response(s)
+    let response_channel = device.send_command(system_resource_cmd).await;
 
     // Listen for the command's response 🔊
     while let Some(res) = response_channel.recv().await {
@@ -68,7 +71,7 @@ For more detailed information on the library's API, please refer to the [documen
 
 ## Contributing 🤝
 
-Contributions are welcome! Whether it's submitting a bug report 🐛, a feature request 💡, or a pull request 🔄, all contributions help improve this library. Before contributing, please read through the [CONTRIBUTING.md](CONTRIBUTING.md) file (if available) for guidelines.
+Contributions are welcome! Whether it's submitting a bug report 🐛, a feature request 💡, or a pull request 🔄, all contributions help improve this library. Before contributing, please read through the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines.
 
 ## License 📝
 
