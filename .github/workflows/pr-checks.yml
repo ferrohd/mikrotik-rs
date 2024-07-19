@@ -41,7 +41,7 @@ jobs:
                 cargo clippy --
 
     build:
-        name: 🔨 Build
+        name: 🔨 Build Library
         needs: toolchain
         runs-on: ubuntu-latest
         steps:
@@ -51,6 +51,18 @@ jobs:
             - name: 🔨 Build
               run: |
                 cargo build
+
+    build_examples:
+        name: 🧩 Build Examples
+        needs: build
+        runs-on: ubuntu-latest
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v4
+
+            - name: 🧩 Build Examples
+              run: |
+                cargo build --examples
 
     test:
         name: 🧪 Test
