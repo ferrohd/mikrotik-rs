@@ -28,7 +28,7 @@ Alternatively, you can add the library to your `Cargo.toml` file manually:
 
 ```toml
 [dependencies]
-mikrotik-rs = "0.3.0"
+mikrotik-rs = "0.3.1"
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -37,7 +37,7 @@ Ensure you have Tokio set up in your project as the library relies on the Tokio 
 ### Basic Usage 📖
 
 ```rust
-use mikrotik_rs::{command::CommandBuilder, device::MikrotikDevice};
+use mikrotik_rs::{command::CommandBuilder, MikrotikDevice};
 use tokio;
 
 #[tokio::main]
