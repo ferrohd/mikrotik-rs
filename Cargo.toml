@@ -1,6 +1,6 @@
 [package]
 name = "mikrotik-rs"
-version = "0.3.1"
+version = "0.3.2"
 description = "Asynchronous Rust library for interfacing with MikroTik routers"
 keywords = ["mikrotik", "router", "api", "async", "tokio"]
 categories = ["api-bindings", "asynchronous", "network-programming", "embedded"]
