@@ -74,9 +74,12 @@ impl DeviceConnectionActor {
                                 shutdown = true;
                             },
                             Ok(_) => {
-                                // The las byte of the packet is 0, the packet is complete
-                                if packet_buf.last() == Some(&0b0) {
-                                    let sentence = Sentence::new(&packet_buf);
+
+                                // Read all null-terminated packets from the buffer
+                                while let Some(null_byte_pos) = packet_buf.iter().position(|&x| x == 0) {
+                                    let packet: Vec<_> = packet_buf.drain(0..=null_byte_pos).collect();
+
+                                    let sentence = Sentence::new(&packet);
                                     match CommandResponse::try_from(sentence) {
                                         Ok(response) => match response {
                                             CommandResponse::Done(done) => {
@@ -118,8 +121,6 @@ impl DeviceConnectionActor {
                                             println!("Error parsing response: {:?}", e);
                                         }
                                     };
-                                    // Reset the packet buffer for the next read
-                                    packet_buf.clear();
                                 }
                             },
                             Err(e) => {
