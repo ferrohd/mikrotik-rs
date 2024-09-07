@@ -158,12 +158,26 @@ async fn login(
         .await
         .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to send login command"))?;
 
-    login_response_rx.recv().await.ok_or(io::Error::new(
+
+    match login_response_rx.recv().await.ok_or(io::Error::new(
         io::ErrorKind::Other,
         "Failed to receive login response",
-    ))??;
+    ))?? {
+        CommandResponse::Done(_) => Ok(()),
+        CommandResponse::Trap(trap) => {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Login failed: {:?}", trap),
+            ))
+        },
+        response => {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Unexpected response: {:?}", response),
+            ))
+        }
+    }
 
-    Ok(())
 }
 
 // Notify all the running commands about the error
