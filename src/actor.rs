@@ -36,6 +36,7 @@ impl DeviceConnectionActor {
 
         let (mut tcp_rx, mut tcp_tx) = stream.into_split();
 
+        let mut command_channel_open = true;
         let mut shutdown = false;
 
         tokio::spawn({
@@ -43,7 +44,9 @@ impl DeviceConnectionActor {
                 let mut running_commands = HashMap::<u16, mpsc::Sender<CommandResult>>::new();
                 let mut packet_buf = Vec::<u8>::new();
 
-                while !shutdown {
+                // Close the connection if a fatal error occurs or the TCP connection is closed (shutdown)
+                // Keep the connection open while the command channel is open or there are running commands
+                while !shutdown && (command_channel_open || running_commands.len() > 0) {
                     tokio::select! {
                         biased;
                         // Send commands to the device
@@ -64,7 +67,7 @@ impl DeviceConnectionActor {
                             }
                             None => {
                                 // The command channel is closed, we won't receive more commands
-                                shutdown = true;
+                                command_channel_open = false;
                             }
                         },
                         // Read responses from the device
