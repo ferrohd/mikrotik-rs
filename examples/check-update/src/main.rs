@@ -1,7 +1,6 @@
 use mikrotik_rs::{command::CommandBuilder, MikrotikDevice};
 
-// Using the current_thread flavor because multiple threads are not needed for this example
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() {
     let device = MikrotikDevice::connect("192.168.122.144:8728", "admin", Some("admin"))
         .await

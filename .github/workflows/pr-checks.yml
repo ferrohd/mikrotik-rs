@@ -38,7 +38,7 @@ jobs:
 
             - name: 📎 Clippy
               run: |
-                cargo clippy --
+                cargo clippy --all -- -D warnings
 
     build:
         name: 🔨 Build Library
@@ -51,18 +51,6 @@ jobs:
             - name: 🔨 Build
               run: |
                 cargo build
-
-    build_examples:
-        name: 🧩 Build Examples
-        needs: build
-        runs-on: ubuntu-latest
-        steps:
-            - name: 🛒 Checkout
-              uses: actions/checkout@v4
-
-            - name: 🧩 Build Examples
-              run: |
-                cargo build --examples
 
     test:
         name: 🧪 Test

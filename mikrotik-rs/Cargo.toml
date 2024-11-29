@@ -1,0 +1,29 @@
+[package]
+name = "mikrotik-rs"
+version = "0.3.3"
+description = "Asynchronous Rust library for interfacing with MikroTik routers"
+keywords = ["mikrotik", "router", "api", "async", "tokio"]
+categories = ["api-bindings", "asynchronous", "network-programming", "embedded"]
+readme = "README.md"
+publish = true
+edition = "2021"
+authors = ["Alessandro Ferrara"]
+license = "MIT"
+repository = "https://github.com/ferrohd/mikrotik-rs"
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+getrandom = { version = "0.2.12", default-features = false, features = ["std"] }
+tokio = { version = "1.36.0", features = [
+    "net",
+    "sync",
+    "signal",
+    "rt",
+    "macros",
+    "io-util",
+] }
