@@ -46,7 +46,7 @@ impl DeviceConnectionActor {
 
                 // Close the connection if a fatal error occurs or the TCP connection is closed (shutdown)
                 // Keep the connection open while the command channel is open or there are running commands
-                while !shutdown && (command_channel_open || running_commands.len() > 0) {
+                while !shutdown && (command_channel_open || running_commands.is_empty()) {
                     tokio::select! {
                         biased;
                         // Send commands to the device
