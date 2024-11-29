@@ -28,7 +28,7 @@ Alternatively, you can add the library to your `Cargo.toml` file manually:
 
 ```toml
 [dependencies]
-mikrotik-rs = "0.3.1"
+mikrotik-rs = "0.3.3"
 tokio = { version = "1", features = ["full"] }
 ```
 
