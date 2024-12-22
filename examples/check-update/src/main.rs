@@ -1,4 +1,4 @@
-use mikrotik_rs::{command::CommandBuilder, MikrotikDevice};
+use mikrotik_rs::{protocol::command::CommandBuilder, MikrotikDevice};
 
 #[tokio::main]
 async fn main() {
