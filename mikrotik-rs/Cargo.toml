@@ -1,9 +1,9 @@
 [package]
 name = "mikrotik-rs"
-version = "0.3.3"
+version = "0.4.0"
 description = "Asynchronous Rust library for interfacing with MikroTik routers"
 keywords = ["mikrotik", "router", "api", "async", "tokio"]
-categories = ["api-bindings", "asynchronous", "network-programming", "embedded"]
+categories = ["api-bindings", "asynchronous", "network-programming"]
 readme = "../README.md"
 publish = true
 edition = "2021"

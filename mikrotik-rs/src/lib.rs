@@ -50,9 +50,11 @@
 //!
 //! This library requires the `tokio` runtime.
 mod actor;
-/// Command module for building and sending commands to MikroTik routers.
-pub mod command;
 /// Device module for connecting to MikroTik routers and sending commands.
 mod device;
+/// Error module for handling errors during device operations.
+pub mod error;
+/// Protocol module for handling MikroTik API communication.
+pub mod protocol;
 
 pub use device::MikrotikDevice;

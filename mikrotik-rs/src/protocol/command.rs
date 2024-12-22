@@ -1,22 +1,24 @@
 use getrandom;
 use std::{marker::PhantomData, mem::size_of};
 
-/// Module with structures for command responses.
-pub mod response;
-/// Internal module for handling command responses.
-pub mod sentence;
-
 /// Represents an empty command. Used as a marker in [`CommandBuilder`].
 pub struct NoCmd;
-
 /// Represents a command that has at least one operation (e.g., a login or a query).
 /// Used as a marker in [`CommandBuilder`].
 #[derive(Clone)]
 pub struct Cmd;
 
-/// [`CommandBuilder`] is used to construct commands to be sent to MikroTik routers.
-/// It transitions from [`NoCmd`] state to [`Cmd`] state as parts of the command
-/// are being specified. This enforces at compile time that only complete commands can be built.
+/// Builds MikroTik router commands using a fluid API.
+///
+/// Ensures that only commands with at least one operation can be built and sent.
+///
+/// # Examples
+/// ```rust
+/// let cmd = CommandBuilder::new()
+///     .command("/system/resource/print")
+///     .attribute("detail", None)
+///     .build();
+/// ```
 #[derive(Clone)]
 pub struct CommandBuilder<Cmd> {
     tag: u16,
@@ -45,7 +47,7 @@ impl CommandBuilder<NoCmd> {
     ///
     /// # Arguments
     ///
-    /// * `tag` - A `u16` tag value that uniquely identifies the command. **Must be unique**.
+    /// * `tag` - A `u16` tag value that identifies the command for RouterOS correlation. **Must be unique**.
     ///
     /// # Examples
     ///
@@ -105,10 +107,8 @@ impl CommandBuilder<NoCmd> {
             .attribute("tag", Some(tag.to_string().as_str()))
             .build()
     }
-}
 
-impl CommandBuilder<NoCmd> {
-    /// Transitions the builder to the `Cmd` state by specifying the command to be executed.
+    /// Specify the command to be executed.
     ///
     /// # Arguments
     ///
@@ -116,7 +116,7 @@ impl CommandBuilder<NoCmd> {
     ///
     /// # Returns
     ///
-    /// The builder transitioned to the `Cmd` state for further configuration.
+    /// The builder transitioned to the `Cmd` state for attributes configuration.
     pub fn command(self, command: &str) -> CommandBuilder<Cmd> {
         let Self { tag, mut cmd, .. } = self;
         // FIX: This allocation should be avoided
@@ -139,12 +139,12 @@ impl CommandBuilder<Cmd> {
     /// # Arguments
     ///
     /// * `key` - The attribute's key.
-    /// * `value` - The attribute's value, which is optional. If `None`, the attribute is treated as a flag.
+    /// * `value` - The attribute's value, which is optional. If `None`, the attribute is treated as a flag (e.g., `=key=`).
     ///
     /// # Returns
     ///
     /// The builder with the attribute added, allowing for method chaining.
-    pub fn attribute(self, key: &str, value: Option<&str>) -> CommandBuilder<Cmd> {
+    pub fn attribute(self, key: &str, value: Option<&str>) -> Self {
         let Self { tag, mut cmd, .. } = self;
         match value {
             Some(v) => {
@@ -170,7 +170,7 @@ impl CommandBuilder<Cmd> {
     /// A `Command` instance ready for execution.
     pub fn build(self) -> Command {
         let Self { tag, mut cmd, .. } = self;
-        // Terminating the command
+        // Terminate the command
         cmd.write_len(0);
         Command { tag, data: cmd.0 }
     }
@@ -197,7 +197,6 @@ pub struct Command {
 
 #[derive(Default, Clone)]
 struct CommandBuffer(Vec<u8>);
-
 impl CommandBuffer {
     fn write_str(&mut self, str_buff: &[u8]) {
         self.0.extend_from_slice(str_buff);
@@ -238,6 +237,32 @@ impl CommandBuffer {
     }
 }
 
+/// A macro for quickly building commands.
+///
+/// ```rust
+/// // Macro usage examples:
+/// let no_attrs_cmd = command!("/system/resource/print");
+/// let with_attrs_cmd = command!("/login", name="admin", password="secret");
+/// ```
+#[macro_export]
+macro_rules! command {
+    // Case: only a command string
+    ($cmd:expr) => {{
+        $crate::CommandBuilder::new()
+            .command($cmd)
+            .build()
+    }};
+    // Case: command string plus one or more attributes
+    ($cmd:expr, $($key:ident = $value:expr),+ $(,)?) => {{
+        let mut builder = $crate::CommandBuilder::new().command($cmd);
+        $(
+            builder = builder.attribute(stringify!($key), Some($value));
+        )+
+        builder.build()
+    }};
+}
+
+// Add these when implementing query building
 //   pub fn query_is_present(&mut self, key: &str) {
 //        let query = format!("?{key}");
 //        self.write_word(query.as_str());
@@ -263,28 +288,28 @@ impl CommandBuffer {
 //        self.write_word(query.as_str());
 //    }
 
-/// Represents a query operator. WIP.
-pub enum QueryOperator {
-    /// Represents the `!` operator.
-    Not,
-    /// Represents the `&` operator.
-    And,
-    /// Represents the `|` operator.
-    Or,
-    /// Represents the `.` operator.
-    Dot,
-}
-
-impl std::fmt::Display for QueryOperator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            QueryOperator::Not => write!(f, "!"),
-            QueryOperator::And => write!(f, "&"),
-            QueryOperator::Or => write!(f, "|"),
-            QueryOperator::Dot => write!(f, "."),
-        }
-    }
-}
+// Represents a query operator. WIP.
+//pub enum QueryOperator {
+    // Represents the `!` operator.
+//    Not,
+    // Represents the `&` operator.
+//    And,
+    // Represents the `|` operator.
+//    Or,
+    // Represents the `.` operator.
+//    Dot,
+//}
+//
+//impl std::fmt::Display for QueryOperator {
+//    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//        match self {
+//            QueryOperator::Not => write!(f, "!"),
+//            QueryOperator::And => write!(f, "&"),
+//            QueryOperator::Or => write!(f, "|"),
+//            QueryOperator::Dot => write!(f, "."),
+//        }
+//    }
+//}
 
 #[cfg(test)]
 mod tests {
@@ -394,11 +419,11 @@ mod tests {
         assert_eq!(buffer.0, vec![0x04, b't', b'e', b's', b't']);
     }
 
-    #[test]
-    fn test_query_operator_to_string() {
-        assert_eq!(QueryOperator::Not.to_string(), "!");
-        assert_eq!(QueryOperator::And.to_string(), "&");
-        assert_eq!(QueryOperator::Or.to_string(), "|");
-        assert_eq!(QueryOperator::Dot.to_string(), ".");
-    }
+    //#[test]
+    //fn test_query_operator_to_string() {
+    //    assert_eq!(QueryOperator::Not.to_string(), "!");
+    //    assert_eq!(QueryOperator::And.to_string(), "&");
+    //    assert_eq!(QueryOperator::Or.to_string(), "|");
+    //    assert_eq!(QueryOperator::Dot.to_string(), ".");
+    //}
 }
