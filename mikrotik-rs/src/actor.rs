@@ -35,8 +35,6 @@ impl DeviceConnectionActor {
         // Split for independent read/write
         let (mut tcp_rx, mut tcp_tx) = stream.into_split();
 
-        // These flags manage the main loop’s state
-        let mut command_channel_open = true;
         let mut shutdown = false;
 
         // Spawn the main loop
@@ -45,7 +43,7 @@ impl DeviceConnectionActor {
             let mut packet_buf = Vec::new();
 
             // Loop until forced to shutdown or no active commands left
-            while !shutdown && (command_channel_open || !running_commands.is_empty()) {
+            while !shutdown {
                 tokio::select! {
                     // Prefer reading from the device
                     biased;
@@ -92,8 +90,13 @@ impl DeviceConnectionActor {
                             }
                         }
                         None => {
-                            // The command channel is closed, we won't receive more commands
-                            command_channel_open = false;
+                            // The actor has been dropped, gracefully shutdown
+                            // Cancel all running commands and shutdown the connection
+                            for (tag, _) in running_commands.drain() {
+                                let cancel_command = CommandBuilder::cancel(tag);
+                                let _ = tcp_tx.write_all(cancel_command.data.as_ref()).await;
+                            }
+                            shutdown = true;
                         }
                     }
                 }
