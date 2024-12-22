@@ -1,62 +1,60 @@
 use std::fmt;
 use std::io;
 
-use crate::command::response::CommandResponse;
-use crate::command::response::TrapResponse;
+use crate::protocol::word::WordCategory;
+use crate::protocol::CommandResponse;
+use crate::protocol::TrapResponse;
 
 /// Result type alias for MikroTik device operations
 pub type DeviceResult<T> = Result<T, DeviceError>;
 
 /// Custom error type for MikroTik device operations
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DeviceError {
     /// Connection related errors (TCP, network issues)
-    Connection(io::Error),
+    Connection(io::ErrorKind),
     /// Authentication failure
-    Authentication { response: TrapResponse },
-    /// Received unexpected response [`CommandResponse`]
-    Protocol { response: CommandResponse },
-    /// Command execution errors
-    Command { tag: u16, message: String },
-    /// Fatal device errors
-    Fatal { reason: String },
-    /// Channel communication errors
-    Channel { message: String },
+    Authentication {
+        /// The response received from the device
+        response: TrapResponse,
+    },
+    /// Channel errors
+    Channel {
+        /// Error message
+        message: String,
+    },
+    /// Unexpected sequence of responses received
+    ResponseSequence {
+        /// The response received from the device
+        received: CommandResponse,
+        /// The values accepted as valid responses
+        expected: Vec<WordCategory>,
+    },
 }
 
 impl fmt::Display for DeviceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DeviceError::Connection(err) => write!(f, "Connection error: {}", err),
-            DeviceError::Authentication { message } => {
-                write!(f, "Authentication error: {}", message)
+            DeviceError::Authentication { response } => {
+                write!(f, "Authentication failed: {}", response)
             }
-            DeviceError::Protocol { message } => write!(f, "Protocol error: {}", message),
-            DeviceError::Command { tag, message } => {
-                write!(f, "Command error (tag {}): {}", tag, message)
-            }
-            DeviceError::Fatal { message } => write!(f, "Fatal device error: {}", message),
             DeviceError::Channel { message } => write!(f, "Channel error: {}", message),
-        }
-    }
-}
-
-impl std::error::Error for DeviceError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            DeviceError::Connection(err) => Some(err),
-            _ => None,
+            DeviceError::ResponseSequence { received, expected } => write!(
+                f,
+                "Unexpected response sequence: received {:?}, expected {:?}",
+                received, expected
+            ),
         }
     }
 }
 
 impl From<io::Error> for DeviceError {
     fn from(error: io::Error) -> Self {
-        DeviceError::Connection(error)
+        DeviceError::Connection(error.kind())
     }
 }
 
-/// Convert channel send/receive errors to DeviceError
 impl<T> From<tokio::sync::mpsc::error::SendError<T>> for DeviceError {
     fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Self {
         DeviceError::Channel {

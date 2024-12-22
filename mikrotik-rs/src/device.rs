@@ -1,8 +1,9 @@
 use crate::{
-    actor::{CommandResult, DeviceConnectionActor, ReadActorMessage},
-    command::Command,
+    actor::{DeviceConnectionActor, ReadActorMessage},
+    error::DeviceResult,
+    protocol::{command::Command, CommandResponse},
 };
-use tokio::{io, net::ToSocketAddrs, sync::mpsc};
+use tokio::{net::ToSocketAddrs, sync::mpsc};
 
 /// A client for interacting with MikroTik devices.
 ///
@@ -39,7 +40,7 @@ impl MikrotikDevice {
         addr: A,
         username: &str,
         password: Option<&str>,
-    ) -> io::Result<Self> {
+    ) -> DeviceResult<Self> {
         let sender = DeviceConnectionActor::start(addr, username, password).await?;
 
         Ok(Self(sender))
@@ -70,8 +71,11 @@ impl MikrotikDevice {
     ///     println!("{:?}", response?);
     /// }
     /// ```
-    pub async fn send_command(&self, command: Command) -> mpsc::Receiver<CommandResult> {
-        let (response_tx, response_rx) = mpsc::channel::<CommandResult>(16);
+    pub async fn send_command(
+        &self,
+        command: Command,
+    ) -> mpsc::Receiver<DeviceResult<CommandResponse>> {
+        let (response_tx, response_rx) = mpsc::channel::<DeviceResult<CommandResponse>>(16);
 
         let msg = ReadActorMessage {
             tag: command.tag,
