@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 📦 Publish Crate to Crates.io
-        run: cargo publish -p mikrtik-rs --token ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p mikrotik-rs --token ${{ secrets.CRATES_IO_TOKEN }}
 
       - name: 📢 Create GitHub Release
         uses: softprops/action-gh-release@v2
