@@ -9,7 +9,7 @@ use super::sentence::{ResponseType, Sentence, SentenceError, Word};
 /// Type alias for representing a fatal response string.
 pub type FatalResponse = String;
 
-/// Enum representing the various types of responses a command can produce.
+/// Various types of responses a command can produce.
 #[derive(Debug)]
 pub enum CommandResponse {
     /// Represents a successful command completion response.

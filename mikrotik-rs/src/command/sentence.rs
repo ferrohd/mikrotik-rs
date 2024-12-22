@@ -145,7 +145,7 @@ pub enum Word<'a> {
     Generic(&'a str),
 }
 
-impl<'a> Word<'a> {
+impl Word<'_> {
     /// Returns the category of the word, if it is a category word.
     pub fn category(&self) -> Option<&ResponseType> {
         match self {
