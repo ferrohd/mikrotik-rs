@@ -1,26 +1,20 @@
 use std::collections::HashMap;
-use std::io::Error;
 
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::mpsc::{self, Sender};
 
-use crate::command::response::CommandResponse;
-use crate::command::sentence::Sentence;
-use crate::command::CommandBuilder;
 use crate::error::{DeviceError, DeviceResult};
-
-/// A command result sent back to the client.
-///
-/// The result of a command execution, which can be either a successful response or an error.
-/// The [`CommandResult`] is a type alias for [`io::Result<CommandResponse>`]
-pub type CommandResult = io::Result<CommandResponse>;
+use crate::protocol::command::CommandBuilder;
+use crate::protocol::sentence::Sentence;
+use crate::protocol::word::WordCategory;
+use crate::protocol::CommandResponse;
 
 /// Command message with data to write to the device
 pub struct ReadActorMessage {
     pub tag: u16,
     pub data: Vec<u8>,
-    pub respond_to: Sender<DeviceResult<CommandResult>>,
+    pub respond_to: Sender<DeviceResult<CommandResponse>>,
 }
 
 pub struct DeviceConnectionActor;
@@ -61,7 +55,7 @@ impl DeviceConnectionActor {
                         Ok(0) => {
                             // Device closed connection
                             notify_error(&mut running_commands, DeviceError::Connection(
-                                io::Error::new(io::ErrorKind::UnexpectedEof, "Device closed connection")
+                                io::ErrorKind::ConnectionAborted
                             )).await;
                             shutdown = true;
                         }
@@ -73,8 +67,9 @@ impl DeviceConnectionActor {
                             }
                         }
                         Err(e) => {
-                            eprintln!("Error reading from device: {:?}", e);
-                            notify_error(&mut running_commands, e).await;
+                            // Error reading from the device, shutdown the connection
+                            let error = DeviceError::Connection(e.kind());
+                            notify_error(&mut running_commands, error).await;
                             shutdown = true;
                         }
                     },
@@ -90,7 +85,8 @@ impl DeviceConnectionActor {
                                 }
                                 Err(e) => {
                                     // Error writing the command to the device, notify every running command and shutdown the connection
-                                    notify_error(&mut running_commands, e).await;
+                                    let error = DeviceError::Connection(e.kind());
+                                    notify_error(&mut running_commands, error).await;
                                     shutdown = true;
                                 }
                             }
@@ -137,6 +133,7 @@ async fn process_packet(
                         .await
                         .is_err()
                     {
+                        running_commands.remove(&tag);
                         if let Err(e) = tcp_tx
                             .write_all(CommandBuilder::cancel(tag).data.as_ref())
                             .await
@@ -153,7 +150,7 @@ async fn process_packet(
                 }
             }
             CommandResponse::Fatal(reason) => {
-                // A fatal error is not tag-bound => clean up everything
+                // A fatal error is not tag-bound => Fatal every running command
                 for (_, sender) in running_commands.drain() {
                     let _ = sender
                         .send(Ok(CommandResponse::Fatal(reason.clone())))
@@ -181,22 +178,19 @@ async fn login(
             data: login_cmd.data,
             respond_to: login_response_tx,
         })
-        .await
-        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to send login command"))?;
+        .await?;
 
     match login_response_rx
         .recv()
         .await
         .ok_or_else(|| DeviceError::Channel {
             message: "No login response received".to_string(),
-        })???
-    {
+        })?? {
         CommandResponse::Done(_) => Ok(()),
-        CommandResponse::Trap(trap) => Err(DeviceError::Authentication {
-            response: trap,
-        }),
-        other => Err(DeviceError::Protocol {
-            response: other,
+        CommandResponse::Trap(trap) => Err(DeviceError::Authentication { response: trap }),
+        other => Err(DeviceError::ResponseSequence {
+            received: other,
+            expected: vec![WordCategory::Done, WordCategory::Trap],
         }),
     }
 }
