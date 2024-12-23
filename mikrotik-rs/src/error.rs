@@ -62,3 +62,5 @@ impl<T> From<tokio::sync::mpsc::error::SendError<T>> for DeviceError {
         }
     }
 }
+
+impl std::error::Error for DeviceError {}
