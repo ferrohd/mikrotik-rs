@@ -163,6 +163,90 @@ impl CommandBuilder<Cmd> {
         }
     }
 
+    /// Adds a query to the command being built.
+    /// pushes 'true' if an item has a value of property name, 'false' if it does not.
+    ///
+    /// #Arguments
+    /// * `name`: name of the property to check
+    ///
+    /// # Returns
+    ///
+    /// The builder with the attribute added, allowing for method chaining.
+    pub fn query_is_present(mut self, name: &str) -> Self {
+        self.cmd.write_word(format!("?{name}").as_bytes());
+        self
+    }
+
+    /// Adds a query to the command being built.
+    /// pushes 'true' if an item has a value of property name, 'false' if it does not.
+    ///
+    /// #Arguments
+    /// * `name`: name of the property to check
+    ///
+    /// # Returns
+    ///
+    /// The builder with the attribute added, allowing for method chaining.
+    pub fn query_not_present(mut self, name: &str) -> Self {
+        self.cmd.write_word(format!("?-{name}").as_bytes());
+        self
+    }
+    /// Adds a query to the command being built.
+    /// pushes 'true' if the property name has a value equal to x, 'false' otherwise.
+    ///
+    /// #Arguments
+    /// * `name`: name of the property to compare
+    /// * `value`: value to be compared with
+    ///
+    /// # Returns
+    ///
+    /// The builder with the attribute added, allowing for method chaining.
+    pub fn query_equal(mut self, name: &str, value: &str) -> Self {
+        self.cmd.write_word(format!("?{name}={value}").as_bytes());
+        self
+    }
+    /// Adds a query to the command being built.
+    /// pushes 'true' if the property name has a value greater than x, 'false' otherwise.
+    ///
+    /// #Arguments
+    /// * `name`: name of the property to compare
+    /// * `value`: value to be compared with
+    ///
+    /// # Returns
+    ///
+    /// The builder with the attribute added, allowing for method chaining.
+    pub fn query_gt(mut self, key: &str, value: &str) -> Self {
+        self.cmd.write_word(format!("?>{key}={value}").as_bytes());
+        self
+    }
+    /// Adds a query to the command being built.
+    /// pushes 'true' if the property name has a value less than x, 'false' otherwise.
+    ///
+    /// #Arguments
+    /// * `name`: name of the property to compare
+    /// * `value`: value to be compared with
+    ///
+    /// # Returns
+    ///
+    /// The builder with the attribute added, allowing for method chaining.
+    pub fn query_lt(mut self, key: &str, value: &str) -> Self {
+        self.cmd.write_word(format!("?<{key}={value}").as_bytes());
+        self
+    }
+
+    /// defines combination of defined operations
+    /// https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API#API-Queries
+    /// #Arguments
+    /// * `operations`: operation sequence to be applied to the results on the stack
+    /// 
+    /// # Returns
+    ///
+    /// The builder with the attribute added, allowing for method chaining.
+    pub fn query_operations(mut self, operations: impl Iterator<Item = QueryOperator>) -> Self {
+        let query:String = "?#".chars().chain(operations.map(|op| op.code())).collect();
+        self.cmd.write_word(query.as_bytes());
+        self
+    }
+
     /// Finalizes the command construction process, producing a [`Command`].
     ///
     /// # Returns
@@ -262,54 +346,29 @@ macro_rules! command {
     }};
 }
 
-// Add these when implementing query building
-//   pub fn query_is_present(&mut self, key: &str) {
-//        let query = format!("?{key}");
-//        self.write_word(query.as_str());
-//    }
-//    pub fn query_not_present(&mut self, key: &str) {
-//        let query = format!("?-{key}");
-//        self.write_word(query.as_str());
-//    }
-//    pub fn query_equal(&mut self, key: &str, value: &str) {
-//        let query = format!("?{key}={value}");
-//        self.write_word(query.as_str());
-//    }
-//    pub fn query_gt(&mut self, key: &str, value: &str) {
-//        let query = format!("?>{key}={value}");
-//        self.write_word(query.as_str());
-//    }
-//    pub fn query_lt(&mut self, key: &str, value: &str) {
-//        let query = format!("?<{key}={value}");
-//        self.write_word(query.as_str());
-//    }
-//    pub fn query_operator(&mut self, operator: QueryOperator) {
-//        let query = format!("?#{operator}");
-//        self.write_word(query.as_str());
-//    }
-
-// Represents a query operator. WIP.
-//pub enum QueryOperator {
-    // Represents the `!` operator.
-//    Not,
-    // Represents the `&` operator.
-//    And,
-    // Represents the `|` operator.
-//    Or,
-    // Represents the `.` operator.
-//    Dot,
-//}
-//
-//impl std::fmt::Display for QueryOperator {
-//    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//        match self {
-//            QueryOperator::Not => write!(f, "!"),
-//            QueryOperator::And => write!(f, "&"),
-//            QueryOperator::Or => write!(f, "|"),
-//            QueryOperator::Dot => write!(f, "."),
-//        }
-//    }
-//}
+/// Represents a query operator. WIP.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum QueryOperator {
+    /// Represents the `!` operator.
+    Not,
+    /// Represents the `&` operator.
+    And,
+    /// Represents the `|` operator.
+    Or,
+    /// Represents the `.` operator.
+    Dot,
+}
+impl QueryOperator {
+    #[inline]
+    fn code(self) -> char {
+        match self {
+            QueryOperator::Not => '!',
+            QueryOperator::And => '&',
+            QueryOperator::Or => '|',
+            QueryOperator::Dot => '.',
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
