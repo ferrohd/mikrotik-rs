@@ -124,7 +124,7 @@ impl CommandBuilder<NoCmd> {
         cmd.write_word(command.as_bytes());
         // FIX: This allocation should be avoided
         // Tag the command
-        cmd.write_word(format!(".tag={}", tag).as_bytes());
+        cmd.write_word(format!(".tag={tag}").as_bytes());
         CommandBuilder {
             tag,
             cmd,
@@ -235,31 +235,6 @@ impl CommandBuffer {
         self.write_len(w.len() as u32);
         self.write_str(w);
     }
-}
-
-/// A macro for quickly building commands.
-///
-/// ```rust
-/// // Macro usage examples:
-/// let no_attrs_cmd = command!("/system/resource/print");
-/// let with_attrs_cmd = command!("/login", name="admin", password="secret");
-/// ```
-#[macro_export]
-macro_rules! command {
-    // Case: only a command string
-    ($cmd:expr) => {{
-        $crate::CommandBuilder::new()
-            .command($cmd)
-            .build()
-    }};
-    // Case: command string plus one or more attributes
-    ($cmd:expr, $($key:ident = $value:expr),+ $(,)?) => {{
-        let mut builder = $crate::CommandBuilder::new().command($cmd);
-        $(
-            builder = builder.attribute(stringify!($key), Some($value));
-        )+
-        builder.build()
-    }};
 }
 
 // Add these when implementing query building

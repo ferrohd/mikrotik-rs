@@ -13,8 +13,8 @@
 //!
 //! Basic usage:
 //!
-//! ```no_run
-//! use mikrotik_rs::device::MikrotikDevice;
+//! ```rust,no_run
+//! use mikrotik_rs::{protocol::command::CommandBuilder, MikrotikDevice};
 //! use tokio;
 //!
 //! #[tokio::main]
@@ -49,6 +49,10 @@
 //! ## Note
 //!
 //! This library requires the `tokio` runtime.
+
+#[cfg(target_pointer_width = "16")]
+compiler_error!("This library supports 32-bit architectures or higher.");
+
 mod actor;
 /// Device module for connecting to MikroTik routers and sending commands.
 mod device;
@@ -56,5 +60,7 @@ mod device;
 pub mod error;
 /// Protocol module for handling MikroTik API communication.
 pub mod protocol;
+/// Macros module to make your life easier.
+pub mod macros;
 
 pub use device::MikrotikDevice;
