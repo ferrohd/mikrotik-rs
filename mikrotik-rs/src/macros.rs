@@ -68,17 +68,11 @@ pub const fn check_mikrotik_command(cmd: &str) -> &str {
 /// ```
 #[macro_export]
 macro_rules! command {
-    // Case: only a string literal command
-    ($cmd:literal) => {{
-        const VALIDATED: &str = $crate::macros::check_mikrotik_command($cmd);
-        $crate::protocol::command::CommandBuilder::new()
-            .command(VALIDATED)
-            .build()
-    }};
-
     // Case: command literal plus one or more attributes (with or without `= value`)
-    ($cmd:literal, $($key:ident $(= $value:expr)? ),+ $(,)?) => {{
+    ($cmd:literal $(, $key:ident $(= $value:expr)? )* $(,)?) => {{
         const VALIDATED: &str = $crate::macros::check_mikrotik_command($cmd);
+
+        #[allow(unused_mut)]
         let mut builder = $crate::protocol::command::CommandBuilder::new()
             .command(VALIDATED);
 
@@ -87,7 +81,7 @@ macro_rules! command {
                 stringify!($key),
                 command!(@opt $($value)?)
             );
-        )+
+        )*
 
         builder.build()
     }};
