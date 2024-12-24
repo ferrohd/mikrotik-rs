@@ -50,7 +50,7 @@
 //!
 //! This library requires the `tokio` runtime.
 
-#[cfg(any(target_pointer_width = "16"))]
+#[cfg(target_pointer_width = "16")]
 compiler_error!("This library supports 32-bit architectures or higher.");
 
 mod actor;
