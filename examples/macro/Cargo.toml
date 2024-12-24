@@ -1,0 +1,10 @@
+[package]
+name = "macro-example"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+mikrotik-rs = {package = "mikrotik-rs",  path = "../../mikrotik-rs" }
+
+[lints]
+workspace = true
