@@ -84,7 +84,7 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                     match word {
                         Word::Tag(t) => tag = Some(t),
                         Word::Attribute(WordAttribute { key, value }) => {
-                            attributes.insert(key.to_owned(), value.map(String::from));
+                            attributes.insert(key.to_string(), value.map(String::from));
                         }
                         word => {
                             return Err(ProtocolError::WordSequence {
@@ -111,9 +111,10 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                     let word = word?;
                     match word {
                         Word::Tag(t) => tag = Some(t),
-                        Word::Attribute(WordAttribute { key, value }) => match key {
+                        Word::Attribute(WordAttribute { key, value }) => match key.as_ref() {
                             "category" => {
-                                category = value.map(TrapCategory::try_from).transpose()?;
+                                category =
+                                    value.as_deref().map(TrapCategory::try_from).transpose()?;
                             }
                             "message" => {
                                 message = value.map(String::from);
@@ -281,7 +282,7 @@ pub enum TrapCategoryError {
         /// The key of the invalid attribute.
         key: String,
         /// The value of the invalid attribute, if present.
-        value: Option<String>
+        value: Option<String>,
     },
     /// Missing category attribute in a trap response.
     MissingMessageAttribute,

@@ -296,7 +296,7 @@ mod tests {
 
         assert_eq!(
             sentence.next().unwrap().unwrap(),
-            Word::Message("server down")
+            Word::Message("server down".into())
         );
 
         assert_eq!(sentence.next(), None);

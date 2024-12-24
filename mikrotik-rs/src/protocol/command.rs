@@ -1,3 +1,4 @@
+use encoding_rs::mem::encode_latin1_lossy;
 use getrandom;
 use std::{marker::PhantomData, mem::size_of};
 
@@ -121,10 +122,10 @@ impl CommandBuilder<NoCmd> {
         let Self { tag, mut cmd, .. } = self;
         // FIX: This allocation should be avoided
         // Write the command
-        cmd.write_word(command.as_bytes());
+        cmd.write_word(encode_latin1_lossy(command).as_ref());
         // FIX: This allocation should be avoided
         // Tag the command
-        cmd.write_word(format!(".tag={tag}").as_bytes());
+        cmd.write_word(encode_latin1_lossy(&format!(".tag={tag}")).as_ref());
         CommandBuilder {
             tag,
             cmd,
@@ -149,11 +150,11 @@ impl CommandBuilder<Cmd> {
         match value {
             Some(v) => {
                 // FIX: This allocation should be avoided
-                cmd.write_word(format!("={key}={v}").as_bytes());
+                cmd.write_word(encode_latin1_lossy(&format!("={key}={v}")).as_ref());
             }
             None => {
                 // FIX: This allocation should be avoided
-                cmd.write_word(format!("={key}=").as_bytes());
+                cmd.write_word(encode_latin1_lossy(&format!("={key}=")).as_ref());
             }
         };
         CommandBuilder {
@@ -173,7 +174,8 @@ impl CommandBuilder<Cmd> {
     ///
     /// The builder with the attribute added, allowing for method chaining.
     pub fn query_is_present(mut self, name: &str) -> Self {
-        self.cmd.write_word(format!("?{name}").as_bytes());
+        self.cmd
+            .write_word(encode_latin1_lossy(&format!("?{name}")).as_ref());
         self
     }
 
@@ -187,7 +189,8 @@ impl CommandBuilder<Cmd> {
     ///
     /// The builder with the attribute added, allowing for method chaining.
     pub fn query_not_present(mut self, name: &str) -> Self {
-        self.cmd.write_word(format!("?-{name}").as_bytes());
+        self.cmd
+            .write_word(encode_latin1_lossy(&format!("?-{name}")).as_ref());
         self
     }
     /// Adds a query to the command being built.
@@ -201,7 +204,8 @@ impl CommandBuilder<Cmd> {
     ///
     /// The builder with the attribute added, allowing for method chaining.
     pub fn query_equal(mut self, name: &str, value: &str) -> Self {
-        self.cmd.write_word(format!("?{name}={value}").as_bytes());
+        self.cmd
+            .write_word(encode_latin1_lossy(&format!("?{name}={value}")).as_ref());
         self
     }
     /// Adds a query to the command being built.
@@ -215,7 +219,8 @@ impl CommandBuilder<Cmd> {
     ///
     /// The builder with the attribute added, allowing for method chaining.
     pub fn query_gt(mut self, key: &str, value: &str) -> Self {
-        self.cmd.write_word(format!("?>{key}={value}").as_bytes());
+        self.cmd
+            .write_word(encode_latin1_lossy(&format!("?>{key}={value}")).as_ref());
         self
     }
     /// Adds a query to the command being built.
@@ -229,7 +234,8 @@ impl CommandBuilder<Cmd> {
     ///
     /// The builder with the attribute added, allowing for method chaining.
     pub fn query_lt(mut self, key: &str, value: &str) -> Self {
-        self.cmd.write_word(format!("?<{key}={value}").as_bytes());
+        self.cmd
+            .write_word(encode_latin1_lossy(&format!("?<{key}={value}")).as_ref());
         self
     }
 
@@ -242,8 +248,13 @@ impl CommandBuilder<Cmd> {
     ///
     /// The builder with the attribute added, allowing for method chaining.
     pub fn query_operations(mut self, operations: impl Iterator<Item = QueryOperator>) -> Self {
-        let query:String = "?#".chars().chain(operations.map(|op| op.code())).collect();
-        self.cmd.write_word(query.as_bytes());
+        let query: Box<[u8]> = "?#"
+            .as_bytes()
+            .iter()
+            .copied()
+            .chain(operations.map(|op| op.code() as u8))
+            .collect();
+        self.cmd.write_word(&query);
         self
     }
 
