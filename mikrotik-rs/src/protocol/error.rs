@@ -76,8 +76,8 @@ pub enum WordType {
     Message,
 }
 
-impl From<Word<'_>> for WordType {
-    fn from(word: Word) -> Self {
+impl From<&Word<'_>> for WordType {
+    fn from(word: &Word) -> Self {
         match word {
             Word::Tag(_) => WordType::Tag,
             Word::Category(_) => WordType::Category,

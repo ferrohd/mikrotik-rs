@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
+use crate::error::{DeviceError, DeviceResult};
+use crate::protocol::command::CommandBuilder;
+use crate::protocol::sentence::{next_sentence, SentenceError};
+use crate::protocol::word::{Word, WordCategory};
+use crate::protocol::CommandResponse;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::mpsc::{self, Sender};
-
-use crate::error::{DeviceError, DeviceResult};
-use crate::protocol::command::CommandBuilder;
-use crate::protocol::sentence::Sentence;
-use crate::protocol::word::WordCategory;
-use crate::protocol::CommandResponse;
 
 /// Command message with data to write to the device
 pub struct ReadActorMessage {
@@ -58,11 +57,31 @@ impl DeviceConnectionActor {
                             shutdown = true;
                         }
                         Ok(_) => {
-                            // Process all null-terminated packets in buffer
-                            while let Some(null_idx) = packet_buf.iter().position(|&b| b == 0) {
-                                let packet: Vec<_> = packet_buf.drain(..=null_idx).collect();
-                                process_packet(&packet, &mut running_commands, &mut tcp_tx, &mut shutdown).await;
+                            let mut offset=0;
+                            loop{
+                                match next_sentence(&packet_buf[offset..]){
+                                    Ok((sentence, inc)) => {
+                                        offset+=inc;
+                                        process_sentence(&sentence, &mut running_commands, &mut tcp_tx, &mut shutdown).await;
+                                    }
+                                    Err(SentenceError::Incomplete) => {
+                                        if offset < packet_buf.len() {
+                                            packet_buf= packet_buf.split_off(offset);
+                                        }else{
+                                            packet_buf.clear();
+                                        }
+                                        break;
+                                    }
+                                    Err(SentenceError::WordError(e)) => {
+                                        eprintln!("Error processing sentence: {:?}", e);
+                                        shutdown=true;
+                                    }
+                                    Err(SentenceError::PrefixLength) => {
+                                        eprintln!("Invalid prefix length");
+                                        shutdown=true;
+                                    }}
                             }
+
                         }
                         Err(e) => {
                             // Error reading from the device, shutdown the connection
@@ -113,13 +132,12 @@ impl DeviceConnectionActor {
 }
 
 /// Process a complete packet from the device
-async fn process_packet(
-    packet: &[u8],
+async fn process_sentence(
+    sentence: &[Word<'_>],
     running_commands: &mut HashMap<u16, Sender<DeviceResult<CommandResponse>>>,
     tcp_tx: &mut (impl AsyncWriteExt + Unpin),
     shutdown: &mut bool,
 ) {
-    let sentence = Sentence::new(packet);
     match CommandResponse::try_from(sentence) {
         Ok(response) => match response {
             CommandResponse::Done(done) => {

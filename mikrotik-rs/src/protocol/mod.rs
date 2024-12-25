@@ -5,7 +5,6 @@ use std::{
 };
 
 use error::{MissingWord, ProtocolError, WordType};
-use sentence::Sentence;
 use word::{Word, WordAttribute, WordCategory};
 
 /// Module containing the command parser and response types.
@@ -47,13 +46,14 @@ impl CommandResponse {
     }
 }
 
-impl TryFrom<Sentence<'_>> for CommandResponse {
+impl TryFrom<&[Word<'_>]> for CommandResponse {
     type Error = ProtocolError;
 
-    fn try_from(mut sentence_iter: Sentence) -> Result<Self, Self::Error> {
+    fn try_from(words: &[Word<'_>]) -> Result<Self, Self::Error> {
+        let mut sentence_iter = words.iter();
         let word = sentence_iter
             .next()
-            .ok_or::<ProtocolError>(MissingWord::Category.into())??;
+            .ok_or::<ProtocolError>(MissingWord::Category.into())?;
 
         let category = word.category().ok_or(ProtocolError::WordSequence {
             word: word.word_type(),
@@ -64,7 +64,7 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
             WordCategory::Done => {
                 let word = sentence_iter
                     .next()
-                    .ok_or::<ProtocolError>(MissingWord::Tag.into())??;
+                    .ok_or::<ProtocolError>(MissingWord::Tag.into())?;
 
                 // !done is composed of a single tag
                 let tag = word.tag().ok_or(ProtocolError::WordSequence {
@@ -80,11 +80,10 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                 let mut attributes = HashMap::<String, Option<String>>::new();
 
                 for word in sentence_iter {
-                    let word = word?;
                     match word {
                         Word::Tag(t) => tag = Some(t),
                         Word::Attribute(WordAttribute { key, value }) => {
-                            attributes.insert(key.to_string(), value.map(String::from));
+                            attributes.insert(key.to_string(), value.as_deref().map(String::from));
                         }
                         word => {
                             return Err(ProtocolError::WordSequence {
@@ -95,7 +94,7 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                     }
                 }
 
-                let tag = tag.ok_or::<ProtocolError>(MissingWord::Category.into())?;
+                let tag = *tag.ok_or::<ProtocolError>(MissingWord::Category.into())?;
 
                 Ok(CommandResponse::Reply(ReplyResponse { tag, attributes }))
             }
@@ -108,7 +107,6 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                 let mut message = None;
 
                 for word in sentence_iter {
-                    let word = word?;
                     match word {
                         Word::Tag(t) => tag = Some(t),
                         Word::Attribute(WordAttribute { key, value }) => match key.as_ref() {
@@ -117,12 +115,12 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                                     value.as_deref().map(TrapCategory::try_from).transpose()?;
                             }
                             "message" => {
-                                message = value.map(String::from);
+                                message = value.as_deref().map(String::from);
                             }
                             key => {
                                 return Err(TrapCategoryError::InvalidAttribute {
                                     key: key.into(),
-                                    value: value.map(|v| v.into()),
+                                    value: value.as_deref().map(|v| v.into()),
                                 }
                                 .into());
                             }
@@ -136,7 +134,7 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                     }
                 }
 
-                let tag = tag.ok_or::<ProtocolError>(MissingWord::Category.into())?;
+                let tag = *tag.ok_or::<ProtocolError>(MissingWord::Category.into())?;
                 let message = message.ok_or(TrapCategoryError::MissingMessageAttribute)?;
 
                 Ok(CommandResponse::Trap(TrapResponse {
@@ -149,7 +147,7 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                 // !fatal is composed of a single message
                 let word = sentence_iter
                     .next()
-                    .ok_or::<ProtocolError>(MissingWord::Message.into())??;
+                    .ok_or::<ProtocolError>(MissingWord::Message.into())?;
 
                 let reason = word.generic().ok_or(ProtocolError::WordSequence {
                     word: word.word_type(),
