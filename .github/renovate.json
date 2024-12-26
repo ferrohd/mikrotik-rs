@@ -10,7 +10,7 @@
     "assignees": [
         "ferrohd"
     ],
-    "dependencyDashboard": false,
+    "dependencyDashboard": true,
     "automerge": true,
     "packageRules": [
         {
