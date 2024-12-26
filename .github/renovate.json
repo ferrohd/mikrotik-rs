@@ -2,30 +2,36 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": [
         "config:recommended",
-        ":rebaseStalePrs",
-        ":enablePreCommit",
-        ":semanticCommits"
+        ":configMigration",
+        ":enablePreCommit"
     ],
+    "semanticCommits": "enabled",
+    "rebaseWhen": "auto",
     "enabled": true,
     "assignees": [
         "ferrohd"
     ],
-    "dependencyDashboard": false,
+    "dependencyDashboard": true,
     "automerge": true,
+    "separateMultipleMajor": true,
     "packageRules": [
         {
             "groupName": "Cargo Dependencies",
-            "matchManagers": [
-                "cargo"
-            ]
+            "matchManagers": ["cargo"]
         },
         {
             "groupName": "GitHub Actions",
-            "matchManagers": [
-                "github-actions"
-            ]
+            "matchManagers": ["github-actions"]
         }
     ],
+    "vulnerabilityAlerts": {
+        "semanticCommitType": "vuln",
+        "minimumReleaseAge": "1 day",
+        "internalChecksFilter": "strict",
+        "addLabels": [
+            "security"
+        ]
+    },
     "prConcurrentLimit": 0,
     "prHourlyLimit": 0
 }
