@@ -191,7 +191,8 @@ async fn login(
     command_tx_send: &Sender<ReadActorMessage>,
 ) -> DeviceResult<()> {
     let (login_response_tx, mut login_response_rx) = mpsc::channel(1);
-    let login_cmd = CommandBuilder::login(username, password);
+    let login_cmd =
+        CommandBuilder::login(username, password).expect("Cannot encode user and password");
 
     command_tx_send
         .send(ReadActorMessage {

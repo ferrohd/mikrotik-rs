@@ -8,6 +8,7 @@ async fn main() {
 
     let check_updates = CommandBuilder::new()
         .command("/system/package/update/install")
+        .unwrap()
         .build();
 
     let mut update_responses = device.send_command(check_updates).await;

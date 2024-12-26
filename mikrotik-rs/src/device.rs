@@ -31,7 +31,15 @@ impl MikrotikDevice {
     ///
     /// # Examples
     /// ```no_run
-    /// let device = MikrotikDevice::connect("192.168.88.1:8728", "admin", Some("password")).await?;
+    /// use mikrotik_rs::MikrotikDevice;
+    /// use tokio;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let device = MikrotikDevice::connect("192.168.88.1:8728", "admin", Some("password")).await?;
+    ///     Ok(())
+    /// }
+    ///
     /// ```
     /// # Attention 🚨
     /// The connection to the MikroTik device is not encrypted (plaintext API connection over 8728/tcp port).
@@ -64,11 +72,17 @@ impl MikrotikDevice {
     ///
     /// # Examples
     /// ```no_run
-    /// let command = CommandBuilder::new().command("/interface/print").build();
-    /// let mut response_rx = device.send_command(command).await;
+    /// use mikrotik_rs::protocol::command::CommandBuilder;
+    /// use mikrotik_rs::MikrotikDevice;
+    /// use mikrotik_rs::error::CommandError;
+    /// async fn list_interfaces(device: &MikrotikDevice)->Result<(), Box<dyn std::error::Error>>{
+    ///     let command = CommandBuilder::new().command("/interface/print")?.build();
+    ///     let mut response_rx = device.send_command(command).await;
     ///
-    /// while let Some(response) = response_rx.recv().await {
-    ///     println!("{:?}", response?);
+    ///     while let Some(response) = response_rx.recv().await {
+    ///         println!("{:?}", response?);
+    ///     }
+    ///     Ok(())
     /// }
     /// ```
     pub async fn send_command(

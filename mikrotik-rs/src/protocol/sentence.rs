@@ -11,7 +11,7 @@ use super::word::{Word, WordError};
 ///
 /// More details about the protocol can be found in the Mikrotik Wiki:
 /// [Mikrotik API Protocol](https://wiki.mikrotik.com/wiki/Manual:API#Protocol)
-/// 
+///
 /// returns SentenceError::Incomplete when the sentence is not completed with an empty word
 pub fn next_sentence(data: &[u8]) -> Result<(Vec<Word>, usize), SentenceError> {
     let mut iterator = WordIterator { data, idx: 0 };
@@ -447,7 +447,10 @@ mod tests {
         );
 
         let final_sentence = sentences.get(1).unwrap();
-        assert_eq!(Some(&Word::Category(WordCategory::Done)), final_sentence.get(0));
+        assert_eq!(
+            Some(&Word::Category(WordCategory::Done)),
+            final_sentence.get(0)
+        );
 
         assert_eq!(pos, data.len());
     }

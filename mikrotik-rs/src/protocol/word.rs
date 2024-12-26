@@ -19,9 +19,9 @@ use super::error::WordType;
 /// # Examples
 ///
 /// ```
-/// use mikrotik::command::reader::Word;
+/// use mikrotik_rs::protocol::word::Word;
 ///
-/// let word = Word::try_from(b"=name=ether1");
+/// let word = Word::try_from(b"=name=ether1" as &[u8]);
 /// assert_eq!(word.unwrap().attribute(), Some(("name", Some("ether1"))));
 /// ```
 #[derive(Debug, PartialEq)]
@@ -56,9 +56,7 @@ impl Word<'_> {
     /// Returns the attribute of the word, if it is an attribute word.
     pub fn attribute(&self) -> Option<(&str, Option<&str>)> {
         match self {
-            Word::Attribute(WordAttribute { key, value }) => {
-                Some((key.as_ref(), value.as_deref()))
-            }
+            Word::Attribute(WordAttribute { key, value }) => Some((key.as_ref(), value.as_deref())),
             _ => None,
         }
     }

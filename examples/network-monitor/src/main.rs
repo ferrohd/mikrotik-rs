@@ -8,7 +8,9 @@ async fn main() {
 
     let monitor_cmd = CommandBuilder::new()
         .command("/interface/monitor-traffic")
+        .unwrap()
         .attribute("interface", Some("ether1"))
+        .unwrap()
         .build();
 
     let mut monitor_responses = device.send_command(monitor_cmd).await;

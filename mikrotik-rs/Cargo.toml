@@ -12,7 +12,7 @@ license = "MIT"
 repository = "https://github.com/ferrohd/mikrotik-rs"
 
 [lib]
-doctest = false
+doctest = true
 
 [lints]
 workspace = true
@@ -28,3 +28,4 @@ tokio = { version = "1.36.0", features = [
     "macros",
     "io-util",
 ] }
+

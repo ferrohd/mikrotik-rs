@@ -7,7 +7,10 @@ async fn main() {
         .await
         .unwrap();
 
-    let get_users_cmd = CommandBuilder::new().command("/user/active/print").build();
+    let get_users_cmd = CommandBuilder::new()
+        .command("/user/active/print")
+        .unwrap()
+        .build();
 
     let mut users_stream = device.send_command(get_users_cmd).await;
 

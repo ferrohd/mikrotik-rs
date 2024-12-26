@@ -18,7 +18,7 @@
 //! use tokio;
 //!
 //! #[tokio::main]
-//! async fn main() -> io::Result<()> {
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Router's address with port
 //!     let addr = "192.168.88.1:8728";
 //!
@@ -28,11 +28,12 @@
 //!
 //!     let mut client = MikrotikDevice::connect(addr, username, Some(password)).await?;
 //!
-//!     let command = CommandBuilder::new().command("/interface/print").build(); // Example command
-//!     let response_channel = client.send_command(command).await?;
+//!     let command = CommandBuilder::new().command("/interface/print")?.build(); // Example command
+//!     let mut response_channel = client.send_command(command).await;
 //!     while let Some(response) = response_channel.recv().await {
 //!        println!("{:?}", response);
 //!     }
+//!     Ok(())
 //! }
 //! ```
 //!
@@ -58,9 +59,9 @@ mod actor;
 mod device;
 /// Error module for handling errors during device operations.
 pub mod error;
-/// Protocol module for handling MikroTik API communication.
-pub mod protocol;
 /// Macros module to make your life easier.
 pub mod macros;
+/// Protocol module for handling MikroTik API communication.
+pub mod protocol;
 
 pub use device::MikrotikDevice;

@@ -9,8 +9,10 @@ async fn main() {
 
     let get_system_res = CommandBuilder::new()
         .command("/system/resource/print")
+        .unwrap()
         // Send the update response every 1 second
         .attribute("interval", Some("1"))
+        .unwrap()
         .build();
 
     let mut users_stream = device.send_command(get_system_res).await;
