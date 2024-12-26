@@ -26,6 +26,14 @@
             ]
         }
     ],
+    "vulnerabilityAlerts": {
+        "semanticCommitType": "vuln",
+        "minimumReleaseAge": "1 day",
+        "internalChecksFilter": "strict",
+        "addLabels": [
+            "security"
+        ]
+    },
     "prConcurrentLimit": 0,
     "prHourlyLimit": 0
 }
