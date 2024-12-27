@@ -163,6 +163,37 @@ impl CommandBuilder<Cmd> {
         }
     }
 
+    /// Adds an attribute with a raw byte value to the command being built.
+    ///
+    /// Use this method when your attribute values might contain non-UTF-8 or binary data.
+    /// For regular string values, [`CommandBuilder<Cmd>::attribute`] provides a more convenient interface.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The attribute's key (must be valid UTF-8).
+    /// * `value` - The attribute's value as raw bytes, which is optional. If `None`, the attribute is treated as a flag.
+    ///
+    /// # Returns
+    ///
+    /// The builder with the attribute added, allowing for method chaining.
+    pub fn attribute_raw(self, key: &str, value: Option<&[u8]>) -> Self {
+        let Self { tag, mut cmd, .. } = self;
+        match value {
+            Some(v) => {
+                let command = [b"=", key.as_bytes(), b"=", v].concat();
+                cmd.write_word(&command);
+            }
+            None => {
+                cmd.write_word(format!("={key}=").as_bytes());
+            }
+        };
+        CommandBuilder {
+            tag,
+            cmd,
+            state: PhantomData,
+        }
+    }
+
     /// Adds a query to the command being built.
     /// pushes 'true' if an item has a value of property name, 'false' if it does not.
     ///
@@ -333,6 +364,7 @@ pub enum QueryOperator {
     /// Represents the `.` operator.
     Dot,
 }
+
 impl QueryOperator {
     #[inline]
     fn code(self) -> char {
