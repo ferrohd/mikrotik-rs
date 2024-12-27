@@ -78,13 +78,19 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                 // The tag is mandatory but its position is not fixed
                 let mut tag = None;
                 let mut attributes = HashMap::<String, Option<String>>::new();
+                let mut attributes_raw = HashMap::<String, Option<Vec<u8>>>::new();
 
                 for word in sentence_iter {
                     let word = word?;
                     match word {
                         Word::Tag(t) => tag = Some(t),
-                        Word::Attribute(WordAttribute { key, value }) => {
+                        Word::Attribute(WordAttribute {
+                            key,
+                            value,
+                            value_raw,
+                        }) => {
                             attributes.insert(key.to_owned(), value.map(String::from));
+                            attributes_raw.insert(key.to_owned(), value_raw.map(Vec::from));
                         }
                         word => {
                             return Err(ProtocolError::WordSequence {
@@ -97,7 +103,11 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
 
                 let tag = tag.ok_or::<ProtocolError>(MissingWord::Category.into())?;
 
-                Ok(CommandResponse::Reply(ReplyResponse { tag, attributes }))
+                Ok(CommandResponse::Reply(ReplyResponse {
+                    tag,
+                    attributes,
+                    attributes_raw,
+                }))
             }
             WordCategory::Trap => {
                 // !trap is composed of a tag, and two optional attributes: category and message
@@ -111,7 +121,11 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
                     let word = word?;
                     match word {
                         Word::Tag(t) => tag = Some(t),
-                        Word::Attribute(WordAttribute { key, value }) => match key {
+                        Word::Attribute(WordAttribute {
+                            key,
+                            value,
+                            value_raw: _,
+                        }) => match key {
                             "category" => {
                                 category = value.map(TrapCategory::try_from).transpose()?;
                             }
@@ -181,6 +195,8 @@ pub struct ReplyResponse {
     pub tag: u16,
     /// The attributes of the reply.
     pub attributes: HashMap<String, Option<String>>,
+    /// The raw attributes of the reply.
+    pub attributes_raw: HashMap<String, Option<Vec<u8>>>,
 }
 
 impl Display for ReplyResponse {
@@ -281,7 +297,7 @@ pub enum TrapCategoryError {
         /// The key of the invalid attribute.
         key: String,
         /// The value of the invalid attribute, if present.
-        value: Option<String>
+        value: Option<String>,
     },
     /// Missing category attribute in a trap response.
     MissingMessageAttribute,

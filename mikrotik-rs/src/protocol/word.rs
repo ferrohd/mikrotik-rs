@@ -52,14 +52,6 @@ impl Word<'_> {
         }
     }
 
-    /// Returns the attribute of the word, if it is an attribute word.
-    pub fn attribute(&self) -> Option<(&str, Option<&str>)> {
-        match self {
-            Word::Attribute(WordAttribute { key, value }) => Some((*key, *value)),
-            _ => None,
-        }
-    }
-
     /// Returns the generic word, if it is a generic word.
     /// This is usually a `!fatal` reason message.
     pub fn generic(&self) -> Option<&str> {
@@ -85,7 +77,11 @@ impl Display for Word<'_> {
         match self {
             Word::Category(category) => write!(f, "{}", category),
             Word::Tag(tag) => write!(f, ".tag={}", tag),
-            Word::Attribute(WordAttribute { key, value }) => {
+            Word::Attribute(WordAttribute {
+                key,
+                value,
+                value_raw: _,
+            }) => {
                 write!(f, "={}={}", key, value.unwrap_or(""))
             }
             Word::Message(generic) => write!(f, "{}", generic),
@@ -97,26 +93,29 @@ impl<'a> TryFrom<&'a [u8]> for Word<'a> {
     type Error = WordError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
-        let s = std::str::from_utf8(value)?;
+        // First, check if it's a category or tag word by attempting UTF-8 conversion
+        // Categories and tags must be valid UTF-8 as they are fixed API words
+        if let Ok(s) = std::str::from_utf8(value) {
+            // Try to parse as category first
+            if let Ok(category) = WordCategory::try_from(s) {
+                return Ok(Word::Category(category));
+            }
 
-        // Parse tag
-        if let Some(stripped) = s.strip_prefix(".tag=") {
-            let tag = stripped.parse::<u16>()?;
-            return Ok(Word::Tag(tag));
+            // Try to parse as tag if it starts with ".tag="
+            if let Some(stripped) = s.strip_prefix(".tag=") {
+                let tag = stripped.parse::<u16>()?;
+                return Ok(Word::Tag(tag));
+            }
         }
 
-        // Parse attribute pair
-        if s.starts_with('=') {
-            let attribute = WordAttribute::try_from(s)?;
-            return Ok(Word::Attribute(attribute));
+        // Handle attributes - we know they start with = regardless of UTF-8 validity
+        if !value.is_empty() && value[0] == b'=' {
+            // Pass the raw bytes to WordAttribute which now handles UTF-8 validation internally
+            return Ok(Word::Attribute(WordAttribute::try_from(value)?));
         }
 
-        // Parse category
-        match WordCategory::try_from(s) {
-            Ok(category) => Ok(Word::Category(category)),
-            // If the word is not a category, tag, or attribute, it's likely a generic word
-            Err(_) => Ok(Word::Message(s)),
-        }
+        // If all else fails, return as a message (must be valid UTF-8!)
+        Ok(Word::Message(std::str::from_utf8(value)?))
     }
 }
 
@@ -165,21 +164,39 @@ impl Display for WordCategory {
 pub struct WordAttribute<'a> {
     /// The key of the attribute.
     pub key: &'a str,
-    /// The value of the attribute, if present.
+    /// The value of the attribute, if present and in valid UTF-8.
     pub value: Option<&'a str>,
+    /// The value of the attribute, if present, in bytes.
+    pub value_raw: Option<&'a [u8]>,
 }
 
-impl<'a> TryFrom<&'a str> for WordAttribute<'a> {
+impl<'a> TryFrom<&'a [u8]> for WordAttribute<'a> {
     type Error = WordError;
 
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
-        let mut parts = value
-            .strip_prefix('=')
-            .ok_or(WordError::Attribute)?
-            .splitn(2, '=');
-        let key = parts.next().ok_or(WordError::Attribute)?;
-        let value = parts.next();
-        Ok(Self { key, value })
+    fn try_from(word: &'a [u8]) -> Result<Self, Self::Error> {
+        // First byte must be '=' for attributes
+        if word.is_empty() || word[0] != b'=' {
+            return Err(WordError::Attribute);
+        }
+
+        // Find the second '=' that separates key from value
+        let mut parts = word[1..].splitn(2, |&b| b == b'=');
+
+        // Key part must exist and be valid UTF-8
+        let key_bytes = parts.next().ok_or(WordError::Attribute)?;
+        let key = std::str::from_utf8(key_bytes).map_err(|_| WordError::AttributeKeyNotUtf8)?;
+
+        // Value part is optional
+        let value_raw = parts.next();
+
+        // If we have a value, try to decode as UTF-8 but keep raw bytes regardless
+        let value = value_raw.and_then(|v| std::str::from_utf8(v).ok());
+
+        Ok(Self {
+            key,
+            value_raw,
+            value,
+        })
     }
 }
 
@@ -192,6 +209,8 @@ pub enum WordError {
     Tag(ParseIntError),
     /// The word is an attribute pair, but the format is invalid.
     Attribute,
+    /// The key part of the attribute pair is not valid UTF-8.
+    AttributeKeyNotUtf8,
 }
 
 impl From<Utf8Error> for WordError {
@@ -215,6 +234,7 @@ mod tests {
             Self {
                 key: value.0,
                 value: value.1,
+                value_raw: value.1.map(|v| v.as_bytes()),
             }
         }
     }
