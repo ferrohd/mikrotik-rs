@@ -1,5 +1,4 @@
 use std::fmt;
-use std::fmt::Formatter;
 use std::io;
 
 use crate::protocol::word::WordCategory;
@@ -65,27 +64,3 @@ impl<T> From<tokio::sync::mpsc::error::SendError<T>> for DeviceError {
 }
 
 impl std::error::Error for DeviceError {}
-
-/// Result type alias command builder operations
-pub type CommandResult<T> = Result<T, CommandError>;
-
-/// Error building a command with given parameters
-#[derive(Debug, Clone)]
-pub enum CommandError {
-    /// There is an invalid character in the input data
-    HasInvalidCharacter(char),
-}
-impl fmt::Display for CommandError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            CommandError::HasInvalidCharacter(ch) => {
-                let codepoint = u32::from(*ch);
-                write!(
-                    f,
-                    "The input contains an invalid character: 0x{codepoint:x} \"{ch}\""
-                )
-            }
-        }
-    }
-}
-impl std::error::Error for CommandError {}

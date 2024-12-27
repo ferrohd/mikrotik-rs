@@ -19,7 +19,6 @@ workspace = true
 
 [dependencies]
 getrandom = { version = "0.2.12", default-features = false, features = ["std"] }
-encoding_rs = "0.8.35"
 tokio = { version = "1.36.0", features = [
     "net",
     "sync",
@@ -28,4 +27,3 @@ tokio = { version = "1.36.0", features = [
     "macros",
     "io-util",
 ] }
-

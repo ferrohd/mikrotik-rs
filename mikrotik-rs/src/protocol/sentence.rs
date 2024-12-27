@@ -1,4 +1,5 @@
 use super::word::{Word, WordError};
+use crate::protocol::string::AsciiStringRef;
 
 /// A parser for parsing bytes into sentences in the Mikrotik API sentence format.
 ///
@@ -58,7 +59,9 @@ impl<'a> Iterator for WordIterator<'a> {
                         } else {
                             let current_word_pos = self.idx;
                             self.idx += length as usize;
-                            match Word::try_from(&self.data[current_word_pos..self.idx]) {
+                            match Word::try_from(Into::<AsciiStringRef>::into(
+                                &self.data[current_word_pos..self.idx],
+                            )) {
                                 Ok(w) => WordParserItem::Word(w),
                                 Err(e) => WordParserItem::Error(SentenceError::WordError(e)),
                             }
@@ -159,7 +162,7 @@ mod tests {
 
         assert_eq!(
             sentence.next().unwrap(),
-            Word::Attribute(("name", Some("ether1")).into())
+            Word::Attribute((b"name", Some(b"ether1")).into())
         );
 
         assert_eq!(sentence.next(), None);
@@ -209,7 +212,7 @@ mod tests {
 
         assert_eq!(
             sentence.next().unwrap(),
-            Word::Attribute(("name", Some("ether1")).into())
+            Word::Attribute((b"name", Some(b"ether1")).into())
         );
 
         assert_eq!(sentence.next(), None);
@@ -258,7 +261,7 @@ mod tests {
 
         assert_eq!(
             sentence.next().unwrap(),
-            Word::Attribute(("a", Some("b")).into())
+            Word::Attribute((b"a", Some(b"b")).into())
         );
 
         assert_eq!(sentence.next().unwrap(), Word::Tag(456));
@@ -284,7 +287,7 @@ mod tests {
 
         assert_eq!(
             sentence.next().unwrap(),
-            Word::Message("server down".into())
+            Word::Message(b"server down".into())
         );
 
         assert_eq!(sentence.next(), None);
@@ -310,7 +313,7 @@ mod tests {
 
         assert_eq!(
             sentence.next().unwrap(),
-            Word::Attribute(("name", Some("ether1")).into())
+            Word::Attribute((b"name", Some(b"ether1")).into())
         );
 
         assert_eq!(sentence.next(), None);
@@ -440,8 +443,8 @@ mod tests {
         assert_eq!(Some(&Word::Tag(24231)), first_sentence.get(1));
         assert_eq!(
             Some(&Word::Attribute(WordAttribute {
-                key: "name".into(),
-                value: Some("Guetä Morgä =\0".into())
+                key: b"name".into(),
+                value: Some(b"Guet\xe4 Morg\xe4 =\0".into())
             })),
             first_sentence.get(3)
         );

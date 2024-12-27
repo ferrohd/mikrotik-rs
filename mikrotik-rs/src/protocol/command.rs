@@ -1,5 +1,4 @@
-use crate::error::{CommandError, CommandResult};
-use encoding_rs::mem::{encode_latin1_lossy, str_latin1_up_to};
+use crate::protocol::string::{AsciiStringRef, WordContent};
 use getrandom;
 use std::{marker::PhantomData, mem::size_of};
 
@@ -18,8 +17,8 @@ pub struct Cmd;
 /// ```
 /// use mikrotik_rs::protocol::command::CommandBuilder;
 /// let cmd = CommandBuilder::new()
-///     .command("/system/resource/print").unwrap()
-///     .attribute("detail", None).unwrap()
+///     .command(b"/system/resource/print")
+///     .flag_attribute(b"detail")
 ///     .build();
 /// ```
 #[derive(Clone)]
@@ -81,14 +80,17 @@ impl CommandBuilder<NoCmd> {
     ///
     /// ```rust
     /// use mikrotik_rs::protocol::command::CommandBuilder;
-    /// let login_cmd = CommandBuilder::login("admin", Some("password"));
+    /// let login_cmd = CommandBuilder::login(b"admin", Some(b"password"));
     /// ```
-    pub fn login(username: &str, password: Option<&str>) -> CommandResult<Command> {
-        Ok(Self::new()
-            .command("/login")?
-            .attribute("name", Some(username))?
-            .attribute("password", password)?
-            .build())
+    pub fn login<'u, 'p, U: Into<AsciiStringRef<'u>>, P: Into<AsciiStringRef<'p>>>(
+        username: U,
+        password: Option<P>,
+    ) -> Command {
+        Self::new()
+            .command(b"/login")
+            .attribute(b"name", Some(username))
+            .attribute(b"password", password)
+            .build()
     }
 
     /// Builds a command to cancel a specific running command identified by `tag`.
@@ -109,10 +111,8 @@ impl CommandBuilder<NoCmd> {
     /// ```
     pub fn cancel(tag: u16) -> Command {
         Self::with_tag(tag)
-            .command("/cancel")
-            .expect("Error encoding cancel command")
-            .attribute("tag", Some(tag.to_string().as_str()))
-            .expect("Error encoding cancel command")
+            .command(b"/cancel")
+            .attribute(b"tag", Some(tag.to_string().as_bytes()))
             .build()
     }
 
@@ -125,20 +125,17 @@ impl CommandBuilder<NoCmd> {
     /// # Returns
     ///
     /// The builder transitioned to the `Cmd` state for attributes configuration.
-    pub fn command(self, command: &str) -> CommandResult<CommandBuilder<Cmd>> {
+    pub fn command<W: WordContent + ?Sized>(self, command: &W) -> CommandBuilder<Cmd> {
         let Self { tag, mut cmd, .. } = self;
-        check_latin1(command)?;
-        // FIX: This allocation should be avoided
         // Write the command
-        cmd.write_word(encode_latin1_lossy(command).as_ref());
-        // FIX: This allocation should be avoided
+        cmd.write_word(command);
         // Tag the command
-        cmd.write_word(encode_latin1_lossy(&format!(".tag={tag}")).as_ref());
-        Ok(CommandBuilder {
+        cmd.write_word(&[b".tag=", tag.to_string().as_bytes()]);
+        CommandBuilder {
             tag,
             cmd,
             state: PhantomData,
-        })
+        }
     }
 }
 
@@ -153,25 +150,44 @@ impl CommandBuilder<Cmd> {
     /// # Returns
     ///
     /// The builder with the attribute added, allowing for method chaining.
-    pub fn attribute(self, key: &str, value: Option<&str>) -> CommandResult<Self> {
-        check_latin1(key)?;
+    pub fn attribute<'k, 'v, K: Into<AsciiStringRef<'k>>, V: Into<AsciiStringRef<'v>>>(
+        self,
+        key: K,
+        value: Option<V>,
+    ) -> Self {
         let Self { tag, mut cmd, .. } = self;
         match value {
             Some(v) => {
-                check_latin1(v)?;
-                // FIX: This allocation should be avoided
-                cmd.write_word(encode_latin1_lossy(&format!("={key}={v}")).as_ref());
+                cmd.write_word(&[b"=", key.into().0, b"=", v.into().0]);
             }
             None => {
-                // FIX: This allocation should be avoided
-                cmd.write_word(encode_latin1_lossy(&format!("={key}=")).as_ref());
+                cmd.write_word(&[b"=", key.into().0, b"="]);
             }
-        };
-        Ok(CommandBuilder {
+        }
+        CommandBuilder {
             tag,
             cmd,
             state: PhantomData,
-        })
+        }
+    }
+
+    /// Adds a flag attribute to the command being built.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The attribute's key.
+    ///
+    /// # Returns
+    ///
+    /// The builder with the attribute added, allowing for method chaining.
+    pub fn flag_attribute<'k, K: Into<AsciiStringRef<'k>>>(self, key: K) -> Self {
+        let Self { tag, mut cmd, .. } = self;
+        cmd.write_word(&[b"=", key.into().0, b"="]);
+        CommandBuilder {
+            tag,
+            cmd,
+            state: PhantomData,
+        }
     }
 
     /// Adds a query to the command being built.
@@ -183,11 +199,9 @@ impl CommandBuilder<Cmd> {
     /// # Returns
     ///
     /// The builder with the attribute added, allowing for method chaining.
-    pub fn query_is_present(mut self, name: &str) -> CommandResult<Self> {
-        check_latin1(name)?;
-        self.cmd
-            .write_word(encode_latin1_lossy(&format!("?{name}")).as_ref());
-        Ok(self)
+    pub fn query_is_present<'s, S: Into<&'s [u8]>>(mut self, name: S) -> Self {
+        self.cmd.write_word(&[b"?", name.into()]);
+        self
     }
 
     /// Adds a query to the command being built.
@@ -199,11 +213,9 @@ impl CommandBuilder<Cmd> {
     /// # Returns
     ///
     /// The builder with the attribute added, allowing for method chaining.
-    pub fn query_not_present(mut self, name: &str) -> CommandResult<Self> {
-        check_latin1(name)?;
-        self.cmd
-            .write_word(encode_latin1_lossy(&format!("?-{name}")).as_ref());
-        Ok(self)
+    pub fn query_not_present<'s, S: Into<&'s [u8]>>(mut self, name: S) -> Self {
+        self.cmd.write_word(&[b"?-", name.into()]);
+        self
     }
     /// Adds a query to the command being built.
     /// pushes 'true' if the property name has a value equal to x, 'false' otherwise.
@@ -215,12 +227,14 @@ impl CommandBuilder<Cmd> {
     /// # Returns
     ///
     /// The builder with the attribute added, allowing for method chaining.
-    pub fn query_equal(mut self, name: &str, value: &str) -> CommandResult<Self> {
-        check_latin1(name)?;
-        check_latin1(value)?;
+    pub fn query_equal<'k, 'v, K: Into<&'k [u8]>, V: Into<&'v [u8]>>(
+        mut self,
+        name: K,
+        value: V,
+    ) -> Self {
         self.cmd
-            .write_word(encode_latin1_lossy(&format!("?{name}={value}")).as_ref());
-        Ok(self)
+            .write_word(&[b"?", name.into(), b"=", value.into()]);
+        self
     }
     /// Adds a query to the command being built.
     /// pushes 'true' if the property name has a value greater than x, 'false' otherwise.
@@ -232,12 +246,14 @@ impl CommandBuilder<Cmd> {
     /// # Returns
     ///
     /// The builder with the attribute added, allowing for method chaining.
-    pub fn query_gt(mut self, key: &str, value: &str) -> CommandResult<Self> {
-        check_latin1(key)?;
-        check_latin1(value)?;
+    pub fn query_gt<'k, 'v, K: Into<&'k [u8]>, V: Into<&'v [u8]>>(
+        mut self,
+        key: K,
+        value: V,
+    ) -> Self {
         self.cmd
-            .write_word(encode_latin1_lossy(&format!("?>{key}={value}")).as_ref());
-        Ok(self)
+            .write_word(&[b"?>", key.into(), b"=", value.into()]);
+        self
     }
     /// Adds a query to the command being built.
     /// pushes 'true' if the property name has a value less than x, 'false' otherwise.
@@ -249,12 +265,14 @@ impl CommandBuilder<Cmd> {
     /// # Returns
     ///
     /// The builder with the attribute added, allowing for method chaining.
-    pub fn query_lt(mut self, key: &str, value: &str) -> CommandResult<Self> {
-        check_latin1(key)?;
-        check_latin1(value)?;
+    pub fn query_lt<'k, 'v, K: Into<&'k [u8]>, V: Into<&'v [u8]>>(
+        mut self,
+        key: K,
+        value: V,
+    ) -> Self {
         self.cmd
-            .write_word(encode_latin1_lossy(&format!("?<{key}={value}")).as_ref());
-        Ok(self)
+            .write_word(&[b"?<", key.into(), b"=", value.into()]);
+        self
     }
 
     /// defines combination of defined operations
@@ -272,7 +290,7 @@ impl CommandBuilder<Cmd> {
             .copied()
             .chain(operations.map(|op| op.code() as u8))
             .collect();
-        self.cmd.write_word(&query);
+        self.cmd.write_word(query.as_ref());
         self
     }
 
@@ -299,7 +317,7 @@ impl CommandBuilder<Cmd> {
 ///
 /// ```rust
 /// use mikrotik_rs::protocol::command::CommandBuilder;
-/// let cmd = CommandBuilder::new().command("/interface/print").unwrap().build();
+/// let cmd = CommandBuilder::new().command(b"/interface/print").build();
 /// ```
 #[derive(Debug)]
 pub struct Command {
@@ -345,9 +363,9 @@ impl CommandBuffer {
             }
         }
     }
-    fn write_word(&mut self, w: &[u8]) {
-        self.write_len(w.len() as u32);
-        self.write_str(w);
+    fn write_word<W: WordContent + ?Sized>(&mut self, w: &W) {
+        self.write_len(w.byte_count() as u32);
+        w.write_to_buffer(&mut self.0);
     }
 }
 
@@ -375,16 +393,6 @@ impl QueryOperator {
     }
 }
 
-fn check_latin1(value: &str) -> Result<(), CommandError> {
-    let first_invalid_char = str_latin1_up_to(value);
-    if first_invalid_char >= value.len() {
-        if let Some(ch) = value.chars().nth(first_invalid_char) {
-            return Err(CommandError::HasInvalidCharacter(ch));
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -406,9 +414,7 @@ mod tests {
 
     #[test]
     fn test_command_builder_command() {
-        let builder = CommandBuilder::<NoCmd>::with_tag(1234)
-            .command("/interface/print")
-            .unwrap();
+        let builder = CommandBuilder::<NoCmd>::with_tag(1234).command(b"/interface/print");
         println!("{:?}", builder.cmd.0);
         assert_eq!(builder.cmd.0.len(), 27);
         assert_eq!(builder.cmd.0[1..17], b"/interface/print"[..]);
@@ -418,10 +424,8 @@ mod tests {
     #[test]
     fn test_command_builder_attribute() {
         let builder = CommandBuilder::<NoCmd>::with_tag(1234)
-            .command("/interface/print")
-            .unwrap()
-            .attribute("name", Some("ether1"))
-            .unwrap();
+            .command(b"/interface/print")
+            .attribute(b"name", Some(b"ether1"));
 
         assert_eq!(builder.cmd.0[28..40], b"=name=ether1"[..]);
     }
@@ -447,7 +451,7 @@ mod tests {
 
     #[test]
     fn test_command_builder_login() {
-        let command = CommandBuilder::<NoCmd>::login("admin", Some("password")).unwrap();
+        let command = CommandBuilder::<NoCmd>::login(b"admin", Some(b"password"));
 
         assert!(str::from_utf8(&command.data).unwrap().contains("/login"));
         assert!(str::from_utf8(&command.data)

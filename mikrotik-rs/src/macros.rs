@@ -5,8 +5,8 @@
 /// 4. No consecutive spaces or slashes.
 ///
 /// Panics **at compile time** if invalid.
-pub const fn check_mikrotik_command(cmd: &str) -> &str {
-    let bytes = cmd.as_bytes();
+pub const fn check_mikrotik_command(cmd: &[u8]) -> &[u8] {
+    let bytes = cmd;
     let len = bytes.len();
 
     // Reject empty string
@@ -62,44 +62,48 @@ pub const fn check_mikrotik_command(cmd: &str) -> &str {
 /// use mikrotik_rs::command;
 ///fn main() {
 ///    // OK
-///    let _ok = command!("/random command print");
+///    let _ok = command!(b"/random command print");
 ///
-///    let _with_attrs = command!("/random command", attr1="value1", attr2);
+///    let _with_attrs = command!(b"/random command", attr1=b"value1", attr2);
 ///}
 /// ```
 #[macro_export]
 macro_rules! command {
     // Case: command literal plus one or more attributes (with or without `= value`)
     ($cmd:literal $(, $key:ident $(= $value:expr)? )* $(,)?) => {{
-        const VALIDATED: &str = $crate::macros::check_mikrotik_command($cmd);
+        const VALIDATED: &[u8] = $crate::macros::check_mikrotik_command($cmd);
 
-        #[allow(unused_mut)]
-        let mut builder = $crate::protocol::command::CommandBuilder::new()
-            .command(VALIDATED).expect("Invalid MikroTik command.");
+        let builder = $crate::protocol::command::CommandBuilder::new()
+            .command(VALIDATED);
 
         $(
-            builder = builder.attribute(
-                stringify!($key),
-                command!(@opt $($value)?)
-            ).expect("Invalid key/value");
+            command!(@opt builder $key $($value)?);
         )*
 
         builder.build()
     }};
 
     // Internal rule that expands to `Some($value)` if given, otherwise `None`
-    (@opt $value:expr) => { Some($value) };
-    (@opt) => { None };
+    (@opt $builder:ident $key:ident $value:expr) => {
+        let $builder = $builder.attribute(
+            $crate::protocol::string::AsciiStringRef(stringify!($key).as_bytes()),
+            Some($value as &[u8])
+        );
+    };
+    (@opt $builder:ident $key:ident) => {
+        let $builder = $builder.flag_attribute($crate::protocol::string::AsciiStringRef(stringify!($key).as_bytes()));
+    };
 }
 
 #[cfg(test)]
 mod test {
+
     /// Helper to parse the RouterOS length-prefixed “words” out of the command data.
     ///
     /// The builder writes each word as:
     ///   [1-byte length][word bytes] ...
     /// with a final 0-length to signal the end.
-    fn parse_words(data: &[u8]) -> Vec<String> {
+    fn parse_words(data: &[u8]) -> Vec<&[u8]> {
         let mut words = Vec::new();
         let mut i = 0;
         while i < data.len() {
@@ -119,23 +123,23 @@ mod test {
             let word = &data[i..i + len];
             i += len;
             // Convert to String for easier assertions
-            words.push(String::from_utf8_lossy(word).to_string());
+            words.push(word);
         }
         words
     }
 
     #[test]
     fn test_command_no_attributes() {
-        let cmd = command!("/system/resource/print");
+        let cmd = command!(b"/system/resource/print");
         let words = parse_words(&cmd.data);
 
         // Word[0] => actual command
-        assert_eq!(words[0], "/system/resource/print");
+        assert_eq!(words[0], b"/system/resource/print");
 
         // Word[1] => .tag=xxxx
         // We can’t check the exact tag value because it's random, but we can ensure it starts with ".tag="
         assert!(
-            words[1].starts_with(".tag="),
+            words[1].starts_with(b".tag="),
             "Tag word should start with .tag="
         );
 
@@ -145,33 +149,33 @@ mod test {
 
     #[test]
     fn test_command_with_one_attribute() {
-        let cmd = command!("/interface/ethernet/print", user = "admin");
+        let cmd = command!(b"/interface/ethernet/print", user = b"admin");
         let words = parse_words(&cmd.data);
 
-        assert_eq!(words[0], "/interface/ethernet/print");
+        assert_eq!(words[0], b"/interface/ethernet/print");
         assert!(
-            words[1].starts_with(".tag="),
+            words[1].starts_with(b".tag="),
             "Expected .tag= as second word"
         );
         // Word[2] => "=user=admin"
-        assert_eq!(words[2], "=user=admin");
+        assert_eq!(words[2], b"=user=admin");
         // So total 3 words plus 0-terminator
         assert_eq!(words.len(), 3);
     }
 
     #[test]
     fn test_command_with_multiple_attributes() {
-        let cmd = command!("/some/random", attribute_no_value, another = "value");
+        let cmd = command!(b"/some/random", attribute_no_value, another = b"value");
         let words = parse_words(&cmd.data);
 
         // Word[0] => "/some/random"
-        assert_eq!(words[0], "/some/random");
+        assert_eq!(words[0], b"/some/random");
         // Word[1] => ".tag=xxxx"
-        assert!(words[1].starts_with(".tag="));
+        assert!(words[1].starts_with(b".tag="));
         // Word[2] => "=attribute_no_value="
-        assert_eq!(words[2], "=attribute_no_value=");
+        assert_eq!(words[2], b"=attribute_no_value=");
         // Word[3] => "=another=value"
-        assert_eq!(words[3], "=another=value");
+        assert_eq!(words[3], b"=another=value");
         // Total 4 words plus terminator
         assert_eq!(words.len(), 4);
     }

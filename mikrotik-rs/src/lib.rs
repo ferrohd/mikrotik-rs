@@ -23,12 +23,12 @@
 //!     let addr = "192.168.88.1:8728";
 //!
 //!     // Router's username and password
-//!     let username = "admin";
-//!     let password = "password";
+//!     let username = b"admin";
+//!     let password = b"password";
 //!
 //!     let mut client = MikrotikDevice::connect(addr, username, Some(password)).await?;
 //!
-//!     let command = CommandBuilder::new().command("/interface/print")?.build(); // Example command
+//!     let command = CommandBuilder::new().command(b"/interface/print").build(); // Example command
 //!     let mut response_channel = client.send_command(command).await;
 //!     while let Some(response) = response_channel.recv().await {
 //!        println!("{:?}", response);

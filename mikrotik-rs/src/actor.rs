@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::error::{DeviceError, DeviceResult};
 use crate::protocol::command::CommandBuilder;
 use crate::protocol::sentence::{next_sentence, SentenceError};
+use crate::protocol::string::AsciiStringRef;
 use crate::protocol::word::{Word, WordCategory};
 use crate::protocol::CommandResponse;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
@@ -20,10 +21,10 @@ pub struct DeviceConnectionActor;
 
 impl DeviceConnectionActor {
     /// Connect to the device, spawn the read/write loop, and log in.
-    pub async fn start(
+    pub async fn start<'u, 'p, U: Into<AsciiStringRef<'u>>, P: Into<AsciiStringRef<'p>>>(
         addr: impl ToSocketAddrs,
-        username: &str,
-        password: Option<&str>,
+        username: U,
+        password: Option<P>,
     ) -> DeviceResult<Sender<ReadActorMessage>> {
         let (command_tx_send, mut command_tx_recv) = mpsc::channel::<ReadActorMessage>(16);
 
@@ -185,14 +186,13 @@ async fn process_sentence(
 }
 
 /// Log in by sending the login command. Returns an error if login fails.
-async fn login(
-    username: &str,
-    password: Option<&str>,
+async fn login<'u, 'p, U: Into<AsciiStringRef<'u>>, P: Into<AsciiStringRef<'p>>>(
+    username: U,
+    password: Option<P>,
     command_tx_send: &Sender<ReadActorMessage>,
 ) -> DeviceResult<()> {
     let (login_response_tx, mut login_response_rx) = mpsc::channel(1);
-    let login_cmd =
-        CommandBuilder::login(username, password).expect("Cannot encode user and password");
+    let login_cmd = CommandBuilder::login(username, password);
 
     command_tx_send
         .send(ReadActorMessage {

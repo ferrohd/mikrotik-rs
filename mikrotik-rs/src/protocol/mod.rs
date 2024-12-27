@@ -4,6 +4,7 @@ use std::{
     num::ParseIntError,
 };
 
+use crate::protocol::string::{AsciiString, AsciiStringRef};
 use error::{MissingWord, ProtocolError, WordType};
 use word::{Word, WordAttribute, WordCategory};
 
@@ -16,8 +17,11 @@ pub mod sentence;
 /// Module containing the word parser and response types.
 pub mod word;
 
+/// Module containing string helpers to deal with mikrotik ASCII
+pub mod string;
+
 /// Type alias for a fatal response [`String`].
-pub type FatalResponse = String;
+pub type FatalResponse = AsciiString;
 
 /// Various types of responses a command can produce.
 #[derive(Debug, Clone)]
@@ -77,13 +81,13 @@ impl TryFrom<&[Word<'_>]> for CommandResponse {
                 // !re is composed of a tag and a list of attributes
                 // The tag is mandatory but its position is not fixed
                 let mut tag = None;
-                let mut attributes = HashMap::<String, Option<String>>::new();
+                let mut attributes = HashMap::<Box<[u8]>, Option<Box<[u8]>>>::new();
 
                 for word in sentence_iter {
                     match word {
                         Word::Tag(t) => tag = Some(t),
                         Word::Attribute(WordAttribute { key, value }) => {
-                            attributes.insert(key.to_string(), value.as_deref().map(String::from));
+                            attributes.insert(Box::from(key.0), value.as_deref().map(Box::from));
                         }
                         word => {
                             return Err(ProtocolError::WordSequence {
@@ -109,18 +113,17 @@ impl TryFrom<&[Word<'_>]> for CommandResponse {
                 for word in sentence_iter {
                     match word {
                         Word::Tag(t) => tag = Some(t),
-                        Word::Attribute(WordAttribute { key, value }) => match key.as_ref() {
-                            "category" => {
-                                category =
-                                    value.as_deref().map(TrapCategory::try_from).transpose()?;
+                        Word::Attribute(WordAttribute { key, value }) => match *key {
+                            AsciiStringRef(b"category") => {
+                                category = value.map(TrapCategory::try_from).transpose()?;
                             }
-                            "message" => {
-                                message = value.as_deref().map(String::from);
+                            AsciiStringRef(b"message") => {
+                                message = value.as_ref().map(AsciiStringRef::to_ascii_string);
                             }
                             key => {
                                 return Err(TrapCategoryError::InvalidAttribute {
-                                    key: key.into(),
-                                    value: value.as_deref().map(|v| v.into()),
+                                    key: key.to_ascii_string(),
+                                    value: value.as_ref().map(|v| v.to_ascii_string()),
                                 }
                                 .into());
                             }
@@ -154,7 +157,7 @@ impl TryFrom<&[Word<'_>]> for CommandResponse {
                     expected: vec![WordType::Message],
                 })?;
 
-                Ok(CommandResponse::Fatal(reason.to_string()))
+                Ok(CommandResponse::Fatal(reason.to_ascii_string()))
             }
         }
     }
@@ -179,7 +182,7 @@ pub struct ReplyResponse {
     /// The tag associated with the command.
     pub tag: u16,
     /// The attributes of the reply.
-    pub attributes: HashMap<String, Option<String>>,
+    pub attributes: HashMap<Box<[u8]>, Option<Box<[u8]>>>,
 }
 
 impl Display for ReplyResponse {
@@ -200,7 +203,7 @@ pub struct TrapResponse {
     /// The category of the trap.
     pub category: Option<TrapCategory>,
     /// The message associated with the trap.
-    pub message: String,
+    pub message: AsciiString,
 }
 
 impl Display for TrapResponse {
@@ -253,10 +256,10 @@ impl TryFrom<u8> for TrapCategory {
     }
 }
 
-impl TryFrom<&str> for TrapCategory {
+impl TryFrom<AsciiStringRef<'_>> for TrapCategory {
     type Error = ProtocolError;
 
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
+    fn try_from(s: AsciiStringRef<'_>) -> Result<Self, Self::Error> {
         let n = s
             .parse::<u8>()
             .map_err(|e| ProtocolError::TrapCategory(TrapCategoryError::Invalid(e)))?;
@@ -278,9 +281,9 @@ pub enum TrapCategoryError {
     /// Trap expects a category or message, but got something else.
     InvalidAttribute {
         /// The key of the invalid attribute.
-        key: String,
+        key: AsciiString,
         /// The value of the invalid attribute, if present.
-        value: Option<String>,
+        value: Option<AsciiString>,
     },
     /// Missing category attribute in a trap response.
     MissingMessageAttribute,

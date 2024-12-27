@@ -1,11 +1,10 @@
+use super::error::WordType;
+use crate::protocol::string::AsciiStringRef;
 use std::{
-    borrow::Cow,
     fmt::{self, Display, Formatter},
     num::ParseIntError,
     str::Utf8Error,
 };
-
-use super::error::WordType;
 
 /// Represents a word in a Mikrotik [`Sentence`].
 ///
@@ -21,8 +20,8 @@ use super::error::WordType;
 /// ```
 /// use mikrotik_rs::protocol::word::Word;
 ///
-/// let word = Word::try_from(b"=name=ether1" as &[u8]);
-/// assert_eq!(word.unwrap().attribute(), Some(("name", Some("ether1"))));
+/// let word = Word::try_from(b"=name=ether1");
+/// assert_eq!(word.unwrap().attribute(), Some((b"name" as &[u8], Some(b"ether1" as &[u8]))));
 /// ```
 #[derive(Debug, PartialEq)]
 pub enum Word<'a> {
@@ -33,7 +32,7 @@ pub enum Word<'a> {
     /// An attribute word, such as `=name=ether1`.
     Attribute(WordAttribute<'a>),
     /// An unrecognized word. Usually this is a `!fatal` reason message.
-    Message(Cow<'a, str>),
+    Message(AsciiStringRef<'a>),
 }
 
 impl Word<'_> {
@@ -54,7 +53,7 @@ impl Word<'_> {
     }
 
     /// Returns the attribute of the word, if it is an attribute word.
-    pub fn attribute(&self) -> Option<(&str, Option<&str>)> {
+    pub fn attribute(&self) -> Option<(&[u8], Option<&[u8]>)> {
         match self {
             Word::Attribute(WordAttribute { key, value }) => Some((key.as_ref(), value.as_deref())),
             _ => None,
@@ -63,9 +62,9 @@ impl Word<'_> {
 
     /// Returns the generic word, if it is a generic word.
     /// This is usually a `!fatal` reason message.
-    pub fn generic(&self) -> Option<&str> {
+    pub fn generic(&self) -> Option<AsciiStringRef> {
         match self {
-            Word::Message(generic) => Some(generic),
+            Word::Message(generic) => Some(*generic),
             _ => None,
         }
     }
@@ -87,37 +86,42 @@ impl Display for Word<'_> {
             Word::Category(category) => write!(f, "{}", category),
             Word::Tag(tag) => write!(f, ".tag={}", tag),
             Word::Attribute(WordAttribute { key, value }) => {
-                write!(f, "={}={}", key, value.as_deref().unwrap_or(""))
+                write!(f, "={}={}", key, value.as_ref().unwrap_or_default())
             }
             Word::Message(generic) => write!(f, "{}", generic),
         }
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for Word<'a> {
+impl<'a> TryFrom<AsciiStringRef<'a>> for Word<'a> {
     type Error = WordError;
-
-    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
-        let s = encoding_rs::mem::decode_latin1(value);
-
+    fn try_from(value: AsciiStringRef<'a>) -> Result<Self, Self::Error> {
+        let s = value;
         // Parse tag
-        if let Some(stripped) = s.strip_prefix(".tag=") {
-            let tag = stripped.parse::<u16>()?;
+        if let Some(stripped) = s.strip_prefix(b".tag=") {
+            let tag = AsciiStringRef(stripped).parse::<u16>()?;
             return Ok(Word::Tag(tag));
         }
 
         // Parse attribute pair
-        if s.starts_with('=') {
+        if s.starts_with(b"=") {
             let attribute = WordAttribute::try_from(s)?;
             return Ok(Word::Attribute(attribute));
         }
 
         // Parse category
-        match WordCategory::try_from(s.as_ref()) {
+        match WordCategory::try_from(s.0) {
             Ok(category) => Ok(Word::Category(category)),
             // If the word is not a category, tag, or attribute, it's likely a generic word
             Err(_) => Ok(Word::Message(s)),
         }
+    }
+}
+impl<'a, const N: usize> TryFrom<&'a [u8; N]> for Word<'a> {
+    type Error = WordError;
+
+    fn try_from(value: &'a [u8; N]) -> Result<Self, Self::Error> {
+        Word::try_from(AsciiStringRef(value))
     }
 }
 
@@ -136,15 +140,15 @@ pub enum WordCategory {
     Fatal,
 }
 
-impl TryFrom<&str> for WordCategory {
+impl TryFrom<&[u8]> for WordCategory {
     type Error = ();
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         match value {
-            "!done" => Ok(Self::Done),
-            "!re" => Ok(Self::Reply),
-            "!trap" => Ok(Self::Trap),
-            "!fatal" => Ok(Self::Fatal),
+            b"!done" => Ok(Self::Done),
+            b"!re" => Ok(Self::Reply),
+            b"!trap" => Ok(Self::Trap),
+            b"!fatal" => Ok(Self::Fatal),
             _ => Err(()),
         }
     }
@@ -165,49 +169,45 @@ impl Display for WordCategory {
 #[derive(Debug, PartialEq)]
 pub struct WordAttribute<'a> {
     /// The key of the attribute.
-    pub key: Cow<'a, str>,
+    pub key: AsciiStringRef<'a>,
     /// The value of the attribute, if present.
-    pub value: Option<Cow<'a, str>>,
+    pub value: Option<AsciiStringRef<'a>>,
 }
 
-impl<'a> TryFrom<&'a str> for WordAttribute<'a> {
+impl<'a> TryFrom<AsciiStringRef<'a>> for WordAttribute<'a> {
     type Error = WordError;
 
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+    fn try_from(value: AsciiStringRef<'a>) -> Result<Self, Self::Error> {
         let mut parts = value
-            .strip_prefix('=')
+            .0
+            .strip_prefix(b"=")
             .ok_or(WordError::Attribute)?
-            .splitn(2, '=');
-        let key = Cow::Borrowed(parts.next().ok_or(WordError::Attribute)?);
-        let value = parts.next().map(Cow::Borrowed);
+            .splitn(2, |b| *b == b'=');
+        let key = AsciiStringRef(
+            parts
+                .next()
+                .expect("there should be always at least one part"),
+        );
+        let value = parts.next().map(AsciiStringRef);
         Ok(Self { key, value })
     }
 }
-
-impl<'a> TryFrom<Cow<'a, str>> for WordAttribute<'a> {
-    type Error = WordError;
-
-    fn try_from(value: Cow<'a, str>) -> Result<Self, Self::Error> {
-        Ok(match value {
-            Cow::Borrowed(value) => {
-                let mut parts = value
-                    .strip_prefix('=')
-                    .ok_or(WordError::Attribute)?
-                    .splitn(2, '=');
-                let key = Cow::Borrowed(parts.next().ok_or(WordError::Attribute)?);
-                let value = parts.next().map(Cow::Borrowed);
-                Self { key, value }
-            }
-            Cow::Owned(value) => {
-                let mut parts = value
-                    .strip_prefix('=')
-                    .ok_or(WordError::Attribute)?
-                    .splitn(2, '=');
-                let key = parts.next().ok_or(WordError::Attribute)?.to_string().into();
-                let value = parts.next().map(|s| s.to_string().into());
-                Self { key, value }
-            }
-        })
+impl<'a> From<(&'a [u8], Option<&'a [u8]>)> for WordAttribute<'a> {
+    fn from((key, value): (&'a [u8], Option<&'a [u8]>)) -> Self {
+        Self {
+            key: key.into(),
+            value: value.map(AsciiStringRef),
+        }
+    }
+}
+impl<'a, const KL: usize, const VL: usize> From<(&'a [u8; KL], Option<&'a [u8; VL]>)>
+    for WordAttribute<'a>
+{
+    fn from((key, value): (&'a [u8; KL], Option<&'a [u8; VL]>)) -> Self {
+        Self {
+            key: key.into(),
+            value: value.map(|s| AsciiStringRef(s)),
+        }
     }
 }
 
@@ -237,56 +237,39 @@ impl From<ParseIntError> for WordError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use encoding_rs::mem::encode_latin1_lossy;
-
-    impl<'a> From<(&'a str, Option<&'a str>)> for WordAttribute<'a> {
-        fn from(value: (&'a str, Option<&'a str>)) -> Self {
-            Self {
-                key: Cow::Borrowed(value.0),
-                value: value.1.map(Cow::Borrowed),
-            }
-        }
-    }
 
     #[test]
     fn test_word_parsing() {
         // Test cases for `Word::try_from` function
         assert_eq!(
-            Word::try_from(b"!done".as_ref()).unwrap(),
+            Word::try_from(b"!done").unwrap(),
             Word::Category(WordCategory::Done)
         );
 
+        assert_eq!(Word::try_from(b".tag=123").unwrap(), Word::Tag(123));
+
         assert_eq!(
-            Word::try_from(b".tag=123".as_ref()).unwrap(),
-            Word::Tag(123)
+            Word::try_from(b"=name=ether1").unwrap(),
+            Word::Attribute((b"name", Some(b"ether1")).into())
         );
 
         assert_eq!(
-            Word::try_from(b"=name=ether1".as_ref()).unwrap(),
-            Word::Attribute(("name", Some("ether1")).into())
-        );
-
-        assert_eq!(
-            Word::try_from(b"!fatal".as_ref()).unwrap(),
+            Word::try_from(b"!fatal").unwrap(),
             Word::Category(WordCategory::Fatal)
         );
 
         assert_eq!(
-            Word::try_from(b"unknownword".as_ref()).unwrap(),
-            Word::Message("unknownword".into())
+            Word::try_from(b"unknownword").unwrap(),
+            Word::Message(b"unknownword".into())
         );
 
         // Invalid tag value
-        assert!(Word::try_from(b".tag=notanumber".as_ref()).is_err());
+        assert!(Word::try_from(b".tag=notanumber").is_err());
 
         // extended characters
         assert_eq!(
-            Word::try_from(b"\xFF\xFF".as_ref()).unwrap(),
-            Word::Message("ÿÿ".into())
-        );
-        assert_eq!(
-            Word::try_from(encode_latin1_lossy("äöüàéèÄÖÜÀÉÈ").as_ref()).unwrap(),
-            Word::Message("äöüàéèÄÖÜÀÉÈ".into())
+            Word::try_from(b"\xFF\xFF").unwrap(),
+            Word::Message(b"\xff\xff".into())
         );
     }
 
@@ -299,10 +282,10 @@ mod tests {
         let word = Word::Tag(123);
         assert_eq!(format!("{}", word), ".tag=123");
 
-        let word = Word::Attribute(("name", Some("ether1")).into());
+        let word = Word::Attribute((b"name", Some(b"ether1")).into());
         assert_eq!(format!("{}", word), "=name=ether1");
 
-        let word = Word::Message("unknownword".into());
+        let word = Word::Message(b"unknownword".into());
         assert_eq!(format!("{}", word), "unknownword");
     }
 }
