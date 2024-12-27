@@ -58,9 +58,9 @@ mod actor;
 mod device;
 /// Error module for handling errors during device operations.
 pub mod error;
-/// Protocol module for handling MikroTik API communication.
-pub mod protocol;
 /// Macros module to make your life easier.
 pub mod macros;
+/// Protocol module for handling MikroTik API communication.
+pub mod protocol;
 
 pub use device::MikrotikDevice;
