@@ -91,7 +91,6 @@ macro_rules! command {
     (@opt) => { None };
 }
 
-
 #[cfg(test)]
 mod test {
     /// Helper to parse the RouterOS length-prefixed “words” out of the command data.
@@ -116,7 +115,7 @@ mod test {
             if i + len > data.len() {
                 panic!("Malformed command data: length prefix exceeds available data.");
             }
-            let word = &data[i..i+len];
+            let word = &data[i..i + len];
             i += len;
             // Convert to String for easier assertions
             words.push(String::from_utf8_lossy(word).to_string());
@@ -134,7 +133,10 @@ mod test {
 
         // Word[1] => .tag=xxxx
         // We can’t check the exact tag value because it's random, but we can ensure it starts with ".tag="
-        assert!(words[1].starts_with(".tag="), "Tag word should start with .tag=");
+        assert!(
+            words[1].starts_with(".tag="),
+            "Tag word should start with .tag="
+        );
 
         // Should only have these two words (plus the 0-length terminator, which we skip).
         assert_eq!(words.len(), 2, "Expected two words (command + .tag=).");
@@ -142,11 +144,14 @@ mod test {
 
     #[test]
     fn test_command_with_one_attribute() {
-        let cmd = command!("/interface/ethernet/print", user="admin");
+        let cmd = command!("/interface/ethernet/print", user = "admin");
         let words = parse_words(&cmd.data);
 
         assert_eq!(words[0], "/interface/ethernet/print");
-        assert!(words[1].starts_with(".tag="), "Expected .tag= as second word");
+        assert!(
+            words[1].starts_with(".tag="),
+            "Expected .tag= as second word"
+        );
         // Word[2] => "=user=admin"
         assert_eq!(words[2], "=user=admin");
         // So total 3 words plus 0-terminator
@@ -155,7 +160,7 @@ mod test {
 
     #[test]
     fn test_command_with_multiple_attributes() {
-        let cmd = command!("/some/random", attribute_no_value, another="value");
+        let cmd = command!("/some/random", attribute_no_value, another = "value");
         let words = parse_words(&cmd.data);
 
         // Word[0] => "/some/random"

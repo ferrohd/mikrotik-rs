@@ -242,7 +242,7 @@ impl CommandBuilder<Cmd> {
     ///
     /// The builder with the attribute added, allowing for method chaining.
     pub fn query_operations(mut self, operations: impl Iterator<Item = QueryOperator>) -> Self {
-        let query:String = "?#".chars().chain(operations.map(|op| op.code())).collect();
+        let query: String = "?#".chars().chain(operations.map(|op| op.code())).collect();
         self.cmd.write_word(query.as_bytes());
         self
     }
