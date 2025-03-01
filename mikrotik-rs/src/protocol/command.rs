@@ -36,7 +36,7 @@ impl CommandBuilder<NoCmd> {
     /// Begin building a new [`Command`] with a randomly generated tag.
     pub fn new() -> Self {
         let mut dest = [0_u8; size_of::<u16>()];
-        getrandom::getrandom(&mut dest).expect("Failed to generate random tag");
+        getrandom::fill(&mut dest).expect("Failed to generate random tag");
         Self {
             tag: u16::from_be_bytes(dest),
             cmd: CommandBuffer::default(),
