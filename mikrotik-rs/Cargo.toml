@@ -18,7 +18,7 @@ doctest = false
 workspace = true
 
 [dependencies]
-getrandom = { version = "0.2.12", default-features = false, features = ["std"] }
+getrandom = { version = "0.3.0", default-features = false, features = ["std"] }
 tokio = { version = "1.36.0", features = [
     "net",
     "sync",
