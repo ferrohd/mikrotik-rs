@@ -2,18 +2,21 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": [
         "config:recommended",
-        ":configMigration",
-        ":enablePreCommit"
+        ":rebaseStalePrs",
+        ":enablePreCommit",
+        ":semanticCommits"
     ],
+    "enabled": true,
     "semanticCommits": "enabled",
     "rebaseWhen": "auto",
-    "enabled": true,
     "assignees": [
         "ferrohd"
     ],
     "dependencyDashboard": true,
     "automerge": true,
+    "separateMajorMinor": true,
     "separateMultipleMajor": true,
+    "separateMinorPatch": true,
     "packageRules": [
         {
             "groupName": "Cargo Dependencies",
