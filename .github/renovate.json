@@ -17,7 +17,8 @@
     "packageRules": [
         {
             "groupName": "Cargo Dependencies",
-            "matchManagers": ["cargo"]
+            "matchManagers": ["cargo"],
+            "dependencyDashboardApproval": true
         },
         {
             "groupName": "GitHub Actions",
