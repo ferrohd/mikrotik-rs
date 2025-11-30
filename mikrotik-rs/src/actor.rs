@@ -127,6 +127,11 @@ async fn process_packet(
                     let _ = sender.send(Ok(CommandResponse::Done(done))).await;
                 }
             }
+            CommandResponse::Empty(empty) => {
+                if let Some(sender) = running_commands.remove(&empty.tag) {
+                    let _ = sender.send(Ok(CommandResponse::Empty(empty))).await;
+                }
+            }
             CommandResponse::Reply(reply) => {
                 let tag = reply.tag;
                 if let Some(sender) = running_commands.get(&tag) {

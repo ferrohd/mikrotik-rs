@@ -57,7 +57,7 @@ impl From<TrapCategoryError> for ProtocolError {
 pub enum MissingWord {
     /// Missing `.tag` in the response. All responses must have a tag.
     Tag,
-    /// Missing category (`!done`, `!repl`, `!trap`, `!fatal`) in the response.
+    /// Missing category (`!done`, `!re`, `!trap`, `!fatal`, `!empty`) in the response.
     Category,
     /// Missing message in a [`CommandResponse::FatalResponse`]
     Message,
