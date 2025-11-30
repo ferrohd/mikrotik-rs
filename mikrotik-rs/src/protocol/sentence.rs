@@ -93,7 +93,7 @@ pub enum SentenceError {
     PrefixLength,
     // Error indicating that the category of the sentence is missing.
     // This could happen if the sentence does not start with a recognized category.
-    // Valid categories are `!done`, `!re`, `!trap`, and `!fatal`.
+    // Valid categories are `!done`, `!re`, `!trap`, `!fatal`, and `!empty`.
     //Category,
 }
 
@@ -112,14 +112,14 @@ fn read_length(data: &[u8]) -> Result<(u32, usize), SentenceError> {
         c &= !0xC0;
         c <<= 8;
         c += data[1] as u32;
-        return Ok((c, 2));
+        Ok((c, 2))
     } else if c & 0xE0 == 0xC0 {
         c &= !0xE0;
         c <<= 8;
         c += data[1] as u32;
         c <<= 8;
         c += data[2] as u32;
-        return Ok((c, 3));
+        Ok((c, 3))
     } else if c & 0xF0 == 0xE0 {
         c &= !0xF0;
         c <<= 8;
@@ -128,7 +128,7 @@ fn read_length(data: &[u8]) -> Result<(u32, usize), SentenceError> {
         c += data[2] as u32;
         c <<= 8;
         c += data[3] as u32;
-        return Ok((c, 4));
+        Ok((c, 4))
     } else if c & 0xF8 == 0xF0 {
         c = data[1] as u32;
         c <<= 8;
@@ -137,7 +137,7 @@ fn read_length(data: &[u8]) -> Result<(u32, usize), SentenceError> {
         c += data[3] as u32;
         c <<= 8;
         c += data[4] as u32;
-        return Ok((c, 5));
+        Ok((c, 5))
     } else {
         Err(SentenceError::PrefixLength)
     }
@@ -330,6 +330,26 @@ mod tests {
         assert_eq!(sentence.next(), None);
 
         // Confirm that extra data is ignored after the end of the sentence
+        assert_eq!(sentence.next(), None);
+    }
+
+    #[test]
+    fn test_sentence_with_empty_response() {
+        let data: &[u8] = &[
+            0x06, b'!', b'e', b'm', b'p', b't', b'y', // Word: !empty
+            0x08, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
+            0x00, // End of sentence
+        ];
+
+        let mut sentence = Sentence::new(data);
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Category(WordCategory::Empty)
+        );
+
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(123));
+
         assert_eq!(sentence.next(), None);
     }
 }

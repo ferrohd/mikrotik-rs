@@ -9,7 +9,7 @@ use super::error::WordType;
 /// Represents a word in a Mikrotik [`Sentence`].
 ///
 /// Words can be of three types:
-/// - A category word, which represents the type of sentence, such as `!done`, `!re`, `!trap`, or `!fatal`.
+/// - A category word, which represents the type of sentence, such as `!done`, `!re`, `!trap`, `!fatal`, or `!empty`.
 /// - A tag word, which represents a tag value like `.tag=123`.
 /// - An attribute word, which represents a key-value pair like `=name=ether1`.
 ///
@@ -25,7 +25,7 @@ use super::error::WordType;
 /// ```
 #[derive(Debug, PartialEq)]
 pub enum Word<'a> {
-    /// A category word, such as `!done`, `!re`, `!trap`, or `!fatal`.
+    /// A category word, such as `!done`, `!re`, `!trap`, `!fatal`, or `!empty`.
     Category(WordCategory),
     /// A tag word, such as `.tag=123`.
     Tag(u16),
@@ -121,7 +121,7 @@ impl<'a> TryFrom<&'a [u8]> for Word<'a> {
 
 /// Represents the type of of a response.
 /// The type is derived from the first [`Word`] in a [`Sentence`].
-/// Valid types are `!done`, `!re`, `!trap`, and `!fatal`.
+/// Valid types are `!done`, `!re`, `!trap`, `!fatal`, and `!empty`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum WordCategory {
     /// Represents a `!done` response.
@@ -132,6 +132,8 @@ pub enum WordCategory {
     Trap,
     /// Represents a `!fatal` response.
     Fatal,
+    /// Represents a `!empty` response.
+    Empty,
 }
 
 impl TryFrom<&str> for WordCategory {
@@ -143,6 +145,7 @@ impl TryFrom<&str> for WordCategory {
             "!re" => Ok(Self::Reply),
             "!trap" => Ok(Self::Trap),
             "!fatal" => Ok(Self::Fatal),
+            "!empty" => Ok(Self::Empty),
             _ => Err(()),
         }
     }
@@ -155,6 +158,7 @@ impl Display for WordCategory {
             WordCategory::Reply => write!(f, "!re"),
             WordCategory::Trap => write!(f, "!trap"),
             WordCategory::Fatal => write!(f, "!fatal"),
+            WordCategory::Empty => write!(f, "!empty"),
         }
     }
 }
@@ -263,6 +267,11 @@ mod tests {
         );
 
         assert_eq!(
+            Word::try_from(b"!empty".as_ref()).unwrap(),
+            Word::Category(WordCategory::Empty)
+        );
+
+        assert_eq!(
             Word::try_from(b"unknownword".as_ref()).unwrap(),
             Word::Message("unknownword")
         );
@@ -288,5 +297,8 @@ mod tests {
 
         let word = Word::Message("unknownword");
         assert_eq!(format!("{}", word), "unknownword");
+
+        let word = Word::Category(WordCategory::Empty);
+        assert_eq!(format!("{}", word), "!empty");
     }
 }
