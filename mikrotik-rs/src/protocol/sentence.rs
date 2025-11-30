@@ -93,7 +93,7 @@ pub enum SentenceError {
     PrefixLength,
     // Error indicating that the category of the sentence is missing.
     // This could happen if the sentence does not start with a recognized category.
-    // Valid categories are `!done`, `!re`, `!trap`, and `!fatal`.
+    // Valid categories are `!done`, `!re`, `!trap`, `!fatal`, and `!empty`.
     //Category,
 }
 
@@ -330,6 +330,26 @@ mod tests {
         assert_eq!(sentence.next(), None);
 
         // Confirm that extra data is ignored after the end of the sentence
+        assert_eq!(sentence.next(), None);
+    }
+
+    #[test]
+    fn test_sentence_with_empty_response() {
+        let data: &[u8] = &[
+            0x06, b'!', b'e', b'm', b'p', b't', b'y', // Word: !empty
+            0x08, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
+            0x00, // End of sentence
+        ];
+
+        let mut sentence = Sentence::new(data);
+
+        assert_eq!(
+            sentence.next().unwrap().unwrap(),
+            Word::Category(WordCategory::Empty)
+        );
+
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(123));
+
         assert_eq!(sentence.next(), None);
     }
 }

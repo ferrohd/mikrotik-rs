@@ -31,6 +31,9 @@ pub enum CommandResponse {
     Trap(TrapResponse),
     /// Represents a fatal error response.
     Fatal(FatalResponse),
+    /// Represents an empty response (introduced in RouterOS 7.18).
+    /// Commands which do not have any data to reply with return this response.
+    Empty(EmptyResponse),
 }
 
 impl CommandResponse {
@@ -43,6 +46,7 @@ impl CommandResponse {
             Self::Reply(r) => Some(r.tag),
             Self::Trap(t) => Some(t.tag),
             Self::Fatal(_) => None,
+            Self::Empty(e) => Some(e.tag),
         }
     }
 }
@@ -171,6 +175,18 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
 
                 Ok(CommandResponse::Fatal(reason.to_string()))
             }
+            WordCategory::Empty => {
+                let word = sentence_iter
+                    .next()
+                    .ok_or::<ProtocolError>(MissingWord::Tag.into())??;
+
+                // !empty is composed of a single tag, similar to !done
+                let tag = word.tag().ok_or(ProtocolError::WordSequence {
+                    word: word.into(),
+                    expected: vec![WordType::Tag],
+                })?;
+                Ok(CommandResponse::Empty(EmptyResponse { tag }))
+            }
         }
     }
 }
@@ -185,6 +201,20 @@ pub struct DoneResponse {
 impl Display for DoneResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "DoneResponse {{ tag: {} }}", self.tag)
+    }
+}
+
+/// Represents an empty response
+/// Commands which do not have any data to reply with return this response.
+#[derive(Debug, Clone)]
+pub struct EmptyResponse {
+    /// The tag associated with the command.
+    pub tag: u16,
+}
+
+impl Display for EmptyResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "EmptyResponse {{ tag: {} }}", self.tag)
     }
 }
 
