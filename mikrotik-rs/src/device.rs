@@ -60,7 +60,7 @@ impl MikrotikDevice {
     ///
     /// # Errors
     ///
-    /// Returns `DeviceError::Channel` if the connection to the device has been lost
+    /// Returns `DeviceError::Actor(ActorError::CommandSendFailed)` if the connection to the device has been lost
     /// (e.g., router reboot, network failure). The actor shuts down when the connection
     /// is lost, making the command channel disconnected.
     ///

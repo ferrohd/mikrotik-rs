@@ -4,6 +4,8 @@ use std::{
     num::ParseIntError,
 };
 
+use thiserror::Error;
+
 use error::{MissingWord, ProtocolError, WordType};
 use sentence::Sentence;
 use word::{Word, WordAttribute, WordCategory};
@@ -316,13 +318,16 @@ impl TryFrom<&str> for TrapCategory {
 /// This enum provides more detailed information about issues that can arise while parsing trap
 /// categories, such as missing categories, errors while converting category strings to integers,
 /// or categories that are out of range.
-#[derive(Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum TrapCategoryError {
     /// Invalid value encountered while parsing a trap category.
-    Invalid(ParseIntError),
+    #[error("Invalid trap category value: {0}")]
+    Invalid(#[source] ParseIntError),
     /// Error indicating that a trap category is out of range. Valid categories are 0-7.
+    #[error("Trap category out of range: {0} (valid range: 0-7)")]
     OutOfRange(u8),
     /// Trap expects a category or message, but got something else.
+    #[error("Invalid trap attribute: key={key}, value={value:?}")]
     InvalidAttribute {
         /// The key of the invalid attribute.
         key: String,
@@ -330,24 +335,6 @@ pub enum TrapCategoryError {
         value: Option<String>,
     },
     /// Missing category attribute in a trap response.
+    #[error("Missing message attribute in trap response")]
     MissingMessageAttribute,
-}
-
-impl std::fmt::Display for TrapCategoryError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TrapCategoryError::Invalid(err) => {
-                write!(f, "Invalid trap category value: {}", err)
-            }
-            TrapCategoryError::OutOfRange(n) => {
-                write!(f, "Trap category out of range: {} (valid range: 0-7)", n)
-            }
-            TrapCategoryError::InvalidAttribute { key, value } => {
-                write!(f, "Invalid trap attribute: key={}, value={:?}", key, value)
-            }
-            TrapCategoryError::MissingMessageAttribute => {
-                write!(f, "Missing message attribute in trap response")
-            }
-        }
-    }
 }

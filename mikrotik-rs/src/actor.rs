@@ -220,9 +220,7 @@ async fn login(
     let response = login_response_rx
         .recv()
         .await
-        .ok_or_else(|| DeviceError::Channel {
-            message: "No login response received".to_string(),
-        })??;
+        .ok_or_else(|| crate::error::ActorError::LoginResponseLost)??;
 
     match response {
         CommandResponse::Done(_) => Ok(()),

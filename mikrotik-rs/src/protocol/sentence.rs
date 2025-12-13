@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 use super::word::{Word, WordError};
 
 /// A parser for parsing bytes into sentences in the Mikrotik API sentence format.
@@ -84,23 +86,19 @@ impl<'a> Iterator for Sentence<'a> {
 /// Specific errors that can occur while processing a byte sequence into a [`Sentence`].
 ///
 /// Provides information about issues related to converting a sequence of bytes into a [`Sentence`].
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Error, Debug, PartialEq, Clone)]
 pub enum SentenceError {
     /// Error indicating that a sequence of bytes could not be parsed into a [`Word`].
-    WordError(WordError),
+    #[error("Word error: {0}")]
+    WordError(#[from] WordError),
     /// Error indicating that the prefix lenght of a [`Sentence`] is incorrect.
     /// This could happen if the length of the word is invalid or the data is corrupted.
+    #[error("Invalid prefix length")]
     PrefixLength,
     // Error indicating that the category of the sentence is missing.
     // This could happen if the sentence does not start with a recognized category.
     // Valid categories are `!done`, `!re`, `!trap`, `!fatal`, and `!empty`.
     //Category,
-}
-
-impl From<WordError> for SentenceError {
-    fn from(e: WordError) -> Self {
-        Self::WordError(e)
-    }
 }
 
 /// Returns the length and the number of bytes read.

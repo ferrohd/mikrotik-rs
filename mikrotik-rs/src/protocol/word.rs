@@ -4,6 +4,8 @@ use std::{
     str::Utf8Error,
 };
 
+use thiserror::Error;
+
 use super::error::WordType;
 
 /// Represents a word in a Mikrotik [`Sentence`].
@@ -103,7 +105,8 @@ impl<'a> TryFrom<&'a [u8]> for Word<'a> {
 
             // Try to parse as tag if it starts with ".tag="
             if let Some(stripped) = s.strip_prefix(".tag=") {
-                let tag = stripped.parse::<u16>()?;
+                let tag = stripped.parse::<u16>()
+                    .map_err(|e| WordError::Tag(e))?;
                 return Ok(Word::Tag(tag));
             }
         }
@@ -205,39 +208,20 @@ impl<'a> TryFrom<&'a [u8]> for WordAttribute<'a> {
 }
 
 /// Represents an error that occurred while parsing a [`Word`].
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Error, Debug, PartialEq, Clone)]
 pub enum WordError {
     /// The word is not a valid UTF-8 string.
-    Utf8(Utf8Error),
+    #[error("UTF-8 decoding error: {0}")]
+    Utf8(#[from] Utf8Error),
     /// The word is a tag, but the tag value is invalid.
-    Tag(ParseIntError),
+    #[error("Tag parsing error: {0}")]
+    Tag(#[source] ParseIntError),
     /// The word is an attribute pair, but the format is invalid.
+    #[error("Invalid attribute format")]
     Attribute,
     /// The key part of the attribute pair is not valid UTF-8.
+    #[error("Attribute key is not valid UTF-8")]
     AttributeKeyNotUtf8,
-}
-
-impl From<Utf8Error> for WordError {
-    fn from(e: Utf8Error) -> Self {
-        Self::Utf8(e)
-    }
-}
-
-impl From<ParseIntError> for WordError {
-    fn from(e: ParseIntError) -> Self {
-        Self::Tag(e)
-    }
-}
-
-impl std::fmt::Display for WordError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            WordError::Utf8(err) => write!(f, "UTF-8 decoding error: {}", err),
-            WordError::Tag(err) => write!(f, "Tag parsing error: {}", err),
-            WordError::Attribute => write!(f, "Invalid attribute format"),
-            WordError::AttributeKeyNotUtf8 => write!(f, "Attribute key is not valid UTF-8"),
-        }
-    }
 }
 
 #[cfg(test)]
