@@ -5,10 +5,10 @@ use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::mpsc::{self, Sender};
 
 use crate::error::{DeviceError, DeviceResult};
+use crate::protocol::CommandResponse;
 use crate::protocol::command::CommandBuilder;
 use crate::protocol::sentence::Sentence;
 use crate::protocol::word::WordCategory;
-use crate::protocol::CommandResponse;
 
 /// Command message with data to write to the device
 pub struct ReadActorMessage {

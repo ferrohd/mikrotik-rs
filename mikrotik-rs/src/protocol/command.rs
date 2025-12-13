@@ -438,12 +438,16 @@ mod tests {
         let command = CommandBuilder::<NoCmd>::login("admin", Some("password"));
 
         assert!(str::from_utf8(&command.data).unwrap().contains("/login"));
-        assert!(str::from_utf8(&command.data)
-            .unwrap()
-            .contains("name=admin"));
-        assert!(str::from_utf8(&command.data)
-            .unwrap()
-            .contains("password=password"));
+        assert!(
+            str::from_utf8(&command.data)
+                .unwrap()
+                .contains("name=admin")
+        );
+        assert!(
+            str::from_utf8(&command.data)
+                .unwrap()
+                .contains("password=password")
+        );
     }
 
     #[test]
