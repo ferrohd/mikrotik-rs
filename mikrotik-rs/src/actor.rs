@@ -176,19 +176,15 @@ async fn process_packet(
         },
         Err(protocol_error) => {
             // Try to extract a tag from the malformed packet to route the error to the correct command
-            let mut tag_opt = None;
-            let mut sentence_for_tag = Sentence::new(packet);
-            
-            // Try to parse words to find a tag, even if the full response is malformed
-            while let Some(word_result) = sentence_for_tag.next() {
-                if let Ok(Word::Tag(tag)) = word_result {
-                    tag_opt = Some(tag);
-                    break;
-                }
-            }
-            
+            let tag_opt = Sentence::new(packet).find_map(|word_result| {
+                word_result.ok().and_then(|word| match word {
+                    Word::Tag(tag) => Some(tag),
+                    _ => None,
+                })
+            });
+
             let error = DeviceError::from(protocol_error);
-            
+
             if let Some(tag) = tag_opt {
                 // Found a tag - send error to that specific command
                 if let Some(sender) = running_commands.remove(&tag) {
@@ -221,12 +217,14 @@ async fn login(
         })
         .await?;
 
-    match login_response_rx
+    let response = login_response_rx
         .recv()
         .await
         .ok_or_else(|| DeviceError::Channel {
             message: "No login response received".to_string(),
-        })?? {
+        })??;
+
+    match response {
         CommandResponse::Done(_) => Ok(()),
         CommandResponse::Trap(trap) => Err(DeviceError::Authentication { response: trap }),
         other => Err(DeviceError::ResponseSequence {
