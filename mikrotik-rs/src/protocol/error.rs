@@ -1,4 +1,4 @@
-use super::{sentence::SentenceError, word::Word, TrapCategoryError};
+use super::{TrapCategoryError, sentence::SentenceError, word::Word};
 
 /// Possible errors while parsing a [`CommandResponse`] from a [`Sentence`].
 ///

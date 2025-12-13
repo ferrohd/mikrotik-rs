@@ -1,9 +1,9 @@
 use std::fmt;
 use std::io;
 
-use crate::protocol::word::WordCategory;
 use crate::protocol::CommandResponse;
 use crate::protocol::TrapResponse;
+use crate::protocol::word::WordCategory;
 
 /// Result type alias for MikroTik device operations
 pub type DeviceResult<T> = Result<T, DeviceError>;

@@ -1,7 +1,7 @@
 use crate::{
     actor::{DeviceConnectionActor, ReadActorMessage},
     error::DeviceResult,
-    protocol::{command::Command, CommandResponse},
+    protocol::{CommandResponse, command::Command},
 };
 use tokio::{net::ToSocketAddrs, sync::mpsc};
 
@@ -58,14 +58,16 @@ impl MikrotikDevice {
     /// A [`mpsc::Receiver`] that can be awaited to receive the response to the command.
     /// Responses are wrapped in [`io::Result`] to handle any I/O related errors during command execution or response retrieval.
     ///
-    /// # Panics
-    /// This method panics if sending the command message to the `DeviceConnectionActor` fails,
-    /// which could occur if the actor has been dropped or the channel is disconnected.
+    /// # Errors
+    ///
+    /// Returns `DeviceError::Channel` if the connection to the device has been lost
+    /// (e.g., router reboot, network failure). The actor shuts down when the connection
+    /// is lost, making the command channel disconnected.
     ///
     /// # Examples
     /// ```no_run
     /// let command = CommandBuilder::new().command("/interface/print").build();
-    /// let mut response_rx = device.send_command(command).await;
+    /// let mut response_rx = device.send_command(command).await?;
     ///
     /// while let Some(response) = response_rx.recv().await {
     ///     println!("{:?}", response?);
@@ -74,7 +76,7 @@ impl MikrotikDevice {
     pub async fn send_command(
         &self,
         command: Command,
-    ) -> mpsc::Receiver<DeviceResult<CommandResponse>> {
+    ) -> DeviceResult<mpsc::Receiver<DeviceResult<CommandResponse>>> {
         let (response_tx, response_rx) = mpsc::channel::<DeviceResult<CommandResponse>>(16);
 
         let msg = ReadActorMessage {
@@ -83,8 +85,8 @@ impl MikrotikDevice {
             respond_to: response_tx,
         };
 
-        self.0.send(msg).await.expect("msg send failed");
+        self.0.send(msg).await?;
 
-        response_rx
+        Ok(response_rx)
     }
 }
