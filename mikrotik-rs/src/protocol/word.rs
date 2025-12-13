@@ -229,6 +229,17 @@ impl From<ParseIntError> for WordError {
     }
 }
 
+impl std::fmt::Display for WordError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WordError::Utf8(err) => write!(f, "UTF-8 decoding error: {}", err),
+            WordError::Tag(err) => write!(f, "Tag parsing error: {}", err),
+            WordError::Attribute => write!(f, "Invalid attribute format"),
+            WordError::AttributeKeyNotUtf8 => write!(f, "Attribute key is not valid UTF-8"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -332,3 +332,22 @@ pub enum TrapCategoryError {
     /// Missing category attribute in a trap response.
     MissingMessageAttribute,
 }
+
+impl std::fmt::Display for TrapCategoryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TrapCategoryError::Invalid(err) => {
+                write!(f, "Invalid trap category value: {}", err)
+            }
+            TrapCategoryError::OutOfRange(n) => {
+                write!(f, "Trap category out of range: {} (valid range: 0-7)", n)
+            }
+            TrapCategoryError::InvalidAttribute { key, value } => {
+                write!(f, "Invalid trap attribute: key={}, value={:?}", key, value)
+            }
+            TrapCategoryError::MissingMessageAttribute => {
+                write!(f, "Missing message attribute in trap response")
+            }
+        }
+    }
+}

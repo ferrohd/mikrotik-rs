@@ -48,7 +48,7 @@ impl fmt::Display for DeviceError {
                 "Unexpected response sequence: received {:?}, expected {:?}",
                 received, expected
             ),
-            DeviceError::Protocol(err) => write!(f, "Protocol error: {:?}", err),
+            DeviceError::Protocol(err) => write!(f, "Protocol error: {}", err),
         }
     }
 }
