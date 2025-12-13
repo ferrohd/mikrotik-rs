@@ -8,7 +8,7 @@ use crate::error::{DeviceError, DeviceResult};
 use crate::protocol::CommandResponse;
 use crate::protocol::command::CommandBuilder;
 use crate::protocol::sentence::Sentence;
-use crate::protocol::word::WordCategory;
+use crate::protocol::word::{Word, WordCategory};
 
 /// Command message with data to write to the device
 pub struct ReadActorMessage {
@@ -94,6 +94,7 @@ impl DeviceConnectionActor {
                             // Cancel all running commands and shutdown the connection
                             for (tag, _) in running_commands.drain() {
                                 let cancel_command = CommandBuilder::cancel(tag);
+                                // Ignore errors - connection may already be closed or broken
                                 let _ = tcp_tx.write_all(cancel_command.data.as_ref()).await;
                             }
                             shutdown = true;
@@ -124,11 +125,13 @@ async fn process_packet(
         Ok(response) => match response {
             CommandResponse::Done(done) => {
                 if let Some(sender) = running_commands.remove(&done.tag) {
+                    // Receiver may be dropped, which is acceptable - silently ignore send failures
                     let _ = sender.send(Ok(CommandResponse::Done(done))).await;
                 }
             }
             CommandResponse::Empty(empty) => {
                 if let Some(sender) = running_commands.remove(&empty.tag) {
+                    // Receiver may be dropped, which is acceptable - silently ignore send failures
                     let _ = sender.send(Ok(CommandResponse::Empty(empty))).await;
                 }
             }
@@ -146,7 +149,9 @@ async fn process_packet(
                             .write_all(CommandBuilder::cancel(tag).data.as_ref())
                             .await
                         {
-                            eprintln!("Error sending cancel command: {:?}", e);
+                            // Connection is likely broken - cannot send cancel command
+                            // Trigger shutdown as connection is unusable
+                            eprintln!("Error sending cancel command (connection broken): {:?}", e);
                             *shutdown = true;
                         }
                     }
@@ -154,12 +159,14 @@ async fn process_packet(
             }
             CommandResponse::Trap(trap) => {
                 if let Some(sender) = running_commands.remove(&trap.tag) {
+                    // Receiver may be dropped, which is acceptable - silently ignore send failures
                     let _ = sender.send(Ok(CommandResponse::Trap(trap))).await;
                 }
             }
             CommandResponse::Fatal(reason) => {
                 // A fatal error is not tag-bound => Fatal every running command
                 for (_, sender) in running_commands.drain() {
+                    // Receiver may be dropped, which is acceptable - silently ignore send failures
                     let _ = sender
                         .send(Ok(CommandResponse::Fatal(reason.clone())))
                         .await;
@@ -167,7 +174,33 @@ async fn process_packet(
                 *shutdown = true;
             }
         },
-        Err(e) => eprintln!("Error parsing response: {:?}", e),
+        Err(protocol_error) => {
+            // Try to extract a tag from the malformed packet to route the error to the correct command
+            let mut tag_opt = None;
+            let mut sentence_for_tag = Sentence::new(packet);
+            
+            // Try to parse words to find a tag, even if the full response is malformed
+            while let Some(word_result) = sentence_for_tag.next() {
+                if let Ok(Word::Tag(tag)) = word_result {
+                    tag_opt = Some(tag);
+                    break;
+                }
+            }
+            
+            let error = DeviceError::from(protocol_error);
+            
+            if let Some(tag) = tag_opt {
+                // Found a tag - send error to that specific command
+                if let Some(sender) = running_commands.remove(&tag) {
+                    // Receiver may be dropped, which is acceptable - silently ignore send failures
+                    let _ = sender.send(Err(error)).await;
+                }
+            } else {
+                // No tag found - malformed packet, notify all pending commands
+                // This is a last resort as we can't determine which command this belongs to
+                notify_error(running_commands, error).await;
+            }
+        }
     }
 }
 
@@ -209,6 +242,7 @@ async fn notify_error(
     error: DeviceError,
 ) {
     for (_, channel) in running_commands.drain() {
+        // Receiver may be dropped, which is acceptable - silently ignore send failures
         let _ = channel.send(Err(error.clone())).await;
     }
 }
