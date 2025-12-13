@@ -4,7 +4,7 @@ use super::{TrapCategoryError, sentence::SentenceError, word::Word};
 ///
 /// This enum provides more detailed information about issues that can arise while parsing
 /// command responses, such as missing tags, missing attributes, or unexpected attributes.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ProtocolError {
     /// Error related to the [`Sentence`].
     ///
@@ -53,7 +53,7 @@ impl From<TrapCategoryError> for ProtocolError {
 }
 
 /// Types of words that can be missing from a response.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MissingWord {
     /// Missing `.tag` in the response. All responses must have a tag.
     Tag,
@@ -64,7 +64,7 @@ pub enum MissingWord {
 }
 
 /// Represents the type of a word in a response.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WordType {
     /// Tag word.
     Tag,

@@ -316,7 +316,7 @@ impl TryFrom<&str> for TrapCategory {
 /// This enum provides more detailed information about issues that can arise while parsing trap
 /// categories, such as missing categories, errors while converting category strings to integers,
 /// or categories that are out of range.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TrapCategoryError {
     /// Invalid value encountered while parsing a trap category.
     Invalid(ParseIntError),

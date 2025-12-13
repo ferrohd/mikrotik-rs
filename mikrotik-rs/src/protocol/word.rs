@@ -205,7 +205,7 @@ impl<'a> TryFrom<&'a [u8]> for WordAttribute<'a> {
 }
 
 /// Represents an error that occurred while parsing a [`Word`].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum WordError {
     /// The word is not a valid UTF-8 string.
     Utf8(Utf8Error),

@@ -3,6 +3,7 @@ use std::io;
 
 use crate::protocol::CommandResponse;
 use crate::protocol::TrapResponse;
+use crate::protocol::error::ProtocolError;
 use crate::protocol::word::WordCategory;
 
 /// Result type alias for MikroTik device operations
@@ -30,6 +31,8 @@ pub enum DeviceError {
         /// The values accepted as valid responses
         expected: Vec<WordCategory>,
     },
+    /// Protocol-level parsing errors
+    Protocol(ProtocolError),
 }
 
 impl fmt::Display for DeviceError {
@@ -45,6 +48,7 @@ impl fmt::Display for DeviceError {
                 "Unexpected response sequence: received {:?}, expected {:?}",
                 received, expected
             ),
+            DeviceError::Protocol(err) => write!(f, "Protocol error: {:?}", err),
         }
     }
 }
@@ -60,6 +64,12 @@ impl<T> From<tokio::sync::mpsc::error::SendError<T>> for DeviceError {
         DeviceError::Channel {
             message: "Failed to send message through channel".to_string(),
         }
+    }
+}
+
+impl From<ProtocolError> for DeviceError {
+    fn from(error: ProtocolError) -> Self {
+        DeviceError::Protocol(error)
     }
 }
 

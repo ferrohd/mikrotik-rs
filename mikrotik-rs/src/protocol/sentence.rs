@@ -84,7 +84,7 @@ impl<'a> Iterator for Sentence<'a> {
 /// Specific errors that can occur while processing a byte sequence into a [`Sentence`].
 ///
 /// Provides information about issues related to converting a sequence of bytes into a [`Sentence`].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum SentenceError {
     /// Error indicating that a sequence of bytes could not be parsed into a [`Word`].
     WordError(WordError),
