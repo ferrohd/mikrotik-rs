@@ -205,7 +205,7 @@ impl<'a> TryFrom<&'a [u8]> for WordAttribute<'a> {
 }
 
 /// Represents an error that occurred while parsing a [`Word`].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum WordError {
     /// The word is not a valid UTF-8 string.
     Utf8(Utf8Error),
@@ -226,6 +226,17 @@ impl From<Utf8Error> for WordError {
 impl From<ParseIntError> for WordError {
     fn from(e: ParseIntError) -> Self {
         Self::Tag(e)
+    }
+}
+
+impl std::fmt::Display for WordError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WordError::Utf8(err) => write!(f, "UTF-8 decoding error: {}", err),
+            WordError::Tag(err) => write!(f, "Tag parsing error: {}", err),
+            WordError::Attribute => write!(f, "Invalid attribute format"),
+            WordError::AttributeKeyNotUtf8 => write!(f, "Attribute key is not valid UTF-8"),
+        }
     }
 }
 
