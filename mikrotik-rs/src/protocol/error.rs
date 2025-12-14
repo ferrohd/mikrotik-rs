@@ -40,7 +40,6 @@ pub enum ProtocolError {
     //UnexpectedWord(Word<'a>),
 }
 
-
 impl std::fmt::Display for WordType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

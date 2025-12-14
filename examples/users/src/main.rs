@@ -1,4 +1,4 @@
-use mikrotik_rs::{protocol::command::CommandBuilder, MikrotikDevice};
+use mikrotik_rs::{MikrotikDevice, protocol::command::CommandBuilder};
 
 // Using the current_thread flavor because multiple threads are not needed for this example
 #[tokio::main]

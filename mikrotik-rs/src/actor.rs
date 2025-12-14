@@ -220,7 +220,7 @@ async fn login(
     let response = login_response_rx
         .recv()
         .await
-        .ok_or_else(|| crate::error::ActorError::LoginResponseLost)??;
+        .ok_or(crate::error::ActorError::LoginResponseLost)??;
 
     match response {
         CommandResponse::Done(_) => Ok(()),

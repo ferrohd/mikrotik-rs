@@ -21,7 +21,7 @@ pub enum ActorError {
     /// all device handles dropped, or fatal error occurred).
     #[error("Failed to send command: actor is unavailable (channel closed)")]
     CommandSendFailed,
-    
+
     /// Login response was not received because the actor shut down during login.
     /// This occurs when the connection is lost or the actor encounters an error
     /// while waiting for the login response from the device.

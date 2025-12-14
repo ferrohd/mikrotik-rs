@@ -105,8 +105,7 @@ impl<'a> TryFrom<&'a [u8]> for Word<'a> {
 
             // Try to parse as tag if it starts with ".tag="
             if let Some(stripped) = s.strip_prefix(".tag=") {
-                let tag = stripped.parse::<u16>()
-                    .map_err(|e| WordError::Tag(e))?;
+                let tag = stripped.parse::<u16>().map_err(WordError::Tag)?;
                 return Ok(Word::Tag(tag));
             }
         }

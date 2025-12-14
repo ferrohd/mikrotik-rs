@@ -1,4 +1,4 @@
-use mikrotik_rs::{protocol::command::CommandBuilder, MikrotikDevice};
+use mikrotik_rs::{MikrotikDevice, protocol::command::CommandBuilder};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
