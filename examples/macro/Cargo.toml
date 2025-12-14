@@ -1,7 +1,12 @@
 [package]
 name = "macro-example"
 version = "0.0.0"
-edition = "2021"
+edition.workspace = true
+authors.workspace = true
+keywords.workspace = true
+license.workspace = true
+categories.workspace = true
+repository.workspace = true
 
 [dependencies]
 mikrotik-rs = {package = "mikrotik-rs",  path = "../../mikrotik-rs" }

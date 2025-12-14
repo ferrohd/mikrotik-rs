@@ -1,12 +1,17 @@
 [package]
 name = "system-resource"
 version = "0.0.0"
-edition = "2021"
+edition.workspace = true
+authors.workspace = true
+keywords.workspace = true
+license.workspace = true
+categories.workspace = true
+repository.workspace = true
 publish = false
 
 [dependencies]
 mikrotik-rs = {package = "mikrotik-rs",  path = "../../mikrotik-rs" }
-tokio = { version = "1.36.0", features = ["full"] }
+tokio = { workspace = true, features = ["full"] }
 
 [lints]
 workspace = true

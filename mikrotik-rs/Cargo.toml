@@ -2,14 +2,14 @@
 name = "mikrotik-rs"
 version = "0.4.2"
 description = "Asynchronous Rust library for interfacing with MikroTik routers"
-keywords = ["mikrotik", "router", "api", "async", "tokio"]
-categories = ["api-bindings", "asynchronous", "network-programming"]
+edition.workspace = true
+authors.workspace = true
+keywords.workspace = true
+license.workspace = true
+categories.workspace = true
+repository.workspace = true
 readme = "../README.md"
 publish = true
-edition = "2024"
-authors = ["Alessandro Ferrara"]
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/ferrohd/mikrotik-rs"
 
 [lib]
 doctest = false
@@ -18,9 +18,9 @@ doctest = false
 workspace = true
 
 [dependencies]
-getrandom = { version = "0.3.4", default-features = false, features = ["std"] }
-thiserror = "2.0"
-tokio = { version = "1.48.0", features = [
+getrandom = { workspace = true, features = ["std"] }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
     "net",
     "sync",
     "signal",

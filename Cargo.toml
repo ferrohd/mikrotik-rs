@@ -1,6 +1,20 @@
 [workspace]
 members = ["mikrotik-rs", "examples/*"]
-resolver = "2"
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+authors = ["Alessandro Ferrara"]
+keywords = ["mikrotik", "router", "api", "async", "tokio"]
+license = "MIT OR Apache-2.0"
+categories = ["api-bindings", "asynchronous", "network-programming"]
+repository = "https://github.com/ferrohd/mikrotik-rs"
+
+[workspace.dependencies]
+# Core dependencies
+tokio = "1.48.0"
+thiserror = "2.0"
+getrandom = { version = "0.3.4", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
