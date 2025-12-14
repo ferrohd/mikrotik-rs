@@ -22,7 +22,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: 🛒 Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: 📎 Clippy
               run: |
@@ -37,7 +37,7 @@ jobs:
         packages: write
     steps:
       - name: 🛒 Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 📦 Publish Crate to Crates.io
         run: cargo publish -p mikrotik-rs --token ${{ secrets.CRATES_IO_TOKEN }}
