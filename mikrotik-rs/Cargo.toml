@@ -1,6 +1,6 @@
 [package]
 name = "mikrotik-rs"
-version = "0.4.2"
+version = "0.5.0"
 description = "Asynchronous Rust library for interfacing with MikroTik routers"
 edition.workspace = true
 authors.workspace = true
