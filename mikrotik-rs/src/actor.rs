@@ -1,14 +1,75 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::mpsc::{self, Sender};
+use tokio_rustls::TlsConnector;
+use tokio_rustls::rustls::client::danger::{
+    HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier,
+};
+use tokio_rustls::rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use tokio_rustls::rustls::{
+    ClientConfig, DigitallySignedStruct, Error as TLSError, SignatureScheme,
+};
 
 use crate::error::{DeviceError, DeviceResult};
 use crate::protocol::CommandResponse;
 use crate::protocol::command::CommandBuilder;
 use crate::protocol::sentence::Sentence;
 use crate::protocol::word::{Word, WordCategory};
+
+#[derive(Debug)]
+struct NoVerifier;
+
+impl ServerCertVerifier for NoVerifier {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &CertificateDer,
+        _intermediates: &[CertificateDer],
+        _server_name: &ServerName,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> Result<ServerCertVerified, TLSError> {
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer,
+        _dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TLSError> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer,
+        _dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TLSError> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        vec![
+            SignatureScheme::RSA_PKCS1_SHA1,
+            SignatureScheme::ECDSA_SHA1_Legacy,
+            SignatureScheme::RSA_PKCS1_SHA256,
+            SignatureScheme::ECDSA_NISTP256_SHA256,
+            SignatureScheme::RSA_PKCS1_SHA384,
+            SignatureScheme::ECDSA_NISTP384_SHA384,
+            SignatureScheme::RSA_PKCS1_SHA512,
+            SignatureScheme::ECDSA_NISTP521_SHA512,
+            SignatureScheme::RSA_PSS_SHA256,
+            SignatureScheme::RSA_PSS_SHA384,
+            SignatureScheme::RSA_PSS_SHA512,
+            SignatureScheme::ED25519,
+            SignatureScheme::ED448,
+        ]
+    }
+}
 
 /// Command message with data to write to the device
 pub struct ReadActorMessage {
@@ -26,14 +87,46 @@ impl DeviceConnectionActor {
         username: &str,
         password: Option<&str>,
     ) -> DeviceResult<Sender<ReadActorMessage>> {
-        let (command_tx_send, mut command_tx_recv) = mpsc::channel::<ReadActorMessage>(16);
-
         // Connect to the device
         let stream = TcpStream::connect(addr).await?;
         stream.set_nodelay(true)?;
 
+        Self::start0(stream, username, password).await
+    }
+
+    /// Connect to the device, spawn the read/write loop, and log in.
+    pub async fn start_ssl(
+        addr: impl ToSocketAddrs,
+        username: &str,
+        password: Option<&str>,
+    ) -> DeviceResult<Sender<ReadActorMessage>> {
+        // Connect to the device
+        let config = ClientConfig::builder()
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(NoVerifier))
+            .with_no_client_auth();
+        let connector = TlsConnector::from(Arc::new(config));
+
+        let stream = TcpStream::connect(&addr).await?;
+        stream.set_nodelay(true)?;
+        let server_name = ServerName::from(stream.peer_addr()?.ip());
+        let stream = connector.connect(server_name, stream).await?;
+
+        Self::start0(stream, username, password).await
+    }
+
+    async fn start0<S>(
+        stream: S,
+        username: &str,
+        password: Option<&str>,
+    ) -> DeviceResult<Sender<ReadActorMessage>>
+    where
+        S: AsyncReadExt + AsyncWriteExt + Unpin + Send + 'static,
+    {
+        let (command_tx_send, mut command_tx_recv) = mpsc::channel::<ReadActorMessage>(16);
+
         // Split for independent read/write
-        let (mut tcp_rx, mut tcp_tx) = stream.into_split();
+        let (mut tcp_rx, mut tcp_tx) = io::split(stream);
 
         let mut shutdown = false;
 

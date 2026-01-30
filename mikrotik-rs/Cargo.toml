@@ -28,3 +28,4 @@ tokio = { workspace = true, features = [
     "macros",
     "io-util",
 ] }
+tokio-rustls = { workspace = true }

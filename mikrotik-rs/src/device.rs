@@ -35,13 +35,40 @@ impl MikrotikDevice {
     /// ```
     /// # Attention 🚨
     /// The connection to the MikroTik device is not encrypted (plaintext API connection over 8728/tcp port).
-    /// In the future, support for encrypted connections (e.g., API-SSL) will be added.
     pub async fn connect<A: ToSocketAddrs>(
         addr: A,
         username: &str,
         password: Option<&str>,
     ) -> DeviceResult<Self> {
         let sender = DeviceConnectionActor::start(addr, username, password).await?;
+
+        Ok(Self(sender))
+    }
+
+    /// Asynchronously establishes a secure connection to a MikroTik device.
+    ///
+    /// This function initializes the connection to the MikroTik device by starting a `DeviceConnectionActor`
+    /// and returns an instance of `MikrotikDevice` that can be used to send commands to the device.
+    ///
+    /// # Parameters
+    /// - `addr`: The address of the MikroTik device. This can be an IP address or a hostname.
+    /// - `username`: The username for authenticating with the device.
+    /// - `password`: An optional password for authentication. If `None`, no password will be sent.
+    ///
+    /// # Returns
+    /// - `Ok(Self)`: An instance of [`MikrotikDevice`] on successful connection.
+    /// - `Err(io::Error)`: An error if the connection could not be established.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// let device = MikrotikDevice::connect_ssl("192.168.88.1:8729", "admin", Some("password")).await?;
+    /// ```
+    pub async fn connect_ssl<A: ToSocketAddrs>(
+        addr: A,
+        username: &str,
+        password: Option<&str>,
+    ) -> DeviceResult<Self> {
+        let sender = DeviceConnectionActor::start_ssl(addr, username, password).await?;
 
         Ok(Self(sender))
     }
