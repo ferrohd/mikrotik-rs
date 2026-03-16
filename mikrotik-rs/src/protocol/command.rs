@@ -1,5 +1,5 @@
-use getrandom;
-use std::{marker::PhantomData, mem::size_of};
+use std::marker::PhantomData;
+use uuid::Uuid;
 
 /// Represents an empty command. Used as a marker in [`CommandBuilder`].
 pub struct NoCmd;
@@ -21,7 +21,7 @@ pub struct Cmd;
 /// ```
 #[derive(Clone)]
 pub struct CommandBuilder<Cmd> {
-    tag: u16,
+    tag: Uuid,
     cmd: CommandBuffer,
     state: PhantomData<Cmd>,
 }
@@ -35,10 +35,8 @@ impl Default for CommandBuilder<NoCmd> {
 impl CommandBuilder<NoCmd> {
     /// Begin building a new [`Command`] with a randomly generated tag.
     pub fn new() -> Self {
-        let mut dest = [0_u8; size_of::<u16>()];
-        getrandom::fill(&mut dest).expect("Failed to generate random tag");
         Self {
-            tag: u16::from_be_bytes(dest),
+            tag: Uuid::new_v4(),
             cmd: CommandBuffer::default(),
             state: PhantomData,
         }
@@ -47,14 +45,14 @@ impl CommandBuilder<NoCmd> {
     ///
     /// # Arguments
     ///
-    /// * `tag` - A `u16` tag value that identifies the command for RouterOS correlation. **Must be unique**.
+    /// * `tag` - A [`Uuid`] tag value that identifies the command for RouterOS correlation. **Must be unique**.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// let builder = CommandBuilder::with_tag(1234);
+    /// let builder = CommandBuilder::with_tag(Uuid::nil());
     /// ```
-    pub fn with_tag(tag: u16) -> Self {
+    pub fn with_tag(tag: Uuid) -> Self {
         Self {
             tag,
             cmd: CommandBuffer::default(),
@@ -99,9 +97,9 @@ impl CommandBuilder<NoCmd> {
     /// # Examples
     ///
     /// ```rust
-    /// let cancel_cmd = CommandBuilder::cancel(1234);
+    /// let cancel_cmd = CommandBuilder::cancel(Uuid::nil());
     /// ```
-    pub fn cancel(tag: u16) -> Command {
+    pub fn cancel(tag: Uuid) -> Command {
         Self::with_tag(tag)
             .command("/cancel")
             .attribute("tag", Some(tag.to_string().as_str()))
@@ -305,7 +303,7 @@ impl CommandBuilder<Cmd> {
 #[derive(Debug)]
 pub struct Command {
     /// The tag of the command.
-    pub tag: u16,
+    pub tag: Uuid,
     /// The data of the command.
     pub data: Vec<u8>,
 }
@@ -382,36 +380,45 @@ mod tests {
     use super::*;
     use std::str;
 
+    const TEST_UUID: Uuid = Uuid::from_bytes([
+        0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7,
+        0xd8,
+    ]);
+    // Display: "a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"
+    const TEST_TAG_WORD: &str = ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8";
+
     #[test]
     fn test_command_builder_new() {
         let builder = CommandBuilder::<NoCmd>::new();
         assert_eq!(builder.cmd.0.len(), 0);
-        assert!(builder.tag != 0); // Ensure that random tag is generated
+        assert!(!builder.tag.is_nil()); // Ensure that random tag is generated
     }
 
     #[test]
     fn test_command_builder_with_tag() {
-        let tag = 1234;
-        let builder = CommandBuilder::<NoCmd>::with_tag(tag);
-        assert_eq!(builder.tag, tag);
+        let builder = CommandBuilder::<NoCmd>::with_tag(TEST_UUID);
+        assert_eq!(builder.tag, TEST_UUID);
     }
 
     #[test]
     fn test_command_builder_command() {
-        let builder = CommandBuilder::<NoCmd>::with_tag(1234).command("/interface/print");
-        println!("{:?}", builder.cmd.0);
-        assert_eq!(builder.cmd.0.len(), 27);
+        let builder = CommandBuilder::<NoCmd>::with_tag(TEST_UUID).command("/interface/print");
+        // Word 1: 1-byte len (0x10) + 16 bytes "/interface/print" = 17 bytes
+        // Word 2: 1-byte len (0x29) + 41 bytes ".tag=a1a2a3a4-..." = 42 bytes
+        // Total: 59 bytes
+        assert_eq!(builder.cmd.0.len(), 59);
         assert_eq!(builder.cmd.0[1..17], b"/interface/print"[..]);
-        assert_eq!(builder.cmd.0[18..27], b".tag=1234"[..]);
+        assert_eq!(builder.cmd.0[18..59], TEST_TAG_WORD.as_bytes()[..]);
     }
 
     #[test]
     fn test_command_builder_attribute() {
-        let builder = CommandBuilder::<NoCmd>::with_tag(1234)
+        let builder = CommandBuilder::<NoCmd>::with_tag(TEST_UUID)
             .command("/interface/print")
             .attribute("name", Some("ether1"));
 
-        assert_eq!(builder.cmd.0[28..40], b"=name=ether1"[..]);
+        // Attribute starts at offset 59 (after command + tag words) + 1 byte len prefix = 60
+        assert_eq!(builder.cmd.0[60..72], b"=name=ether1"[..]);
     }
 
     //#[test]
@@ -452,10 +459,14 @@ mod tests {
 
     #[test]
     fn test_command_builder_cancel() {
-        let command = CommandBuilder::<NoCmd>::cancel(1234);
+        let command = CommandBuilder::<NoCmd>::cancel(TEST_UUID);
 
         assert!(str::from_utf8(&command.data).unwrap().contains("/cancel"));
-        assert!(str::from_utf8(&command.data).unwrap().contains("tag=1234"));
+        assert!(
+            str::from_utf8(&command.data)
+                .unwrap()
+                .contains("tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8")
+        );
     }
 
     #[test]

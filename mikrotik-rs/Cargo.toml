@@ -18,8 +18,8 @@ doctest = false
 workspace = true
 
 [dependencies]
-getrandom = { workspace = true, features = ["std"] }
 thiserror = { workspace = true }
+uuid = { version = "1", default-features = false, features = ["v4"] }
 tokio = { workspace = true, features = [
     "net",
     "sync",

@@ -14,7 +14,6 @@ repository = "https://github.com/ferrohd/mikrotik-rs"
 # Core dependencies
 tokio = "1.48.0"
 thiserror = "2.0"
-getrandom = { version = "0.3.4", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

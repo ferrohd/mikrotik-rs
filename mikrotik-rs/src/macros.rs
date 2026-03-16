@@ -59,12 +59,10 @@ pub const fn check_mikrotik_command(cmd: &str) -> &str {
 ///
 /// Usage Examples:
 /// ```rust
-///fn main() {
-///    // OK
-///    let _ok = command!("/random command print");
+/// // OK
+/// let _ok = command!("/random command print");
 ///
-///    let _with_attrs = command!("/random command", attr1="value1", attr2);
-///}
+/// let _with_attrs = command!("/random command", attr1="value1", attr2);
 /// ```
 #[macro_export]
 macro_rules! command {
