@@ -40,7 +40,8 @@ impl DeviceConnectionActor {
 
         // Spawn the main loop
         tokio::spawn(async move {
-            let mut running_commands = HashMap::<Uuid, Sender<DeviceResult<CommandResponse>>>::new();
+            let mut running_commands =
+                HashMap::<Uuid, Sender<DeviceResult<CommandResponse>>>::new();
             let mut packet_buf = Vec::new();
 
             // Loop until forced to shutdown or no active commands left

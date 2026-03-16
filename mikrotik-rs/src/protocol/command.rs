@@ -462,9 +462,11 @@ mod tests {
         let command = CommandBuilder::<NoCmd>::cancel(TEST_UUID);
 
         assert!(str::from_utf8(&command.data).unwrap().contains("/cancel"));
-        assert!(str::from_utf8(&command.data)
-            .unwrap()
-            .contains("tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"));
+        assert!(
+            str::from_utf8(&command.data)
+                .unwrap()
+                .contains("tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8")
+        );
     }
 
     #[test]
