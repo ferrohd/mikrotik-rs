@@ -3,6 +3,7 @@ use std::{
     fmt::{self, Display, Formatter},
     num::ParseIntError,
 };
+use uuid::Uuid;
 
 use thiserror::Error;
 
@@ -42,7 +43,7 @@ impl CommandResponse {
     /// Returns the tag associated with the response, if available.
     ///
     /// Returns [`None`] for [`CommandResponse::Fatal`] responses as they do not contain tags.
-    pub fn tag(&self) -> Option<u16> {
+    pub fn tag(&self) -> Option<Uuid> {
         match &self {
             Self::Done(d) => Some(d.tag),
             Self::Reply(r) => Some(r.tag),
@@ -197,7 +198,7 @@ impl TryFrom<Sentence<'_>> for CommandResponse {
 #[derive(Debug, Clone)]
 pub struct DoneResponse {
     /// The tag associated with the command.
-    pub tag: u16,
+    pub tag: Uuid,
 }
 
 impl Display for DoneResponse {
@@ -211,7 +212,7 @@ impl Display for DoneResponse {
 #[derive(Debug, Clone)]
 pub struct EmptyResponse {
     /// The tag associated with the command.
-    pub tag: u16,
+    pub tag: Uuid,
 }
 
 impl Display for EmptyResponse {
@@ -224,7 +225,7 @@ impl Display for EmptyResponse {
 #[derive(Debug, Clone)]
 pub struct ReplyResponse {
     /// The tag associated with the command.
-    pub tag: u16,
+    pub tag: Uuid,
     /// The attributes of the reply.
     pub attributes: HashMap<String, Option<String>>,
     /// The raw attributes of the reply.
@@ -245,7 +246,7 @@ impl Display for ReplyResponse {
 #[derive(Debug, Clone)]
 pub struct TrapResponse {
     /// The tag associated with the command.
-    pub tag: u16,
+    pub tag: Uuid,
     /// The category of the trap.
     pub category: Option<TrapCategory>,
     /// The message associated with the trap.

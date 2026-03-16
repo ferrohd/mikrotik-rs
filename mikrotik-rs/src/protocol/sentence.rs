@@ -144,27 +144,52 @@ fn read_length(data: &[u8]) -> Result<(u32, usize), SentenceError> {
 #[cfg(test)]
 mod tests {
     use crate::protocol::word::{Word, WordCategory};
+    use uuid::Uuid;
 
     use super::*;
 
+    const TEST_UUID1: Uuid = Uuid::from_bytes([
+        0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7,
+        0xd8,
+    ]);
+    const TEST_UUID2: Uuid = Uuid::from_bytes([
+        0xb1, 0xb2, 0xb3, 0xb4, 0xc1, 0xc2, 0xd1, 0xd2, 0xe1, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7,
+        0xe8,
+    ]);
+
+    /// Build wire-format sentence data from a list of word byte slices.
+    /// Each word is prefixed with a single-byte length, and a 0x00 terminator is appended.
+    fn build_sentence(words: &[&[u8]]) -> Vec<u8> {
+        let mut data = Vec::new();
+        for word in words {
+            let len = word.len();
+            assert!(
+                len < 0x80,
+                "Word too long for single-byte length prefix in test helper"
+            );
+            data.push(len as u8);
+            data.extend_from_slice(word);
+        }
+        data.push(0); // terminator
+        data
+    }
+
     #[test]
     fn test_sentence_iterator() {
-        let data: &[u8] = &[
-            0x05, b'!', b'd', b'o', b'n', b'e', // Word: !done
-            0x08, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
-            0x0C, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r',
-            b'1', // Word: =name=ether1
-            0x00, // End of sentence
-        ];
+        let data = build_sentence(&[
+            b"!done",
+            b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8",
+            b"=name=ether1",
+        ]);
 
-        let mut sentence = Sentence::new(data);
+        let mut sentence = Sentence::new(&data);
 
         assert_eq!(
             sentence.next().unwrap().unwrap(),
             Word::Category(WordCategory::Done)
         );
 
-        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(123));
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(TEST_UUID1));
 
         assert_eq!(
             sentence.next().unwrap().unwrap(),
@@ -176,9 +201,10 @@ mod tests {
 
     #[test]
     fn test_sentence_category_error() {
-        // Test case where the first word is not a category
+        // Test case where the first word has a wrong length prefix, causing garbled data
         let data: &[u8] = &[
-            0x0A, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
+            0x0A, b'.', b't', b'a', b'g', b'=', b'1', b'2',
+            b'3', // Malformed: length says 10 but .tag=123 is 8 bytes
             0x0D, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r',
             b'1', // Word: =name=ether1
         ];
@@ -202,22 +228,20 @@ mod tests {
 
     #[test]
     fn test_complete_sentence_parsing() {
-        let data: &[u8] = &[
-            0x05, b'!', b'd', b'o', b'n', b'e', // Word: !done
-            0x08, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
-            0x0C, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r',
-            b'1', // Word: =name=ether1
-            0x00, // End of sentence
-        ];
+        let data = build_sentence(&[
+            b"!done",
+            b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8",
+            b"=name=ether1",
+        ]);
 
-        let mut sentence = Sentence::new(data);
+        let mut sentence = Sentence::new(&data);
 
         assert_eq!(
             sentence.next().unwrap().unwrap(),
             Word::Category(WordCategory::Done)
         );
 
-        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(123));
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(TEST_UUID1));
 
         assert_eq!(
             sentence.next().unwrap().unwrap(),
@@ -240,8 +264,10 @@ mod tests {
 
     #[test]
     fn test_sentence_without_category() {
+        // Test case where the first word has a wrong length prefix
         let data: &[u8] = &[
-            0x0A, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
+            0x0A, b'.', b't', b'a', b'g', b'=', b'1', b'2',
+            b'3', // Malformed: length says 10 but .tag=123 is 8 bytes
             0x0D, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r',
             b'1', // Word: =name=ether1
         ];
@@ -253,14 +279,13 @@ mod tests {
 
     #[test]
     fn test_mixed_words_sentence() {
-        let data: &[u8] = &[
-            0x03, b'!', b'r', b'e', // Word: !re
-            0x04, b'=', b'a', b'=', b'b', // Word: =a=b
-            0x08, b'.', b't', b'a', b'g', b'=', b'4', b'5', b'6', // Word: .tag=456
-            0x00, // End of sentence
-        ];
+        let data = build_sentence(&[
+            b"!re",
+            b"=a=b",
+            b".tag=b1b2b3b4-c1c2-d1d2-e1e2-e3e4e5e6e7e8",
+        ]);
 
-        let mut sentence = Sentence::new(data);
+        let mut sentence = Sentence::new(&data);
 
         assert_eq!(
             sentence.next().unwrap().unwrap(),
@@ -272,20 +297,16 @@ mod tests {
             Word::Attribute(("a", Some("b")).into())
         );
 
-        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(456));
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(TEST_UUID2));
 
         assert_eq!(sentence.next(), None);
     }
 
     #[test]
     fn test_sentence_with_fatal_message() {
-        let data: &[u8] = &[
-            0x06, b'!', b'f', b'a', b't', b'a', b'l', 0x0B, b's', b'e', b'r', b'v', b'e', b'r',
-            b' ', b'd', b'o', b'w', b'n', // Word: !fatal server down
-            0x00, // End of sentence
-        ];
+        let data = build_sentence(&[b"!fatal", b"server down"]);
 
-        let mut sentence = Sentence::new(data);
+        let mut sentence = Sentence::new(&data);
 
         assert_eq!(
             sentence.next().unwrap().unwrap(),
@@ -302,23 +323,22 @@ mod tests {
 
     #[test]
     fn test_complete_sentence_with_extra_data() {
-        let data: &[u8] = &[
-            0x05, b'!', b'd', b'o', b'n', b'e', // Word: !done
-            0x08, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
-            0x0C, b'=', b'n', b'a', b'm', b'e', b'=', b'e', b't', b'h', b'e', b'r',
-            b'1', // Word: =name=ether1
-            0x00, // End of sentence
-            0x07, b'!', b'd', b'o', b'n', b'e', // Extra data: !done
-        ];
+        let mut data = build_sentence(&[
+            b"!done",
+            b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8",
+            b"=name=ether1",
+        ]);
+        // Append extra data after the sentence terminator
+        data.extend_from_slice(&[0x07, b'!', b'd', b'o', b'n', b'e']);
 
-        let mut sentence = Sentence::new(data);
+        let mut sentence = Sentence::new(&data);
 
         assert_eq!(
             sentence.next().unwrap().unwrap(),
             Word::Category(WordCategory::Done)
         );
 
-        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(123));
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(TEST_UUID1));
 
         assert_eq!(
             sentence.next().unwrap().unwrap(),
@@ -333,20 +353,16 @@ mod tests {
 
     #[test]
     fn test_sentence_with_empty_response() {
-        let data: &[u8] = &[
-            0x06, b'!', b'e', b'm', b'p', b't', b'y', // Word: !empty
-            0x08, b'.', b't', b'a', b'g', b'=', b'1', b'2', b'3', // Word: .tag=123
-            0x00, // End of sentence
-        ];
+        let data = build_sentence(&[b"!empty", b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"]);
 
-        let mut sentence = Sentence::new(data);
+        let mut sentence = Sentence::new(&data);
 
         assert_eq!(
             sentence.next().unwrap().unwrap(),
             Word::Category(WordCategory::Empty)
         );
 
-        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(123));
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(TEST_UUID1));
 
         assert_eq!(sentence.next(), None);
     }

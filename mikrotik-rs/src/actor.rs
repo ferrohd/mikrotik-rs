@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::mpsc::{self, Sender};
+use uuid::Uuid;
 
 use crate::error::{DeviceError, DeviceResult};
 use crate::protocol::CommandResponse;
@@ -12,7 +13,7 @@ use crate::protocol::word::{Word, WordCategory};
 
 /// Command message with data to write to the device
 pub struct ReadActorMessage {
-    pub tag: u16,
+    pub tag: Uuid,
     pub data: Vec<u8>,
     pub respond_to: Sender<DeviceResult<CommandResponse>>,
 }
@@ -39,7 +40,7 @@ impl DeviceConnectionActor {
 
         // Spawn the main loop
         tokio::spawn(async move {
-            let mut running_commands = HashMap::<u16, Sender<DeviceResult<CommandResponse>>>::new();
+            let mut running_commands = HashMap::<Uuid, Sender<DeviceResult<CommandResponse>>>::new();
             let mut packet_buf = Vec::new();
 
             // Loop until forced to shutdown or no active commands left
@@ -116,7 +117,7 @@ impl DeviceConnectionActor {
 /// Process a complete packet from the device
 async fn process_packet(
     packet: &[u8],
-    running_commands: &mut HashMap<u16, Sender<DeviceResult<CommandResponse>>>,
+    running_commands: &mut HashMap<Uuid, Sender<DeviceResult<CommandResponse>>>,
     tcp_tx: &mut (impl AsyncWriteExt + Unpin),
     shutdown: &mut bool,
 ) {
@@ -234,7 +235,7 @@ async fn login(
 
 /// Notify all running commands of an I/O error (e.g. disconnect).
 async fn notify_error(
-    running_commands: &mut HashMap<u16, Sender<DeviceResult<CommandResponse>>>,
+    running_commands: &mut HashMap<Uuid, Sender<DeviceResult<CommandResponse>>>,
     error: DeviceError,
 ) {
     for (_, channel) in running_commands.drain() {
