@@ -192,10 +192,10 @@ impl<'a> TryFrom<&'a [u8]> for WordAttribute<'a> {
         let key_bytes = parts.next().ok_or(WordError::Attribute)?;
         let key = std::str::from_utf8(key_bytes).map_err(|_| WordError::AttributeKeyNotUtf8)?;
 
-        // Value part is optional
-        let value_raw = parts.next();
+        // Value part is optional; treat an empty value as None.
+        let value_raw = parts.next().filter(|value| !value.is_empty());
 
-        // If we have a value, try to decode as UTF-8 but keep raw bytes regardless
+        // If we have a non-empty value, try to decode as UTF-8 but keep raw bytes regardless
         let value = value_raw.and_then(|v| std::str::from_utf8(v).ok());
 
         Ok(Self {
@@ -259,6 +259,11 @@ mod tests {
         );
 
         assert_eq!(
+            Word::try_from(b"=tag=".as_ref()).unwrap(),
+            Word::Attribute(("tag", None).into())
+        );
+
+        assert_eq!(
             Word::try_from(b"!fatal".as_ref()).unwrap(),
             Word::Category(WordCategory::Fatal)
         );
@@ -297,6 +302,9 @@ mod tests {
 
         let word = Word::Attribute(("name", Some("ether1")).into());
         assert_eq!(format!("{}", word), "=name=ether1");
+
+        let word = Word::Attribute(("disabled", None).into());
+        assert_eq!(format!("{}", word), "=disabled=");
 
         let word = Word::Message("unknownword");
         assert_eq!(format!("{}", word), "unknownword");
