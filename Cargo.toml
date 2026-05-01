@@ -1,5 +1,5 @@
 [workspace]
-members = ["mikrotik-proto", "mikrotik-rs", "examples/*"]
+members = ["mikrotik-proto", "mikrotik-tokio", "mikrotik-rs", "examples/*"]
 resolver = "3"
 
 [workspace.package]
@@ -19,6 +19,7 @@ hashbrown = "0.15"
 
 # Internal crates
 mikrotik-proto = { path = "mikrotik-proto" }
+mikrotik-tokio = { path = "mikrotik-tokio" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
