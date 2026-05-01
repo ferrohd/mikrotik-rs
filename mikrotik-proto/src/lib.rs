@@ -40,3 +40,14 @@
 //! ```
 
 extern crate alloc;
+
+/// Wire-format codec for MikroTik API length-prefixed words and sentences.
+pub mod codec;
+/// Error types for the protocol implementation.
+pub mod error;
+/// Response types for parsed command responses.
+pub mod response;
+/// Sentence parsing: zero-copy iteration over decoded wire-format sentences.
+pub mod sentence;
+/// Word types: the fundamental unit of the MikroTik API protocol.
+pub mod word;
