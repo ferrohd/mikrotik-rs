@@ -3,7 +3,7 @@
 //! The `command!` macro provides a convenient syntax for building MikroTik
 //! commands with compile-time validation of the command path.
 
-/// A minimal const validator that enforces basic MikroTik command rules:
+/// A minimal const validator that enforces basic `MikroTik` command rules:
 ///
 /// 1. Must start with `/`.
 /// 2. No empty segments (no `//`).
@@ -11,18 +11,18 @@
 /// 4. No consecutive spaces or slashes.
 /// 5. No trailing delimiter.
 ///
-/// **Panics at compile time** if the command path is invalid.
+/// # Panics
+///
+/// Panics (at compile time when used in a const context) if the command
+/// path is empty, doesn't start with `/`, contains invalid characters,
+/// has empty segments (`//`), consecutive delimiters, or a trailing delimiter.
 pub const fn check_mikrotik_command(cmd: &str) -> &str {
     let bytes = cmd.as_bytes();
     let len = bytes.len();
 
-    if len == 0 {
-        panic!("MikroTik command cannot be empty.");
-    }
+    assert!(len != 0, "MikroTik command cannot be empty.");
 
-    if bytes[0] != b'/' {
-        panic!("MikroTik command must start with '/'.");
-    }
+    assert!(bytes[0] == b'/', "MikroTik command must start with '/'.");
 
     let mut prev_was_delimiter = true; // start true because first char is '/'
     let mut i = 1;
@@ -30,29 +30,29 @@ pub const fn check_mikrotik_command(cmd: &str) -> &str {
         let c = bytes[i] as char;
 
         if c == '/' || c == ' ' {
-            if prev_was_delimiter {
-                panic!("No empty segments or consecutive delimiters allowed.");
-            }
+            assert!(
+                !prev_was_delimiter,
+                "No empty segments or consecutive delimiters allowed."
+            );
             prev_was_delimiter = true;
         } else {
             let is_valid_char = c.is_ascii_alphanumeric() || c == '-' || c == '_';
-            if !is_valid_char {
-                panic!("Invalid character in MikroTik command. Must be [a-zA-Z0-9_-]");
-            }
+            assert!(
+                is_valid_char,
+                "Invalid character in MikroTik command. Must be [a-zA-Z0-9_-]"
+            );
             prev_was_delimiter = false;
         }
 
         i += 1;
     }
 
-    if prev_was_delimiter {
-        panic!("Command cannot end with a delimiter.");
-    }
+    assert!(!prev_was_delimiter, "Command cannot end with a delimiter.");
 
     cmd
 }
 
-/// Macro that enforces MikroTik command syntax **at compile time**.
+/// Macro that enforces `MikroTik` command syntax **at compile time**.
 ///
 /// # Examples
 ///

@@ -27,7 +27,7 @@ pub struct NoCmd;
 #[derive(Clone)]
 pub struct Cmd;
 
-/// Builds MikroTik router commands using a fluent typestate API.
+/// Builds `MikroTik` router commands using a fluent typestate API.
 ///
 /// The type parameter ensures that only commands with a command word set
 /// can have attributes added or be built.
@@ -37,6 +37,7 @@ pub struct Cmd;
 /// - `CommandBuilder<NoCmd>` — initial state, call `.command()` to transition
 /// - `CommandBuilder<Cmd>` — command word set, can add attributes and `.build()`
 #[derive(Clone)]
+#[must_use]
 pub struct CommandBuilder<State> {
     tag: Uuid,
     buf: Vec<u8>,
@@ -63,7 +64,7 @@ impl CommandBuilder<NoCmd> {
     ///
     /// # Arguments
     ///
-    /// * `tag` — A [`Uuid`] that identifies the command for RouterOS correlation.
+    /// * `tag` — A [`Uuid`] that identifies the command for `RouterOS` correlation.
     ///   **Must be unique** within a connection.
     pub fn with_tag(tag: Uuid) -> Self {
         Self {
@@ -95,7 +96,7 @@ impl CommandBuilder<NoCmd> {
     ///
     /// # Arguments
     ///
-    /// * `command` — The MikroTik command path (e.g., `/system/resource/print`).
+    /// * `command` — The `MikroTik` command path (e.g., `/system/resource/print`).
     pub fn command(self, command: &str) -> CommandBuilder<Cmd> {
         let Self { tag, mut buf, .. } = self;
 
@@ -260,7 +261,7 @@ impl CommandBuilder<Cmd> {
         let Self { tag, mut buf, .. } = self;
 
         // Collect operation chars: "?#" + operator chars
-        let ops: Vec<u8> = operations.map(|op| op.code()).collect();
+        let ops: Vec<u8> = operations.map(QueryOperator::code).collect();
         let word_len = 2 + ops.len(); // "?#" + ops
         codec::encode_length(word_len as u32, &mut buf);
         buf.extend_from_slice(b"?#");
@@ -294,7 +295,7 @@ pub struct Command {
     pub data: Vec<u8>,
 }
 
-/// Represents a query operator for MikroTik API query expressions.
+/// Represents a query operator for `MikroTik` API query expressions.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum QueryOperator {
     /// Represents the `!` (NOT) operator.

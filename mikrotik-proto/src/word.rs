@@ -18,9 +18,9 @@ use uuid::Uuid;
 
 use crate::error::WordType;
 
-/// Represents a word in a MikroTik API sentence.
+/// Represents a word in a `MikroTik` API sentence.
 ///
-/// Words are the fundamental unit of the MikroTik wire protocol.
+/// Words are the fundamental unit of the `MikroTik` wire protocol.
 /// This type borrows from the underlying byte buffer for zero-copy parsing.
 ///
 /// # Variants
@@ -81,8 +81,8 @@ impl Word<'_> {
 impl Display for Word<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Word::Category(category) => write!(f, "{}", category),
-            Word::Tag(tag) => write!(f, ".tag={}", tag),
+            Word::Category(category) => write!(f, "{category}"),
+            Word::Tag(tag) => write!(f, ".tag={tag}"),
             Word::Attribute(WordAttribute {
                 key,
                 value,
@@ -90,7 +90,7 @@ impl Display for Word<'_> {
             }) => {
                 write!(f, "={}={}", key, value.unwrap_or(""))
             }
-            Word::Message(generic) => write!(f, "{}", generic),
+            Word::Message(generic) => write!(f, "{generic}"),
         }
     }
 }
@@ -138,7 +138,7 @@ pub enum WordCategory {
     Trap,
     /// Represents a `!fatal` response — a fatal connection error.
     Fatal,
-    /// Represents a `!empty` response (RouterOS 7.18+) — no data to reply with.
+    /// Represents a `!empty` response (`RouterOS` 7.18+) — no data to reply with.
     Empty,
 }
 
@@ -169,7 +169,7 @@ impl Display for WordCategory {
     }
 }
 
-/// Represents a key-value attribute pair in a MikroTik API sentence.
+/// Represents a key-value attribute pair in a `MikroTik` API sentence.
 ///
 /// Attributes are encoded as `=key=value` on the wire. The key is always
 /// valid UTF-8, but the value may contain arbitrary binary data.
@@ -207,8 +207,8 @@ impl<'a> TryFrom<&'a [u8]> for WordAttribute<'a> {
 
         Ok(Self {
             key,
-            value_raw,
             value,
+            value_raw,
         })
     }
 }

@@ -65,6 +65,11 @@ impl Handshaking {
     ///
     /// The login command is immediately queued for transmission.
     /// Call [`poll_transmit()`](Self::poll_transmit) to get the bytes to send.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal `Connection` is unexpectedly in a dead state.
+    /// This cannot occur during normal construction.
     pub fn new(username: &str, password: Option<&str>) -> Self {
         let mut conn = Connection::new();
         let login_cmd = CommandBuilder::login(username, password);
@@ -79,6 +84,10 @@ impl Handshaking {
     }
 
     /// Feed received bytes from the transport.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConnectionError`] if the data is malformed or the connection is dead.
     pub fn receive(&mut self, data: &[u8]) -> Result<(), ConnectionError> {
         self.inner.receive(data)
     }

@@ -69,7 +69,7 @@ pub enum Event {
         tag: Uuid,
     },
 
-    /// An empty response was received (RouterOS 7.18+).
+    /// An empty response was received (`RouterOS` 7.18+).
     /// The command completed with no data.
     Empty {
         /// The command tag that completed.
@@ -120,7 +120,7 @@ struct CommandState {
     reply_count: usize,
 }
 
-/// The sans-IO connection state machine for the MikroTik API protocol.
+/// The sans-IO connection state machine for the `MikroTik` API protocol.
 ///
 /// This type manages:
 /// - **Framing:** accumulating incoming bytes into complete sentences.
@@ -219,7 +219,7 @@ impl Connection {
                     self.recv_buf.drain(..bytes_consumed);
                     match parsed {
                         Ok(response) => self.dispatch_response(response),
-                        Err((error, tag_opt)) => self.handle_parse_error(error, tag_opt),
+                        Err((error, tag_opt)) => self.handle_parse_error(&error, tag_opt),
                     }
                 }
                 None => break,
@@ -266,6 +266,10 @@ impl Connection {
     /// the command from the in-flight set.
     ///
     /// If the tag is not currently in-flight, this is a no-op.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConnectionError::Closed`] if the connection is dead.
     pub fn cancel_command(&mut self, tag: Uuid) -> Result<(), ConnectionError> {
         if self.state == State::Dead {
             return Err(ConnectionError::Closed);
@@ -388,7 +392,7 @@ impl Connection {
         }
     }
 
-    fn handle_parse_error(&mut self, error: crate::error::ProtocolError, tag_opt: Option<Uuid>) {
+    fn handle_parse_error(&mut self, error: &crate::error::ProtocolError, tag_opt: Option<Uuid>) {
         if let Some(tag) = tag_opt {
             self.in_flight.remove(&tag);
             self.events.push_back(Event::Trap {

@@ -17,7 +17,7 @@ use mikrotik_proto::handshake::{Handshaking, LoginProgress};
 
 use crate::error::{DeviceError, DeviceResult};
 
-/// Internal command sent from the MikrotikDevice handle to the actor task.
+/// Internal command sent from the `MikrotikDevice` handle to the actor task.
 #[allow(dead_code)]
 enum DeviceCommand {
     /// Send a command to the router. The response events will be forwarded
@@ -30,10 +30,10 @@ enum DeviceCommand {
     Cancel { tag: Uuid },
 }
 
-/// A client for interacting with MikroTik devices.
+/// A client for interacting with `MikroTik` devices.
 ///
 /// The `MikrotikDevice` struct provides an asynchronous interface for connecting
-/// to a MikroTik device and sending commands. It encapsulates the communication
+/// to a `MikroTik` device and sending commands. It encapsulates the communication
 /// through a background actor task that drives the sans-IO [`Connection`] state
 /// machine.
 ///
@@ -63,19 +63,25 @@ pub struct MikrotikDevice {
 }
 
 impl MikrotikDevice {
-    /// Asynchronously establishes a connection to a MikroTik device.
+    /// Asynchronously establishes a connection to a `MikroTik` device.
     ///
     /// This connects via plaintext TCP (port 8728), performs the login handshake,
     /// and spawns a background actor task to drive the connection.
     ///
     /// # Parameters
-    /// - `addr`: The address of the MikroTik device (e.g., `"192.168.88.1:8728"`).
+    /// - `addr`: The address of the `MikroTik` device (e.g., `"192.168.88.1:8728"`).
     /// - `username`: The username for authenticating with the device.
     /// - `password`: An optional password for authentication.
     ///
     /// # Returns
     /// - `Ok(Self)`: An instance of [`MikrotikDevice`] on successful connection and login.
-    /// - `Err(DeviceError)`: If the connection or authentication fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DeviceError`] if:
+    /// - The TCP connection cannot be established
+    /// - The login handshake fails (wrong credentials, fatal, or protocol error)
+    /// - The remote device closes the connection during login
     pub async fn connect<A: ToSocketAddrs>(
         addr: A,
         username: &str,
@@ -114,7 +120,7 @@ impl MikrotikDevice {
         Ok(Self { cmd_tx })
     }
 
-    /// Asynchronously sends a command to the connected MikroTik device.
+    /// Asynchronously sends a command to the connected `MikroTik` device.
     ///
     /// Returns a receiver that will yield [`Event`]s for this command. The
     /// receiver produces:
@@ -164,7 +170,7 @@ async fn run_actor(
         // Flush any pending outbound data before selecting
         while let Some(transmit) = conn.poll_transmit() {
             if let Err(e) = wr.write_all(&transmit.data).await {
-                eprintln!("Error writing to device: {:?}", e);
+                eprintln!("Error writing to device: {e:?}");
                 shutdown = true;
                 break;
             }
@@ -185,7 +191,7 @@ async fn run_actor(
                 }
                 Ok(n) => {
                     if let Err(e) = conn.receive(&buf[..n]) {
-                        eprintln!("Protocol error: {:?}", e);
+                        eprintln!("Protocol error: {e:?}");
                         shutdown = true;
                     }
 
@@ -195,7 +201,7 @@ async fn run_actor(
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error reading from device: {:?}", e);
+                    eprintln!("Error reading from device: {e:?}");
                     shutdown = true;
                 }
             },
@@ -208,7 +214,7 @@ async fn run_actor(
                             response_map.insert(tag, respond_to);
                         }
                         Err(e) => {
-                            eprintln!("Error sending command: {:?}", e);
+                            eprintln!("Error sending command: {e:?}");
                             shutdown = true;
                         }
                     }
@@ -251,13 +257,7 @@ async fn route_event(
                 let _ = conn.cancel_command(tag);
             }
         }
-        Event::Done { tag } | Event::Empty { tag } => {
-            let tag = *tag;
-            if let Some(sender) = response_map.remove(&tag) {
-                let _ = sender.send(event).await;
-            }
-        }
-        Event::Trap { tag, .. } => {
+        Event::Done { tag } | Event::Empty { tag } | Event::Trap { tag, .. } => {
             let tag = *tag;
             if let Some(sender) = response_map.remove(&tag) {
                 let _ = sender.send(event).await;

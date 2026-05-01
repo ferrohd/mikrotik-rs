@@ -90,7 +90,7 @@ impl<'a> RawSentence<'a> {
     }
 }
 
-/// Decode a variable-length integer from the MikroTik wire format.
+/// Decode a variable-length integer from the `MikroTik` wire format.
 ///
 /// Returns the decoded length and the number of prefix bytes consumed,
 /// or `Incomplete` if the buffer doesn't contain enough bytes.
@@ -106,7 +106,7 @@ pub fn decode_length(data: &[u8]) -> Result<Decode<(u32, usize)>, DecodeError> {
         });
     }
 
-    let c = data[0] as u32;
+    let c = u32::from(data[0]);
     match c {
         c if c & 0x80 == 0x00 => Ok(Decode::Complete {
             value: (c, 1),
@@ -118,7 +118,7 @@ pub fn decode_length(data: &[u8]) -> Result<Decode<(u32, usize)>, DecodeError> {
                     needed: NonZeroUsize::new(1),
                 });
             }
-            let val = ((c & !0xC0) << 8) | data[1] as u32;
+            let val = ((c & !0xC0) << 8) | u32::from(data[1]);
             Ok(Decode::Complete {
                 value: (val, 2),
                 bytes_consumed: 2,
@@ -130,7 +130,7 @@ pub fn decode_length(data: &[u8]) -> Result<Decode<(u32, usize)>, DecodeError> {
                     needed: NonZeroUsize::new(3 - data.len()),
                 });
             }
-            let val = ((c & !0xE0) << 16) | ((data[1] as u32) << 8) | data[2] as u32;
+            let val = ((c & !0xE0) << 16) | (u32::from(data[1]) << 8) | u32::from(data[2]);
             Ok(Decode::Complete {
                 value: (val, 3),
                 bytes_consumed: 3,
@@ -143,9 +143,9 @@ pub fn decode_length(data: &[u8]) -> Result<Decode<(u32, usize)>, DecodeError> {
                 });
             }
             let val = ((c & !0xF0) << 24)
-                | ((data[1] as u32) << 16)
-                | ((data[2] as u32) << 8)
-                | data[3] as u32;
+                | (u32::from(data[1]) << 16)
+                | (u32::from(data[2]) << 8)
+                | u32::from(data[3]);
             Ok(Decode::Complete {
                 value: (val, 4),
                 bytes_consumed: 4,
@@ -158,10 +158,10 @@ pub fn decode_length(data: &[u8]) -> Result<Decode<(u32, usize)>, DecodeError> {
                     needed: NonZeroUsize::new(5 - data.len()),
                 });
             }
-            let val = ((data[1] as u32) << 24)
-                | ((data[2] as u32) << 16)
-                | ((data[3] as u32) << 8)
-                | data[4] as u32;
+            let val = (u32::from(data[1]) << 24)
+                | (u32::from(data[2]) << 16)
+                | (u32::from(data[3]) << 8)
+                | u32::from(data[4]);
             Ok(Decode::Complete {
                 value: (val, 5),
                 bytes_consumed: 5,
@@ -181,7 +181,10 @@ pub fn decode_length(data: &[u8]) -> Result<Decode<(u32, usize)>, DecodeError> {
 /// - `Ok(Decode::Complete { value, bytes_consumed })` — a full sentence was decoded.
 ///   The caller should advance the buffer by `bytes_consumed`.
 /// - `Ok(Decode::Incomplete { needed })` — more data is needed to complete the sentence.
-/// - `Err(DecodeError)` — the data contains a malformed length prefix.
+///
+/// # Errors
+///
+/// Returns [`DecodeError`] if the data contains a malformed length prefix.
 pub fn decode_sentence(src: &[u8]) -> Result<Decode<RawSentence<'_>>, DecodeError> {
     let mut pos = 0;
     let mut word_spans = Vec::new();
@@ -211,7 +214,8 @@ pub fn decode_sentence(src: &[u8]) -> Result<Decode<RawSentence<'_>>, DecodeErro
                 }
 
                 let word_start = pos + prefix_len;
-                let word_end = word_start + length as usize;
+                let word_len = length as usize; // safe: u32→usize on 32+ bit
+                let word_end = word_start + word_len;
 
                 if word_end > src.len() {
                     let needed = word_end - src.len();
@@ -220,7 +224,7 @@ pub fn decode_sentence(src: &[u8]) -> Result<Decode<RawSentence<'_>>, DecodeErro
                     });
                 }
 
-                word_spans.push((word_start, length as usize));
+                word_spans.push((word_start, word_len));
                 pos = word_end;
             }
             Decode::Incomplete { needed } => {
@@ -243,14 +247,14 @@ pub fn encode_length(len: u32, dst: &mut Vec<u8>) {
             dst.push(((l >> 8) & 0xFF) as u8);
             dst.push((l & 0xFF) as u8);
         }
-        0x4000..=0x1FFFFF => {
-            let l = len | 0xC00000;
+        0x4000..=0x001F_FFFF => {
+            let l = len | 0x00C0_0000;
             dst.push(((l >> 16) & 0xFF) as u8);
             dst.push(((l >> 8) & 0xFF) as u8);
             dst.push((l & 0xFF) as u8);
         }
-        0x200000..=0xFFFFFFF => {
-            let l = len | 0xE0000000;
+        0x0020_0000..=0x0FFF_FFFF => {
+            let l = len | 0xE000_0000;
             dst.push(((l >> 24) & 0xFF) as u8);
             dst.push(((l >> 16) & 0xFF) as u8);
             dst.push(((l >> 8) & 0xFF) as u8);
@@ -269,8 +273,14 @@ pub fn encode_length(len: u32, dst: &mut Vec<u8>) {
 /// Encode a word (length prefix + content bytes) into the destination buffer.
 ///
 /// Appends the length-prefixed word to `dst`.
+///
+/// # Panics
+///
+/// Panics if `word.len()` exceeds `u32::MAX` (4 GiB). This is not reachable
+/// in practice since `MikroTik` API words are limited to a few kilobytes.
 pub fn encode_word(word: &[u8], dst: &mut Vec<u8>) {
-    encode_length(word.len() as u32, dst);
+    let len = word.len() as u32;
+    encode_length(len, dst);
     dst.extend_from_slice(word);
 }
 
@@ -375,7 +385,16 @@ mod tests {
     #[test]
     fn test_encode_decode_roundtrip() {
         let test_values: &[u32] = &[
-            0, 1, 0x7F, 0x80, 0x3FFF, 0x4000, 0x1FFFFF, 0x200000, 0xFFFFFFF, 0x10000000,
+            0,
+            1,
+            0x7F,
+            0x80,
+            0x3FFF,
+            0x4000,
+            0x001F_FFFF,
+            0x0020_0000,
+            0x0FFF_FFFF,
+            0x1000_0000,
         ];
         for &val in test_values {
             let mut buf = Vec::new();

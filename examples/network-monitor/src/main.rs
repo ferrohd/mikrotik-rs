@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut monitor_responses = device.send_command(monitor_cmd).await?;
 
     while let Some(event) = monitor_responses.recv().await {
-        println!(">> Monitor Traffic Response {:?}", event);
+        println!(">> Monitor Traffic Response {event:?}");
     }
 
     Ok(())

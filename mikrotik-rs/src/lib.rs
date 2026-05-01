@@ -1,7 +1,7 @@
 #![warn(missing_docs)]
 //! # MikroTik-rs
 //!
-//! `mikrotik-rs` is an asynchronous Rust library for interfacing with MikroTik routers.
+//! `mikrotik-rs` is an asynchronous Rust library for interfacing with `MikroTik` routers.
 //! It allows for sending commands and receiving responses in parallel through channels.
 //!
 //! This crate is a convenience facade that re-exports types from:

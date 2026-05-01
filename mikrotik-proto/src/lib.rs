@@ -2,10 +2,10 @@
 #![warn(missing_docs)]
 //! # mikrotik-proto
 //!
-//! Sans-IO protocol implementation for the MikroTik RouterOS API.
+//! Sans-IO protocol implementation for the `MikroTik` `RouterOS` API.
 //!
 //! This crate provides a runtime-agnostic, `no_std`-compatible implementation
-//! of the MikroTik RouterOS API wire protocol. It handles:
+//! of the `MikroTik` `RouterOS` API wire protocol. It handles:
 //!
 //! - **Wire-format encoding/decoding** — variable-length prefix codec for words and sentences
 //! - **Command building** — typestate builder pattern with compile-time validation

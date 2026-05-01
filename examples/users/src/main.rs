@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut users_stream = device.send_command(get_users_cmd).await?;
 
     while let Some(event) = users_stream.recv().await {
-        println!(">> Get Users Response {:?}", event);
+        println!(">> Get Users Response {event:?}");
     }
 
     Ok(())

@@ -34,7 +34,7 @@ pub enum CommandResponse {
     Trap(TrapResponse),
     /// Represents a fatal error response (affects all in-flight commands).
     Fatal(FatalResponse),
-    /// Represents an empty response (introduced in RouterOS 7.18).
+    /// Represents an empty response (introduced in `RouterOS` 7.18).
     /// Commands which do not have any data to reply with return this response.
     Empty(EmptyResponse),
 }
@@ -57,6 +57,11 @@ impl CommandResponse {
     ///
     /// This is the primary entry point for converting decoded wire-format
     /// sentences into typed response values.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtocolError`] if the sentence structure is invalid,
+    /// contains unexpected word types, or is missing required fields.
     pub fn parse(raw: &RawSentence<'_>) -> Result<Self, ProtocolError> {
         let mut sentence = Sentence::new(raw);
 
@@ -201,7 +206,7 @@ impl Display for DoneResponse {
     }
 }
 
-/// Represents an empty response (RouterOS 7.18+).
+/// Represents an empty response (`RouterOS` 7.18+).
 ///
 /// Commands which do not have any data to reply with return this response.
 #[derive(Debug, Clone)]

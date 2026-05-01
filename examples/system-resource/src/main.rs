@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut res_stream = device.send_command(get_system_res).await?;
 
     while let Some(event) = res_stream.recv().await {
-        println!(">> Get System Res Response {:?}", event);
+        println!(">> Get System Res Response {event:?}");
     }
 
     Ok(())

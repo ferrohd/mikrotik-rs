@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut update_responses = device.send_command(check_updates).await?;
 
     while let Some(event) = update_responses.recv().await {
-        println!(">> Update Response {:?}", event);
+        println!(">> Update Response {event:?}");
     }
 
     Ok(())

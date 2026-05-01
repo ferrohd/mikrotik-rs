@@ -1,7 +1,7 @@
 #![warn(missing_docs)]
 //! # mikrotik-tokio
 //!
-//! Tokio-based async client for MikroTik RouterOS API.
+//! Tokio-based async client for `MikroTik` `RouterOS` API.
 //!
 //! This crate provides a high-level async interface built on top of the
 //! sans-IO [`mikrotik_proto`] crate. It drives the protocol state machine

@@ -6,7 +6,7 @@ use mikrotik_proto::error::{ConnectionError, LoginError, ProtocolError};
 use mikrotik_proto::response::TrapResponse;
 use thiserror::Error;
 
-/// Result type alias for MikroTik device operations.
+/// Result type alias for `MikroTik` device operations.
 pub type DeviceResult<T> = Result<T, DeviceError>;
 
 /// Errors related to the device connection actor being unavailable.
@@ -21,7 +21,7 @@ pub enum ActorError {
     LoginResponseLost,
 }
 
-/// Custom error type for MikroTik device operations.
+/// Custom error type for `MikroTik` device operations.
 #[derive(Error, Debug)]
 pub enum DeviceError {
     /// Connection related errors (TCP, network issues).
