@@ -47,6 +47,8 @@ pub mod codec;
 pub mod command;
 /// Error types for the protocol implementation.
 pub mod error;
+/// Compile-time command path validation and `command!` macro.
+pub mod macros;
 /// Response types for parsed command responses.
 pub mod response;
 /// Sentence parsing: zero-copy iteration over decoded wire-format sentences.
