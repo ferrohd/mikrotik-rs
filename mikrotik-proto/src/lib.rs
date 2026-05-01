@@ -59,3 +59,9 @@ pub mod response;
 pub mod sentence;
 /// Word types: the fundamental unit of the MikroTik API protocol.
 pub mod word;
+
+// Re-export key types at crate root for convenience
+pub use command::{Command, CommandBuilder};
+pub use connection::{Connection, Event, State, Transmit};
+pub use handshake::{Authenticated, Handshaking, LoginProgress};
+pub use response::CommandResponse;
