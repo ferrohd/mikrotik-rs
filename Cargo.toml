@@ -1,5 +1,5 @@
 [workspace]
-members = ["mikrotik-rs", "examples/*"]
+members = ["mikrotik-proto", "mikrotik-rs", "examples/*"]
 resolver = "3"
 
 [workspace.package]
@@ -13,7 +13,12 @@ repository = "https://github.com/ferrohd/mikrotik-rs"
 [workspace.dependencies]
 # Core dependencies
 tokio = "1.48.0"
-thiserror = "2.0"
+thiserror = { version = "2.0", default-features = false }
+uuid = { version = "1", default-features = false, features = ["v4"] }
+hashbrown = "0.15"
+
+# Internal crates
+mikrotik-proto = { path = "mikrotik-proto" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
