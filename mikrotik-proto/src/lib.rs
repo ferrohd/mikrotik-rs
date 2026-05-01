@@ -49,6 +49,8 @@ pub mod command;
 pub mod connection;
 /// Error types for the protocol implementation.
 pub mod error;
+/// Typestate-enforced login handshake.
+pub mod handshake;
 /// Compile-time command path validation and `command!` macro.
 pub mod macros;
 /// Response types for parsed command responses.
