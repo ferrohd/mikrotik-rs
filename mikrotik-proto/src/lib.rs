@@ -43,6 +43,8 @@ extern crate alloc;
 
 /// Wire-format codec for MikroTik API length-prefixed words and sentences.
 pub mod codec;
+/// Command builder with typestate pattern and compile-time validation.
+pub mod command;
 /// Error types for the protocol implementation.
 pub mod error;
 /// Response types for parsed command responses.
