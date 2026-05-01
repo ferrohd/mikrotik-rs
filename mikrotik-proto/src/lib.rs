@@ -45,6 +45,8 @@ extern crate alloc;
 pub mod codec;
 /// Command builder with typestate pattern and compile-time validation.
 pub mod command;
+/// Sans-IO connection state machine with multiplexed command/response correlation.
+pub mod connection;
 /// Error types for the protocol implementation.
 pub mod error;
 /// Compile-time command path validation and `command!` macro.
