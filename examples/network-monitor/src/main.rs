@@ -1,8 +1,9 @@
-use mikrotik_rs::{MikrotikDevice, protocol::command::CommandBuilder};
+use mikrotik_rs::{CommandBuilder, MikrotikDevice};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let device = MikrotikDevice::connect("192.168.122.144:8728", "admin", Some("admin")).await?;
+    let device =
+        MikrotikDevice::connect("192.168.122.144:8728", "admin", Some("admin")).await?;
 
     let monitor_cmd = CommandBuilder::new()
         .command("/interface/monitor-traffic")
@@ -11,8 +12,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut monitor_responses = device.send_command(monitor_cmd).await?;
 
-    while let Some(res) = monitor_responses.recv().await {
-        println!(">> Get System Res Response {:?}", res);
+    while let Some(event) = monitor_responses.recv().await {
+        println!(">> Monitor Traffic Response {:?}", event);
     }
 
     Ok(())
