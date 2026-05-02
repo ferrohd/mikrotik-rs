@@ -107,7 +107,7 @@ pub use mikrotik_proto::command;
 pub use mikrotik_tokio as tokio_client;
 
 #[cfg(feature = "tokio")]
-pub use mikrotik_tokio::builder::{DeviceBuilder, NoCrypto};
+pub use mikrotik_tokio::builder::{DeviceBuilder, Plaintext};
 #[cfg(feature = "tokio")]
 pub use mikrotik_tokio::error::{ActorError, DeviceError, DeviceResult};
 #[cfg(feature = "tokio")]

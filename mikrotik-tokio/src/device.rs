@@ -14,7 +14,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::ToSocketAddrs;
 use tokio::sync::mpsc;
 
-use crate::builder::{DeviceBuilder, NoCrypto};
+use crate::builder::{DeviceBuilder, Plaintext};
 use crate::error::{DeviceError, DeviceResult};
 
 /// Internal command sent from the [`MikrotikDevice`] handle to the actor task.
@@ -81,7 +81,7 @@ impl MikrotikDevice {
     /// TLS connections (for API-SSL on port 8729).
     ///
     /// See [`DeviceBuilder`] for the full API.
-    pub fn builder<A: ToSocketAddrs>(addr: A) -> DeviceBuilder<A, NoCrypto> {
+    pub fn builder<A: ToSocketAddrs>(addr: A) -> DeviceBuilder<A, Plaintext> {
         DeviceBuilder::new(addr)
     }
 
