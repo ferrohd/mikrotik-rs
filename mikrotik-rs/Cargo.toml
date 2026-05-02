@@ -17,6 +17,10 @@ doctest = false
 [lints]
 workspace = true
 
+[features]
+default = ["tokio"]
+tokio = ["dep:mikrotik-tokio"]
+
 [dependencies]
 mikrotik-proto = { workspace = true }
-mikrotik-tokio = { workspace = true }
+mikrotik-tokio = { workspace = true, optional = true }
