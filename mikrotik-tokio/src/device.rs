@@ -6,13 +6,13 @@
 
 use std::collections::HashMap;
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpStream, ToSocketAddrs};
-use tokio::sync::mpsc;
 use mikrotik_proto::command::Command;
 use mikrotik_proto::connection::{Connection, Event};
 use mikrotik_proto::handshake::{Handshaking, LoginProgress};
 use mikrotik_proto::tag::Tag;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpStream, ToSocketAddrs};
+use tokio::sync::mpsc;
 
 use crate::error::{DeviceError, DeviceResult};
 
