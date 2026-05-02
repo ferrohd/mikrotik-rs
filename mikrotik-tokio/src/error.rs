@@ -1,4 +1,4 @@
-//! Tokio-specific error types for MikroTik device operations.
+//! Tokio-specific error types for `MikroTik` device operations.
 
 use std::io;
 
@@ -50,6 +50,11 @@ pub enum DeviceError {
     /// Login errors.
     #[error("Login error: {0}")]
     Login(#[from] LoginError),
+
+    /// TLS handshake or protocol error.
+    #[cfg(feature = "tls")]
+    #[error("TLS error: {0}")]
+    Tls(#[from] rustls::Error),
 
     /// The connection was closed by the remote device.
     #[error("Connection closed by remote device")]
