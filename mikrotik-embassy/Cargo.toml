@@ -1,0 +1,30 @@
+[package]
+name = "mikrotik-embassy"
+description = "Embassy async embedded client for MikroTik RouterOS API"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[features]
+default = ["proto-ipv4", "medium-ethernet"]
+proto-ipv4 = ["embassy-net/proto-ipv4"]
+proto-ipv6 = ["embassy-net/proto-ipv6"]
+medium-ethernet = ["embassy-net/medium-ethernet"]
+medium-ip = ["embassy-net/medium-ip"]
+medium-ieee802154 = ["embassy-net/medium-ieee802154"]
+
+[dependencies]
+mikrotik-proto = { workspace = true }
+embassy-net = { version = "0.9", features = ["tcp"] }
+embassy-sync = "0.8"
+embassy-futures = "0.1"
+embassy-time = "0.5"
+embedded-io-async = "0.7"
+
+[lints]
+workspace = true
