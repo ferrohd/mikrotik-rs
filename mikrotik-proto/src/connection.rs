@@ -132,6 +132,7 @@ struct CommandState {
 /// - Reading bytes from the network and feeding them via [`receive()`](Connection::receive).
 /// - Draining outbound bytes via [`poll_transmit()`](Connection::poll_transmit) and sending them.
 /// - Polling for application events via [`poll_event()`](Connection::poll_event).
+#[derive(Debug)]
 pub struct Connection {
     /// Current connection state.
     state: State,
@@ -251,7 +252,7 @@ impl Connection {
 
         // Queue the wire-format data for transmission
         self.outbound.push_back(Transmit {
-            data: command.data.clone(),
+            data: command.data().to_vec(),
         });
 
         // Track as in-flight
@@ -277,7 +278,9 @@ impl Connection {
 
         if self.in_flight.remove(&tag).is_some() {
             let cancel = CommandBuilder::cancel(tag);
-            self.outbound.push_back(Transmit { data: cancel.data });
+            self.outbound.push_back(Transmit {
+                data: cancel.into_data(),
+            });
         }
 
         Ok(())
@@ -290,7 +293,9 @@ impl Connection {
         let tags: Vec<Uuid> = self.in_flight.keys().copied().collect();
         for tag in tags {
             let cancel = CommandBuilder::cancel(tag);
-            self.outbound.push_back(Transmit { data: cancel.data });
+            self.outbound.push_back(Transmit {
+                data: cancel.into_data(),
+            });
         }
         self.in_flight.clear();
     }

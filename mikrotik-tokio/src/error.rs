@@ -44,7 +44,7 @@ pub enum DeviceError {
     Protocol(#[from] ProtocolError),
 
     /// Connection state machine errors.
-    #[error("Connection error: {0}")]
+    #[error("Connection state error: {0}")]
     ConnectionState(#[from] ConnectionError),
 
     /// Login errors.

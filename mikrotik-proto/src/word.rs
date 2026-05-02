@@ -173,7 +173,7 @@ impl Display for WordCategory {
 ///
 /// Attributes are encoded as `=key=value` on the wire. The key is always
 /// valid UTF-8, but the value may contain arbitrary binary data.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WordAttribute<'a> {
     /// The key of the attribute (always valid UTF-8).
     pub key: &'a str,

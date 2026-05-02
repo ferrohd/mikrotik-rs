@@ -74,7 +74,7 @@ pub enum MissingWord {
 }
 
 /// Discriminant for word types, used in error reporting.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WordType {
     /// Tag word (`.tag=...`).
     Tag,

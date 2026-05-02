@@ -118,7 +118,7 @@ pub fn decode_length(data: &[u8]) -> Result<Decode<(u32, usize)>, DecodeError> {
                     needed: NonZeroUsize::new(1),
                 });
             }
-            let val = ((c & !0xC0) << 8) | u32::from(data[1]);
+            let val = ((c & 0x3F) << 8) | u32::from(data[1]);
             Ok(Decode::Complete {
                 value: (val, 2),
                 bytes_consumed: 2,
@@ -130,7 +130,7 @@ pub fn decode_length(data: &[u8]) -> Result<Decode<(u32, usize)>, DecodeError> {
                     needed: NonZeroUsize::new(3 - data.len()),
                 });
             }
-            let val = ((c & !0xE0) << 16) | (u32::from(data[1]) << 8) | u32::from(data[2]);
+            let val = ((c & 0x1F) << 16) | (u32::from(data[1]) << 8) | u32::from(data[2]);
             Ok(Decode::Complete {
                 value: (val, 3),
                 bytes_consumed: 3,
@@ -142,7 +142,7 @@ pub fn decode_length(data: &[u8]) -> Result<Decode<(u32, usize)>, DecodeError> {
                     needed: NonZeroUsize::new(4 - data.len()),
                 });
             }
-            let val = ((c & !0xF0) << 24)
+            let val = ((c & 0x0F) << 24)
                 | (u32::from(data[1]) << 16)
                 | (u32::from(data[2]) << 8)
                 | u32::from(data[3]);
@@ -279,7 +279,7 @@ pub fn encode_length(len: u32, dst: &mut Vec<u8>) {
 /// Panics if `word.len()` exceeds `u32::MAX` (4 GiB). This is not reachable
 /// in practice since `MikroTik` API words are limited to a few kilobytes.
 pub fn encode_word(word: &[u8], dst: &mut Vec<u8>) {
-    let len = word.len() as u32;
+    let len: u32 = word.len().try_into().expect("word length exceeds u32::MAX");
     encode_length(len, dst);
     dst.extend_from_slice(word);
 }

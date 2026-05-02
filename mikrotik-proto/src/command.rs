@@ -285,14 +285,28 @@ impl CommandBuilder<Cmd> {
 
 /// A finalized command ready to be sent to the router.
 ///
-/// Created via [`CommandBuilder`]. The `data` field contains the complete
-/// wire-format bytes (length-prefixed words + null terminator).
-#[derive(Debug)]
+/// Created via [`CommandBuilder`]. Contains the complete wire-format bytes
+/// (length-prefixed words + null terminator).
+///
+/// The wire data is immutable after construction to preserve builder invariants.
+#[derive(Debug, Clone)]
 pub struct Command {
     /// The tag identifying this command for response correlation.
     pub tag: Uuid,
     /// The wire-format encoded command data.
-    pub data: Vec<u8>,
+    pub(crate) data: Vec<u8>,
+}
+
+impl Command {
+    /// Returns the wire-format encoded command data.
+    pub fn data(&self) -> &[u8] {
+        &self.data
+    }
+
+    /// Consumes the command and returns the wire-format data.
+    pub fn into_data(self) -> Vec<u8> {
+        self.data
+    }
 }
 
 /// Represents a query operator for `MikroTik` API query expressions.

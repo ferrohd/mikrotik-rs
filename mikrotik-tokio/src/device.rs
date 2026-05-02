@@ -1,4 +1,4 @@
-//! Async device client for connecting to MikroTik routers.
+//! Async device client for connecting to `MikroTik` routers.
 //!
 //! The [`MikrotikDevice`] struct provides an asynchronous interface built on
 //! top of the sans-IO [`mikrotik_proto`] crate. It drives the protocol state
@@ -17,17 +17,10 @@ use mikrotik_proto::handshake::{Handshaking, LoginProgress};
 
 use crate::error::{DeviceError, DeviceResult};
 
-/// Internal command sent from the `MikrotikDevice` handle to the actor task.
-#[allow(dead_code)]
-enum DeviceCommand {
-    /// Send a command to the router. The response events will be forwarded
-    /// to the provided sender.
-    Send {
-        command: Command,
-        respond_to: mpsc::Sender<Event>,
-    },
-    /// Cancel an in-flight command.
-    Cancel { tag: Uuid },
+/// Internal command sent from the [`MikrotikDevice`] handle to the actor task.
+struct DeviceCommand {
+    command: Command,
+    respond_to: mpsc::Sender<Event>,
 }
 
 /// A client for interacting with `MikroTik` devices.
@@ -38,6 +31,13 @@ enum DeviceCommand {
 /// machine.
 ///
 /// Can be cheaply cloned to share the same connection across multiple tasks.
+///
+/// # Cancellation
+///
+/// In-flight commands are automatically cancelled on the router when the
+/// response receiver returned by [`send_command`](MikrotikDevice::send_command)
+/// is dropped. This follows Rust's RAII pattern — just drop the receiver to
+/// stop a long-running command like `/tool/torch` or `/interface/monitor-traffic`.
 ///
 /// # Examples
 ///
@@ -52,15 +52,24 @@ enum DeviceCommand {
 /// let mut rx = device.send_command(cmd).await?;
 ///
 /// while let Some(event) = rx.recv().await {
-///     println!("{:?}", event);
+///     println!("{event:?}");
 /// }
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MikrotikDevice {
     cmd_tx: mpsc::Sender<DeviceCommand>,
 }
+
+// Static assertion: MikrotikDevice must be Send + Sync for multi-task use.
+const _: () = {
+    const fn assert_send_sync<T: Send + Sync>() {}
+    #[allow(dead_code)]
+    fn check() {
+        assert_send_sync::<MikrotikDevice>();
+    }
+};
 
 impl MikrotikDevice {
     /// Asynchronously establishes a connection to a `MikroTik` device.
@@ -107,6 +116,11 @@ impl MikrotikDevice {
             }
             hs.receive(&buf[..n])?;
 
+            // Flush any transmits queued by receive (future multi-round-trip support)
+            while let Some(transmit) = hs.poll_transmit() {
+                stream.write_all(&transmit.data).await?;
+            }
+
             match hs.advance()? {
                 LoginProgress::Pending(h) => hs = h,
                 LoginProgress::Complete(auth) => break auth.into_connection(),
@@ -129,26 +143,35 @@ impl MikrotikDevice {
     /// - [`Event::Trap`] — if the command encounters an error
     /// - [`Event::Fatal`] — if a fatal connection error occurs
     ///
-    /// **Dropping the receiver** signals the actor to cancel the command on the router.
+    /// # Cancellation
+    ///
+    /// **Dropping the receiver** automatically sends a `/cancel` to the router
+    /// for this command. This is the idiomatic way to stop a long-running
+    /// command — just drop the receiver.
     ///
     /// # Errors
     ///
     /// Returns `DeviceError::Actor(ActorError::CommandSendFailed)` if the
     /// connection actor has shut down.
-    pub async fn send_command(
-        &self,
-        command: Command,
-    ) -> DeviceResult<mpsc::Receiver<Event>> {
+    pub async fn send_command(&self, command: Command) -> DeviceResult<mpsc::Receiver<Event>> {
         let (response_tx, response_rx) = mpsc::channel::<Event>(16);
 
         self.cmd_tx
-            .send(DeviceCommand::Send {
+            .send(DeviceCommand {
                 command,
                 respond_to: response_tx,
             })
             .await?;
 
         Ok(response_rx)
+    }
+}
+
+impl std::fmt::Debug for DeviceCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeviceCommand")
+            .field("tag", &self.command.tag)
+            .finish()
     }
 }
 
@@ -169,8 +192,7 @@ async fn run_actor(
     while !shutdown {
         // Flush any pending outbound data before selecting
         while let Some(transmit) = conn.poll_transmit() {
-            if let Err(e) = wr.write_all(&transmit.data).await {
-                eprintln!("Error writing to device: {e:?}");
+            if wr.write_all(&transmit.data).await.is_err() {
                 shutdown = true;
                 break;
             }
@@ -183,45 +205,19 @@ async fn run_actor(
         tokio::select! {
             biased;
 
-            // Read from network → feed to Connection
-            result = rd.read(&mut buf) => match result {
-                Ok(0) => {
-                    // Connection closed
-                    shutdown = true;
-                }
-                Ok(n) => {
-                    if let Err(e) = conn.receive(&buf[..n]) {
-                        eprintln!("Protocol error: {e:?}");
-                        shutdown = true;
-                    }
-
-                    // Drain events → route to per-command channels
-                    while let Some(event) = conn.poll_event() {
-                        route_event(&mut response_map, &mut conn, event).await;
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error reading from device: {e:?}");
-                    shutdown = true;
-                }
-            },
-
-            // Receive user commands → feed to Connection
+            // Commands first — bounded, fast, prevents starvation under
+            // sustained inbound traffic. Network reads are second since
+            // they can trigger O(n) event routing.
             msg = cmd_rx.recv() => match msg {
-                Some(DeviceCommand::Send { command, respond_to }) => {
+                Some(DeviceCommand { command, respond_to }) => {
                     match conn.send_command(&command) {
                         Ok(tag) => {
                             response_map.insert(tag, respond_to);
                         }
-                        Err(e) => {
-                            eprintln!("Error sending command: {e:?}");
+                        Err(_) => {
                             shutdown = true;
                         }
                     }
-                }
-                Some(DeviceCommand::Cancel { tag }) => {
-                    let _ = conn.cancel_command(tag);
-                    response_map.remove(&tag);
                 }
                 None => {
                     // All MikrotikDevice handles dropped — graceful shutdown
@@ -232,7 +228,28 @@ async fn run_actor(
                     }
                     shutdown = true;
                 }
-            }
+            },
+
+            // Read from network → feed to Connection
+            result = rd.read(&mut buf) => match result {
+                Ok(0) => {
+                    // Connection closed by remote
+                    shutdown = true;
+                }
+                Ok(n) => {
+                    if conn.receive(&buf[..n]).is_err() {
+                        shutdown = true;
+                    }
+
+                    // Drain events → route to per-command channels
+                    while let Some(event) = conn.poll_event() {
+                        route_event(&mut response_map, &mut conn, event);
+                    }
+                }
+                Err(_) => {
+                    shutdown = true;
+                }
+            },
         }
     }
 
@@ -241,7 +258,11 @@ async fn run_actor(
 }
 
 /// Route a protocol event to the appropriate per-command channel.
-async fn route_event(
+///
+/// Uses `try_send` to avoid blocking the actor on a slow consumer.
+/// If a consumer's receiver has been dropped, the command is automatically
+/// cancelled on the router — this is the cancel-on-drop mechanism.
+fn route_event(
     response_map: &mut HashMap<Uuid, mpsc::Sender<Event>>,
     conn: &mut Connection,
     event: Event,
@@ -250,9 +271,9 @@ async fn route_event(
         Event::Reply { tag, .. } => {
             let tag = *tag;
             if let Some(sender) = response_map.get(&tag)
-                && sender.send(event).await.is_err()
+                && sender.try_send(event).is_err()
             {
-                // Receiver dropped — cancel the command
+                // Receiver dropped or full — cancel the command on the router
                 response_map.remove(&tag);
                 let _ = conn.cancel_command(tag);
             }
@@ -260,13 +281,14 @@ async fn route_event(
         Event::Done { tag } | Event::Empty { tag } | Event::Trap { tag, .. } => {
             let tag = *tag;
             if let Some(sender) = response_map.remove(&tag) {
-                let _ = sender.send(event).await;
+                // Terminal event — best-effort delivery
+                let _ = sender.try_send(event);
             }
         }
         Event::Fatal { .. } => {
-            // Fatal affects all commands
+            // Fatal affects all commands — best-effort delivery to all
             for (_, sender) in response_map.drain() {
-                let _ = sender.send(event.clone()).await;
+                let _ = sender.try_send(event.clone());
             }
         }
     }

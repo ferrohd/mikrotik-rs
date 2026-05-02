@@ -13,8 +13,8 @@ doctest = false
 [dependencies]
 mikrotik-proto = { workspace = true }
 tokio = { workspace = true, features = ["net", "sync", "rt", "macros", "io-util"] }
-thiserror = "2.0"
-uuid = { version = "1", features = ["v4"] }
+thiserror = { workspace = true }
+uuid = { workspace = true }
 
 [lints]
 workspace = true

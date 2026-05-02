@@ -1,5 +1,5 @@
-use mikrotik_proto::command;
 use mikrotik_rs::CommandBuilder;
+use mikrotik_rs::command;
 
 fn main() {
     let macro_command = command!(
@@ -18,6 +18,6 @@ fn main() {
         .attribute("attribute3", Some("2"))
         .build();
 
-    assert_eq!(macro_command.data, builder_command.data);
+    assert_eq!(macro_command.data(), builder_command.data());
     println!("Macro and builder produce identical wire data!");
 }

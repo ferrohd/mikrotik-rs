@@ -3,8 +3,7 @@ use mikrotik_rs::{CommandBuilder, MikrotikDevice};
 // Using the current_thread flavor because multiple threads are not needed for this example
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let device =
-        MikrotikDevice::connect("192.168.122.144:8728", "admin", Some("admin")).await?;
+    let device = MikrotikDevice::connect("192.168.122.144:8728", "admin", Some("admin")).await?;
 
     let get_system_res = CommandBuilder::new()
         .command("/system/resource/print")

@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-//! # MikroTik-rs
+//! # `MikroTik`-rs
 //!
 //! `mikrotik-rs` is an asynchronous Rust library for interfacing with `MikroTik` routers.
 //! It allows for sending commands and receiving responses in parallel through channels.
@@ -24,8 +24,7 @@
 //! ## Examples
 //!
 //! ```rust,no_run
-//! use mikrotik_rs::MikrotikDevice;
-//! use mikrotik_rs::proto::command::CommandBuilder;
+//! use mikrotik_rs::{MikrotikDevice, CommandBuilder};
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let device = MikrotikDevice::connect("192.168.88.1:8728", "admin", Some("password")).await?;
@@ -34,14 +33,14 @@
 //! let mut rx = device.send_command(cmd).await?;
 //!
 //! while let Some(event) = rx.recv().await {
-//!     println!("{:?}", event);
+//!     println!("{event:?}");
 //! }
 //! # Ok(())
 //! # }
 //! ```
 
 #[cfg(target_pointer_width = "16")]
-compiler_error!("This library supports 32-bit architectures or higher.");
+compile_error!("This library supports 32-bit architectures or higher.");
 
 // Re-export the protocol crate
 pub use mikrotik_proto as proto;
@@ -50,17 +49,16 @@ pub use mikrotik_proto as proto;
 pub use mikrotik_tokio as tokio_client;
 
 // Re-export key types at crate root for convenience
-pub use mikrotik_proto::command::{Command, CommandBuilder};
+pub use mikrotik_proto::command::{Command, CommandBuilder, QueryOperator};
 pub use mikrotik_proto::connection::{Connection, Event, State, Transmit};
+pub use mikrotik_proto::error::{ConnectionError, LoginError, ProtocolError};
 pub use mikrotik_proto::handshake::{Authenticated, Handshaking, LoginProgress};
-pub use mikrotik_proto::response::CommandResponse;
-pub use mikrotik_tokio::error::{DeviceError, DeviceResult};
+pub use mikrotik_proto::response::{
+    CommandResponse, DoneResponse, EmptyResponse, FatalResponse, ReplyResponse, TrapCategory,
+    TrapResponse,
+};
 pub use mikrotik_tokio::MikrotikDevice;
-
-/// Compile-time command validation and the `command!` macro.
-pub mod macros {
-    pub use mikrotik_proto::macros::check_mikrotik_command;
-}
+pub use mikrotik_tokio::error::{ActorError, DeviceError, DeviceResult};
 
 /// Re-export the `command!` macro from `mikrotik_proto`.
 pub use mikrotik_proto::command;
