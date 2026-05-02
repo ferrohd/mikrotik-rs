@@ -57,8 +57,9 @@ pub use mikrotik_proto::response::{
     CommandResponse, DoneResponse, EmptyResponse, FatalResponse, ReplyResponse, TrapCategory,
     TrapResponse,
 };
-pub use mikrotik_tokio::MikrotikDevice;
+pub use mikrotik_proto::tag::Tag;
 pub use mikrotik_tokio::error::{ActorError, DeviceError, DeviceResult};
+pub use mikrotik_tokio::MikrotikDevice;
 
 /// Re-export the `command!` macro from `mikrotik_proto`.
 pub use mikrotik_proto::command;

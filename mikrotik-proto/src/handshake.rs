@@ -17,11 +17,10 @@
 //! exist. The only way to get an `Authenticated` connection is by successfully
 //! completing the login handshake.
 
-use uuid::Uuid;
-
 use crate::command::CommandBuilder;
 use crate::connection::{Connection, Event, State, Transmit};
 use crate::error::{ConnectionError, LoginError};
+use crate::tag::Tag;
 
 /// A connection that has not yet authenticated.
 ///
@@ -31,7 +30,7 @@ use crate::error::{ConnectionError, LoginError};
 /// 3. Call [`advance()`](Handshaking::advance) to check for completion.
 pub struct Handshaking {
     inner: Connection,
-    login_tag: Uuid,
+    login_tag: Tag,
 }
 
 /// A fully authenticated connection, ready for commands.
@@ -134,7 +133,7 @@ impl Handshaking {
     }
 
     /// The login command's tag.
-    pub fn login_tag(&self) -> Uuid {
+    pub fn login_tag(&self) -> Tag {
         self.login_tag
     }
 }
@@ -169,13 +168,13 @@ mod tests {
         data
     }
 
-    fn build_done(tag: Uuid) -> Vec<u8> {
-        let tag_word = format!(".tag={}", tag.as_hyphenated());
+    fn build_done(tag: Tag) -> Vec<u8> {
+        let tag_word = format!(".tag={tag}");
         build_sentence(&[b"!done", tag_word.as_bytes()])
     }
 
-    fn build_trap(tag: Uuid, message: &str) -> Vec<u8> {
-        let tag_word = format!(".tag={}", tag.as_hyphenated());
+    fn build_trap(tag: Tag, message: &str) -> Vec<u8> {
+        let tag_word = format!(".tag={tag}");
         let msg_word = format!("=message={message}");
         build_sentence(&[b"!trap", tag_word.as_bytes(), msg_word.as_bytes()])
     }

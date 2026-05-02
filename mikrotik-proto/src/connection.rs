@@ -39,14 +39,13 @@ use alloc::collections::VecDeque;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use hashbrown::HashMap;
-use uuid::Uuid;
-
 use crate::codec::{self, Decode};
 use crate::command::{Command, CommandBuilder};
 use crate::error::ConnectionError;
 use crate::response::{CommandResponse, ReplyResponse, TrapResponse};
+use crate::tag::Tag;
 use crate::word::Word;
+use hashbrown::HashMap;
 
 /// Application-facing events produced by the connection state machine.
 ///
@@ -58,7 +57,7 @@ pub enum Event {
     /// The command remains active (more replies may follow until `Done` or `Trap`).
     Reply {
         /// The command tag this reply belongs to.
-        tag: Uuid,
+        tag: Tag,
         /// The parsed reply data.
         response: ReplyResponse,
     },
@@ -66,21 +65,21 @@ pub enum Event {
     /// The command completed successfully. No more responses will arrive for this tag.
     Done {
         /// The command tag that completed.
-        tag: Uuid,
+        tag: Tag,
     },
 
     /// An empty response was received (`RouterOS` 7.18+).
     /// The command completed with no data.
     Empty {
         /// The command tag that completed.
-        tag: Uuid,
+        tag: Tag,
     },
 
     /// A trap (error/warning) was received for the given command.
     /// The command is terminated.
     Trap {
         /// The command tag that errored.
-        tag: Uuid,
+        tag: Tag,
         /// The trap details.
         response: TrapResponse,
     },
@@ -139,7 +138,7 @@ pub struct Connection {
     /// Accumulation buffer for incoming bytes not yet forming a complete sentence.
     recv_buf: Vec<u8>,
     /// Tags of commands currently in-flight, mapped to their tracking state.
-    in_flight: HashMap<Uuid, CommandState>,
+    in_flight: HashMap<Tag, CommandState>,
     /// Queue of application-facing events ready to be polled.
     events: VecDeque<Event>,
     /// Queue of outbound wire-format data ready to be sent.
@@ -243,7 +242,7 @@ impl Connection {
     /// # Errors
     ///
     /// Returns [`ConnectionError::Closed`] if the connection is dead.
-    pub fn send_command(&mut self, command: &Command) -> Result<Uuid, ConnectionError> {
+    pub fn send_command(&mut self, command: &Command) -> Result<Tag, ConnectionError> {
         if self.state == State::Dead {
             return Err(ConnectionError::Closed);
         }
@@ -271,7 +270,7 @@ impl Connection {
     /// # Errors
     ///
     /// Returns [`ConnectionError::Closed`] if the connection is dead.
-    pub fn cancel_command(&mut self, tag: Uuid) -> Result<(), ConnectionError> {
+    pub fn cancel_command(&mut self, tag: Tag) -> Result<(), ConnectionError> {
         if self.state == State::Dead {
             return Err(ConnectionError::Closed);
         }
@@ -290,7 +289,7 @@ impl Connection {
     ///
     /// Sends a `/cancel` command for each active tag. Useful during shutdown.
     pub fn cancel_all(&mut self) {
-        let tags: Vec<Uuid> = self.in_flight.keys().copied().collect();
+        let tags: Vec<Tag> = self.in_flight.keys().copied().collect();
         for tag in tags {
             let cancel = CommandBuilder::cancel(tag);
             self.outbound.push_back(Transmit {
@@ -346,7 +345,7 @@ impl Connection {
     }
 
     /// Check if a specific tag is currently in-flight.
-    pub fn is_in_flight(&self, tag: Uuid) -> bool {
+    pub fn is_in_flight(&self, tag: Tag) -> bool {
         self.in_flight.contains_key(&tag)
     }
 
@@ -397,7 +396,7 @@ impl Connection {
         }
     }
 
-    fn handle_parse_error(&mut self, error: &crate::error::ProtocolError, tag_opt: Option<Uuid>) {
+    fn handle_parse_error(&mut self, error: &crate::error::ProtocolError, tag_opt: Option<Tag>) {
         if let Some(tag) = tag_opt {
             self.in_flight.remove(&tag);
             self.events.push_back(Event::Trap {
@@ -439,18 +438,18 @@ mod tests {
         data
     }
 
-    fn build_done(tag: Uuid) -> Vec<u8> {
-        let tag_word = format!(".tag={}", tag.as_hyphenated());
+    fn build_done(tag: Tag) -> Vec<u8> {
+        let tag_word = format!(".tag={tag}");
         build_sentence(&[b"!done", tag_word.as_bytes()])
     }
 
-    fn build_empty(tag: Uuid) -> Vec<u8> {
-        let tag_word = format!(".tag={}", tag.as_hyphenated());
+    fn build_empty(tag: Tag) -> Vec<u8> {
+        let tag_word = format!(".tag={tag}");
         build_sentence(&[b"!empty", tag_word.as_bytes()])
     }
 
-    fn build_reply(tag: Uuid, attrs: &[(&str, &str)]) -> Vec<u8> {
-        let tag_word = format!(".tag={}", tag.as_hyphenated());
+    fn build_reply(tag: Tag, attrs: &[(&str, &str)]) -> Vec<u8> {
+        let tag_word = format!(".tag={tag}");
         let mut words: Vec<Vec<u8>> = vec![b"!re".to_vec(), tag_word.into_bytes()];
         for (k, v) in attrs {
             words.push(format!("={k}={v}").into_bytes());
@@ -459,8 +458,8 @@ mod tests {
         build_sentence(&word_refs)
     }
 
-    fn build_trap(tag: Uuid, message: &str) -> Vec<u8> {
-        let tag_word = format!(".tag={}", tag.as_hyphenated());
+    fn build_trap(tag: Tag, message: &str) -> Vec<u8> {
+        let tag_word = format!(".tag={tag}");
         let msg_word = format!("=message={message}");
         build_sentence(&[b"!trap", tag_word.as_bytes(), msg_word.as_bytes()])
     }
@@ -703,7 +702,7 @@ mod tests {
     #[test]
     fn test_reply_for_unknown_tag_is_ignored() {
         let mut conn = Connection::new();
-        let unknown_tag = Uuid::new_v4();
+        let unknown_tag = Tag::new();
 
         // Receive a reply for a tag we never sent
         conn.receive(&build_reply(unknown_tag, &[("name", "test")]))

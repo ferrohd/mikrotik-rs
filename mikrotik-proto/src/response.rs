@@ -13,11 +13,11 @@ use alloc::vec::Vec;
 use core::fmt::{self, Display, Formatter};
 
 use hashbrown::HashMap;
-use uuid::Uuid;
 
 use crate::codec::RawSentence;
 use crate::error::{MissingWord, ProtocolError, TrapCategoryError, WordType};
 use crate::sentence::Sentence;
+use crate::tag::Tag;
 use crate::word::{Word, WordAttribute, WordCategory};
 
 /// Type alias for a fatal response message.
@@ -43,7 +43,7 @@ impl CommandResponse {
     /// Returns the tag associated with the response, if available.
     ///
     /// Returns [`None`] for [`CommandResponse::Fatal`] responses as they do not contain tags.
-    pub fn tag(&self) -> Option<Uuid> {
+    pub fn tag(&self) -> Option<Tag> {
         match self {
             Self::Done(d) => Some(d.tag),
             Self::Reply(r) => Some(r.tag),
@@ -197,7 +197,7 @@ impl CommandResponse {
 #[derive(Debug, Clone)]
 pub struct DoneResponse {
     /// The tag associated with the command.
-    pub tag: Uuid,
+    pub tag: Tag,
 }
 
 impl Display for DoneResponse {
@@ -212,7 +212,7 @@ impl Display for DoneResponse {
 #[derive(Debug, Clone)]
 pub struct EmptyResponse {
     /// The tag associated with the command.
-    pub tag: Uuid,
+    pub tag: Tag,
 }
 
 impl Display for EmptyResponse {
@@ -225,7 +225,7 @@ impl Display for EmptyResponse {
 #[derive(Debug, Clone)]
 pub struct ReplyResponse {
     /// The tag associated with the command.
-    pub tag: Uuid,
+    pub tag: Tag,
     /// The attributes of the reply (UTF-8 string values).
     pub attributes: HashMap<String, Option<String>>,
     /// The raw byte attributes of the reply (for non-UTF-8 values).
@@ -246,7 +246,7 @@ impl Display for ReplyResponse {
 #[derive(Debug, Clone)]
 pub struct TrapResponse {
     /// The tag associated with the command.
-    pub tag: Uuid,
+    pub tag: Tag,
     /// The category of the trap (if provided).
     pub category: Option<TrapCategory>,
     /// The message associated with the trap.
@@ -324,8 +324,11 @@ mod tests {
     use alloc::vec;
     use alloc::vec::Vec;
 
+    use uuid::Uuid;
+
     use super::*;
     use crate::codec;
+    use crate::tag::Tag;
 
     /// Build wire-format sentence data from a list of word byte slices.
     fn build_sentence(words: &[&[u8]]) -> Vec<u8> {
@@ -344,17 +347,17 @@ mod tests {
         }
     }
 
-    const TEST_UUID: Uuid = Uuid::from_bytes([
+    const TEST_TAG: Tag = Tag::from_uuid(Uuid::from_bytes([
         0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7,
         0xd8,
-    ]);
+    ]));
 
     #[test]
     fn test_parse_done_response() {
         let data = build_sentence(&[b"!done", b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"]);
         let response = parse_response(&data).unwrap();
         match response {
-            CommandResponse::Done(done) => assert_eq!(done.tag, TEST_UUID),
+            CommandResponse::Done(done) => assert_eq!(done.tag, TEST_TAG),
             other => panic!("expected Done, got {:?}", other),
         }
     }
@@ -370,7 +373,7 @@ mod tests {
         let response = parse_response(&data).unwrap();
         match response {
             CommandResponse::Reply(reply) => {
-                assert_eq!(reply.tag, TEST_UUID);
+                assert_eq!(reply.tag, TEST_TAG);
                 assert_eq!(
                     reply.attributes.get("name"),
                     Some(&Some(String::from("ether1")))
@@ -394,7 +397,7 @@ mod tests {
         let response = parse_response(&data).unwrap();
         match response {
             CommandResponse::Reply(reply) => {
-                assert_eq!(reply.tag, TEST_UUID);
+                assert_eq!(reply.tag, TEST_TAG);
                 assert_eq!(
                     reply.attributes.get("name"),
                     Some(&Some(String::from("ether1")))
@@ -415,7 +418,7 @@ mod tests {
         let response = parse_response(&data).unwrap();
         match response {
             CommandResponse::Trap(trap) => {
-                assert_eq!(trap.tag, TEST_UUID);
+                assert_eq!(trap.tag, TEST_TAG);
                 assert_eq!(trap.category, Some(TrapCategory::MissingItemOrCommand));
                 assert_eq!(trap.message, "no such command");
             }
@@ -438,7 +441,7 @@ mod tests {
         let data = build_sentence(&[b"!empty", b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"]);
         let response = parse_response(&data).unwrap();
         match response {
-            CommandResponse::Empty(empty) => assert_eq!(empty.tag, TEST_UUID),
+            CommandResponse::Empty(empty) => assert_eq!(empty.tag, TEST_TAG),
             other => panic!("expected Empty, got {:?}", other),
         }
     }

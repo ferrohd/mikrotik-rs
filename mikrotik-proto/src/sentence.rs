@@ -54,19 +54,21 @@ impl<'a> Iterator for Sentence<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::codec;
-    use crate::word::{WordAttribute, WordCategory};
     use uuid::Uuid;
 
-    const TEST_UUID1: Uuid = Uuid::from_bytes([
+    use super::*;
+    use crate::codec;
+    use crate::tag::Tag;
+    use crate::word::{WordAttribute, WordCategory};
+
+    const TEST_TAG1: Tag = Tag::from_uuid(Uuid::from_bytes([
         0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7,
         0xd8,
-    ]);
-    const TEST_UUID2: Uuid = Uuid::from_bytes([
+    ]));
+    const TEST_TAG2: Tag = Tag::from_uuid(Uuid::from_bytes([
         0xb1, 0xb2, 0xb3, 0xb4, 0xc1, 0xc2, 0xd1, 0xd2, 0xe1, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7,
         0xe8,
-    ]);
+    ]));
 
     /// Build wire-format sentence data from a list of word byte slices.
     fn build_sentence(words: &[&[u8]]) -> alloc::vec::Vec<u8> {
@@ -99,7 +101,7 @@ mod tests {
             sentence.next().unwrap().unwrap(),
             Word::Category(WordCategory::Done)
         );
-        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(TEST_UUID1));
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(TEST_TAG1));
         assert_eq!(
             sentence.next().unwrap().unwrap(),
             Word::Attribute(WordAttribute {
@@ -133,7 +135,7 @@ mod tests {
                 value_raw: Some(b"b"),
             })
         );
-        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(TEST_UUID2));
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(TEST_TAG2));
         assert!(sentence.next().is_none());
     }
 
@@ -164,7 +166,7 @@ mod tests {
             sentence.next().unwrap().unwrap(),
             Word::Category(WordCategory::Empty)
         );
-        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(TEST_UUID1));
+        assert_eq!(sentence.next().unwrap().unwrap(), Word::Tag(TEST_TAG1));
         assert!(sentence.next().is_none());
     }
 }

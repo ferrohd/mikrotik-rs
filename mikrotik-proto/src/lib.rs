@@ -57,6 +57,8 @@ pub mod macros;
 pub mod response;
 /// Sentence parsing: zero-copy iteration over decoded wire-format sentences.
 pub mod sentence;
+/// Command tag — a unique identifier for correlating commands with responses.
+pub mod tag;
 /// Word types: the fundamental unit of the MikroTik API protocol.
 pub mod word;
 
@@ -65,3 +67,4 @@ pub use command::{Command, CommandBuilder};
 pub use connection::{Connection, Event, State, Transmit};
 pub use handshake::{Authenticated, Handshaking, LoginProgress};
 pub use response::CommandResponse;
+pub use tag::Tag;

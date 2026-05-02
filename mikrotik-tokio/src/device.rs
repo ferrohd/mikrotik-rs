@@ -9,11 +9,10 @@ use std::collections::HashMap;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::mpsc;
-use uuid::Uuid;
-
 use mikrotik_proto::command::Command;
 use mikrotik_proto::connection::{Connection, Event};
 use mikrotik_proto::handshake::{Handshaking, LoginProgress};
+use mikrotik_proto::tag::Tag;
 
 use crate::error::{DeviceError, DeviceResult};
 
@@ -186,7 +185,7 @@ async fn run_actor(
 ) {
     let (mut rd, mut wr) = stream.into_split();
     let mut buf = vec![0u8; 8192];
-    let mut response_map: HashMap<Uuid, mpsc::Sender<Event>> = HashMap::new();
+    let mut response_map: HashMap<Tag, mpsc::Sender<Event>> = HashMap::new();
     let mut shutdown = false;
 
     while !shutdown {
@@ -263,7 +262,7 @@ async fn run_actor(
 /// If a consumer's receiver has been dropped, the command is automatically
 /// cancelled on the router — this is the cancel-on-drop mechanism.
 fn route_event(
-    response_map: &mut HashMap<Uuid, mpsc::Sender<Event>>,
+    response_map: &mut HashMap<Tag, mpsc::Sender<Event>>,
     conn: &mut Connection,
     event: Event,
 ) {

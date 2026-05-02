@@ -14,9 +14,9 @@ use core::{
 };
 
 use thiserror::Error;
-use uuid::Uuid;
 
 use crate::error::WordType;
+use crate::tag::Tag;
 
 /// Represents a word in a `MikroTik` API sentence.
 ///
@@ -34,7 +34,7 @@ pub enum Word<'a> {
     /// A category word, such as `!done`, `!re`, `!trap`, `!fatal`, or `!empty`.
     Category(WordCategory),
     /// A tag word, such as `.tag=550e8400-e29b-41d4-a716-446655440000`.
-    Tag(Uuid),
+    Tag(Tag),
     /// An attribute word, such as `=name=ether1`.
     Attribute(WordAttribute<'a>),
     /// An unrecognized word. Usually this is a `!fatal` reason message.
@@ -51,7 +51,7 @@ impl Word<'_> {
     }
 
     /// Returns the tag of the word, if it is a tag word.
-    pub fn tag(&self) -> Option<Uuid> {
+    pub fn tag(&self) -> Option<Tag> {
         match self {
             Word::Tag(tag) => Some(*tag),
             _ => None,
@@ -109,7 +109,7 @@ impl<'a> TryFrom<&'a [u8]> for Word<'a> {
 
             // Try to parse as tag if it starts with ".tag="
             if let Some(stripped) = s.strip_prefix(".tag=") {
-                let tag = stripped.parse::<Uuid>()?;
+                let tag = stripped.parse::<Tag>()?;
                 return Ok(Word::Tag(tag));
             }
         }
@@ -235,6 +235,8 @@ mod tests {
     extern crate alloc;
     use alloc::format;
 
+    use uuid::Uuid;
+
     use super::*;
 
     impl<'a> From<(&'a str, Option<&'a str>)> for WordAttribute<'a> {
@@ -256,10 +258,10 @@ mod tests {
 
         assert_eq!(
             Word::try_from(b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8".as_ref()).unwrap(),
-            Word::Tag(Uuid::from_bytes([
+            Word::Tag(Tag::from(Uuid::from_bytes([
                 0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6,
                 0xd7, 0xd8
-            ]))
+            ])))
         );
 
         assert_eq!(
@@ -299,10 +301,10 @@ mod tests {
         let word = Word::Category(WordCategory::Done);
         assert_eq!(format!("{}", word), "!done");
 
-        let word = Word::Tag(Uuid::from_bytes([
+        let word = Word::Tag(Tag::from(Uuid::from_bytes([
             0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6,
             0xd7, 0xd8,
-        ]));
+        ])));
         assert_eq!(
             format!("{}", word),
             ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"

@@ -16,9 +16,8 @@
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use uuid::Uuid;
-
 use crate::codec;
+use crate::tag::Tag;
 
 /// Marker type: no command word has been set yet.
 pub struct NoCmd;
@@ -39,7 +38,7 @@ pub struct Cmd;
 #[derive(Clone)]
 #[must_use]
 pub struct CommandBuilder<State> {
-    tag: Uuid,
+    tag: Tag,
     buf: Vec<u8>,
     state: PhantomData<State>,
 }
@@ -54,7 +53,7 @@ impl CommandBuilder<NoCmd> {
     /// Begin building a new [`Command`] with a randomly generated tag.
     pub fn new() -> Self {
         Self {
-            tag: Uuid::new_v4(),
+            tag: Tag::new(),
             buf: Vec::new(),
             state: PhantomData,
         }
@@ -64,9 +63,9 @@ impl CommandBuilder<NoCmd> {
     ///
     /// # Arguments
     ///
-    /// * `tag` — A [`Uuid`] that identifies the command for `RouterOS` correlation.
+    /// * `tag` — A [`Tag`] that identifies the command for `RouterOS` correlation.
     ///   **Must be unique** within a connection.
-    pub fn with_tag(tag: Uuid) -> Self {
+    pub fn with_tag(tag: Tag) -> Self {
         Self {
             tag,
             buf: Vec::new(),
@@ -84,7 +83,7 @@ impl CommandBuilder<NoCmd> {
     }
 
     /// Builds a command to cancel a specific running command identified by `tag`.
-    pub fn cancel(tag: Uuid) -> Command {
+    pub fn cancel(tag: Tag) -> Command {
         // Use the same tag so the cancel is correlated
         Self::with_tag(tag)
             .command("/cancel")
@@ -107,8 +106,7 @@ impl CommandBuilder<NoCmd> {
         // ".tag=" (5 bytes) + UUID hyphenated (36 bytes) = 41 bytes
         let mut tag_buf = [0u8; 41];
         tag_buf[..5].copy_from_slice(b".tag=");
-        // Uuid::as_hyphenated() produces a 36-char lowercase hex string
-        tag.as_hyphenated().encode_lower(&mut tag_buf[5..]);
+        tag.encode_lower(&mut tag_buf[5..]);
         codec::encode_word(&tag_buf, &mut buf);
 
         CommandBuilder {
@@ -168,12 +166,11 @@ impl CommandBuilder<Cmd> {
         }
     }
 
-    /// Adds an attribute with a UUID value (used internally for cancel tags).
-    fn attribute_tag(self, key: &str, value: Uuid) -> Self {
+    /// Adds an attribute with a Tag value (used internally for cancel tags).
+    fn attribute_tag(self, key: &str, value: Tag) -> Self {
         let mut tag_str = [0u8; 36];
-        value.as_hyphenated().encode_lower(&mut tag_str);
-        let tag_str = core::str::from_utf8(&tag_str).expect("UUID is valid UTF-8");
-        self.attribute(key, Some(tag_str))
+        let s = value.encode_lower(&mut tag_str);
+        self.attribute(key, Some(s))
     }
 
     /// Adds a query to check if a property is present.
@@ -292,7 +289,7 @@ impl CommandBuilder<Cmd> {
 #[derive(Debug, Clone)]
 pub struct Command {
     /// The tag identifying this command for response correlation.
-    pub tag: Uuid,
+    pub tag: Tag,
     /// The wire-format encoded command data.
     pub(crate) data: Vec<u8>,
 }
@@ -336,13 +333,15 @@ impl QueryOperator {
 
 #[cfg(test)]
 mod tests {
+    use uuid::Uuid;
+
     use super::*;
     use alloc::string::String;
 
-    const TEST_UUID: Uuid = Uuid::from_bytes([
+    const TEST_TAG: Tag = Tag::from_uuid(Uuid::from_bytes([
         0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7,
         0xd8,
-    ]);
+    ]));
     const TEST_TAG_WORD: &str = ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8";
 
     /// Helper to parse the RouterOS length-prefixed "words" out of the command data.
@@ -369,18 +368,21 @@ mod tests {
     fn test_command_builder_new() {
         let builder = CommandBuilder::<NoCmd>::new();
         assert_eq!(builder.buf.len(), 0);
-        assert!(!builder.tag.is_nil());
+        // Tag should be a random non-zero UUID
+        let a = builder.tag;
+        let b = CommandBuilder::<NoCmd>::new().tag;
+        assert_ne!(a, b);
     }
 
     #[test]
     fn test_command_builder_with_tag() {
-        let builder = CommandBuilder::<NoCmd>::with_tag(TEST_UUID);
-        assert_eq!(builder.tag, TEST_UUID);
+        let builder = CommandBuilder::<NoCmd>::with_tag(TEST_TAG);
+        assert_eq!(builder.tag, TEST_TAG);
     }
 
     #[test]
     fn test_command_builder_command() {
-        let builder = CommandBuilder::<NoCmd>::with_tag(TEST_UUID).command("/interface/print");
+        let builder = CommandBuilder::<NoCmd>::with_tag(TEST_TAG).command("/interface/print");
         // Word 1: 1-byte len (0x10) + 16 bytes "/interface/print" = 17 bytes
         // Word 2: 1-byte len (0x29) + 41 bytes ".tag=a1a2a3a4-..." = 42 bytes
         // Total: 59 bytes
@@ -391,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_command_builder_attribute() {
-        let builder = CommandBuilder::<NoCmd>::with_tag(TEST_UUID)
+        let builder = CommandBuilder::<NoCmd>::with_tag(TEST_TAG)
             .command("/interface/print")
             .attribute("name", Some("ether1"));
 
@@ -410,7 +412,7 @@ mod tests {
 
     #[test]
     fn test_command_builder_cancel() {
-        let command = CommandBuilder::<NoCmd>::cancel(TEST_UUID);
+        let command = CommandBuilder::<NoCmd>::cancel(TEST_TAG);
         let s = core::str::from_utf8(&command.data).unwrap();
         assert!(s.contains("/cancel"));
         assert!(s.contains("tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"));
@@ -461,7 +463,7 @@ mod tests {
     #[test]
     fn test_encode_decode_roundtrip() {
         // Build a command, then decode its wire format and verify the words
-        let cmd = CommandBuilder::with_tag(TEST_UUID)
+        let cmd = CommandBuilder::with_tag(TEST_TAG)
             .command("/interface/print")
             .attribute("name", Some("ether1"))
             .attribute("disabled", None)
