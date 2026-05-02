@@ -5,8 +5,12 @@
 //! Embassy async embedded client for the `MikroTik` `RouterOS` API.
 //!
 //! This crate provides an embedded-friendly async adapter built on top of the
-//! sans-IO [`mikrotik_proto`] crate, using [Embassy](https://embassy.dev/) for
-//! async networking via [`embassy_net::tcp::TcpSocket`].
+//! sans-IO [`mikrotik_proto`] crate. It is **transport-agnostic** — it works
+//! with any type implementing [`embedded_io_async::Read`] + [`embedded_io_async::Write`]:
+//!
+//! - **Plain TCP**: `embassy_net::tcp::TcpSocket`
+//! - **TLS**: `embedded_tls::TlsConnection` (for `MikroTik` API-SSL on port 8729)
+//! - **Any other**: UART, pipes, test mocks, etc.
 //!
 //! # Architecture
 //!
@@ -22,7 +26,8 @@
 //! │  CMD_CHANNEL ─────► run() ─────► EVT_CHANNEL           │
 //! │  (Sender)           │  ▲         (Receiver)            │
 //! │                     ▼  │                               │
-//! │              TcpSocket (embassy-net)                    │
+//! │              &mut T: Read + Write                      │
+//! │              (TcpSocket, TlsConnection, ...)           │
 //! │                     │  ▲                               │
 //! │              Connection (mikrotik-proto, sans-IO)       │
 //! └────────────────────────────────────────────────────────┘
@@ -31,16 +36,14 @@
 //! All events are delivered to a single output channel. The consumer filters
 //! by [`Tag`](mikrotik_proto::tag::Tag) to correlate responses with commands.
 //!
-//! # Example
+//! # Example — Plain TCP
 //!
 //! ```rust,ignore
+//! use embassy_net::tcp::TcpSocket;
 //! use embassy_sync::channel::Channel;
 //! use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-//! use embassy_net::tcp::TcpSocket;
-//! use embassy_net::IpEndpoint;
 //! use mikrotik_proto::command::{Command, CommandBuilder};
 //! use mikrotik_proto::connection::Event;
-//! use mikrotik_embassy::run;
 //!
 //! static CMD: Channel<CriticalSectionRawMutex, Command, 4> = Channel::new();
 //! static EVT: Channel<CriticalSectionRawMutex, Event, 8> = Channel::new();
@@ -49,32 +52,36 @@
 //! async fn mikrotik_task(stack: embassy_net::Stack<'static>) {
 //!     let mut rx_buf = [0; 4096];
 //!     let mut tx_buf = [0; 4096];
-//!     let socket = TcpSocket::new(stack, &mut rx_buf, &mut tx_buf);
+//!     let mut socket = TcpSocket::new(stack, &mut rx_buf, &mut tx_buf);
+//!     socket.connect(endpoint).await.unwrap();
 //!
-//!     let endpoint = IpEndpoint::new(
-//!         embassy_net::IpAddress::v4(192, 168, 88, 1),
-//!         8728,
-//!     );
-//!
-//!     run(socket, endpoint, "admin", Some("password"),
-//!         CMD.receiver(), EVT.sender()).await.unwrap();
+//!     mikrotik_embassy::run(
+//!         &mut socket, "admin", Some("password"),
+//!         CMD.receiver(), EVT.sender(),
+//!     ).await.unwrap();
 //! }
+//! ```
 //!
-//! #[embassy_executor::task]
-//! async fn user_task() {
-//!     let cmd = CommandBuilder::new()
-//!         .command("/system/identity/print")
-//!         .build();
-//!     CMD.send(cmd).await;
+//! # Example — TLS (with `embedded-tls`)
 //!
-//!     loop {
-//!         let event = EVT.receive().await;
-//!         match event {
-//!             Event::Done { .. } => break,
-//!             _ => {}
-//!         }
-//!     }
-//! }
+//! ```rust,ignore
+//! use embedded_tls::*;
+//!
+//! // Connect TCP, then wrap in TLS
+//! let mut socket = TcpSocket::new(stack, &mut rx_buf, &mut tx_buf);
+//! socket.connect(endpoint).await.unwrap();
+//!
+//! let mut tls = TlsConnection::new(socket, &mut tls_read_buf, &mut tls_write_buf);
+//! tls.open(TlsContext::new(
+//!     &TlsConfig::new(),
+//!     UnsecureProvider::new::<Aes128GcmSha256>(rng), // no cert verification
+//! )).await.unwrap();
+//!
+//! // run() doesn't care what the transport is — just Read + Write
+//! mikrotik_embassy::run(
+//!     &mut tls, "admin", Some("password"),
+//!     CMD.receiver(), EVT.sender(),
+//! ).await.unwrap();
 //! ```
 //!
 //! # Requirements
@@ -85,7 +92,7 @@
 
 extern crate alloc;
 
-/// Embassy-specific error types.
+/// Error types for the Embassy adapter.
 pub mod error;
 
 mod device;
