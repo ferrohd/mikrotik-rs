@@ -12,10 +12,11 @@
 //!
 //! ## Feature flags
 //!
-//! | Feature   | Default | Description |
-//! |-----------|---------|-------------|
-//! | `tokio`   | **yes** | Enables the Tokio async adapter and [`MikrotikDevice`] client |
-//! | `embassy` | no      | Enables the Embassy embedded async adapter and `run` function |
+//! | Feature     | Default | Description |
+//! |-------------|---------|-------------|
+//! | `tokio`     | **yes** | Enables the Tokio async adapter and [`MikrotikDevice`] client |
+//! | `embassy`   | no      | Enables the Embassy embedded async adapter and `run` function |
+//! | `tokio-tls` | no      | Enables TLS support via `tokio-rustls` (bring your own crypto provider) |
 //!
 //! To use only the protocol types without pulling in any runtime:
 //!
@@ -29,6 +30,14 @@
 //! ```toml
 //! [dependencies]
 //! mikrotik-rs = { version = "0.7", default-features = false, features = ["embassy"] }
+//! ```
+//!
+//! To enable TLS (e.g., for API-SSL on port 8729):
+//!
+//! ```toml
+//! [dependencies]
+//! mikrotik-rs = { version = "0.7", features = ["tokio-tls"] }
+//! rustls = { version = "0.23", features = ["ring"] }  # or "aws-lc-rs"
 //! ```
 //!
 //! ## Architecture
@@ -98,6 +107,8 @@ pub use mikrotik_tokio as tokio_client;
 
 #[cfg(feature = "tokio")]
 pub use mikrotik_tokio::MikrotikDevice;
+#[cfg(feature = "tokio")]
+pub use mikrotik_tokio::builder::{DeviceBuilder, Plaintext};
 #[cfg(feature = "tokio")]
 pub use mikrotik_tokio::error::{ActorError, DeviceError, DeviceResult};
 

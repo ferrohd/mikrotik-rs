@@ -10,10 +10,15 @@ repository.workspace = true
 [lib]
 doctest = false
 
+[features]
+tokio-tls = ["dep:tokio-rustls", "dep:rustls"]
+
 [dependencies]
 mikrotik-proto = { workspace = true }
 tokio = { workspace = true, features = ["net", "sync", "rt", "macros", "io-util"] }
 thiserror = { workspace = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["tls12"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["net", "sync", "rt", "macros", "io-util", "rt-multi-thread"] }
