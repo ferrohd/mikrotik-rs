@@ -15,5 +15,8 @@ mikrotik-proto = { workspace = true }
 tokio = { workspace = true, features = ["net", "sync", "rt", "macros", "io-util"] }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["net", "sync", "rt", "macros", "io-util", "rt-multi-thread"] }
+
 [lints]
 workspace = true

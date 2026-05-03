@@ -56,12 +56,16 @@ pub const fn check_mikrotik_command(cmd: &str) -> &str {
 ///
 /// # Examples
 ///
-/// ```rust,ignore
+/// ```rust
+/// use mikrotik_proto::command;
+///
 /// // Simple command
 /// let cmd = command!("/system/resource/print");
+/// assert!(!cmd.data().is_empty());
 ///
 /// // Command with attributes
 /// let cmd = command!("/interface/print", user="admin", detail);
+/// assert!(!cmd.data().is_empty());
 /// ```
 #[macro_export]
 macro_rules! command {

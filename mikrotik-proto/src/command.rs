@@ -6,11 +6,16 @@
 //!
 //! # Examples
 //!
-//! ```rust,ignore
+//! ```rust
+//! use mikrotik_proto::command::CommandBuilder;
+//!
 //! let cmd = CommandBuilder::new()
 //!     .command("/system/resource/print")
 //!     .attribute("detail", None)
 //!     .build();
+//!
+//! // The command has wire-format data ready to send
+//! assert!(!cmd.data().is_empty());
 //! ```
 
 use alloc::vec::Vec;

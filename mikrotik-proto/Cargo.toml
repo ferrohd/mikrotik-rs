@@ -8,12 +8,14 @@ license.workspace = true
 repository.workspace = true
 
 [lib]
-doctest = false
 
 [dependencies]
 thiserror = { workspace = true }
 uuid = { workspace = true }
 hashbrown = { workspace = true }
+
+[dev-dependencies]
+proptest = "1"
 
 [lints]
 workspace = true

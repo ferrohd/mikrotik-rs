@@ -6,31 +6,34 @@
 //!
 //! # Usage pattern (mirrors `quinn-proto`)
 //!
-//! ```rust,ignore
+//! ```rust
+//! use mikrotik_proto::connection::{Connection, Event};
+//! use mikrotik_proto::command::CommandBuilder;
+//!
 //! let mut conn = Connection::new();
 //!
 //! // Send a command
-//! let tag = conn.send_command(cmd)?;
+//! let cmd = CommandBuilder::new().command("/system/resource/print").build();
+//! let tag = conn.send_command(cmd).unwrap();
 //!
-//! // In your event loop:
-//! loop {
-//!     // 1. Feed incoming bytes from the transport
-//!     conn.receive(&incoming_bytes)?;
+//! // In your event loop you would:
+//! // 1. Drain outbound data (send to transport)
+//! while let Some(transmit) = conn.poll_transmit() {
+//!     // transport.write_all(&transmit.data);
+//!     assert!(!transmit.data.is_empty());
+//! }
 //!
-//!     // 2. Drain outbound data (send to transport)
-//!     while let Some(transmit) = conn.poll_transmit() {
-//!         transport.write(&transmit.data);
-//!     }
+//! // 2. Feed incoming bytes from the transport
+//! //    conn.receive(&incoming_bytes).unwrap();
 //!
-//!     // 3. Process application events
-//!     while let Some(event) = conn.poll_event() {
-//!         match event {
-//!             Event::Reply { tag, response } => { /* handle streaming reply */ }
-//!             Event::Done { tag } => { /* command completed */ }
-//!             Event::Trap { tag, response } => { /* handle error */ }
-//!             Event::Fatal { reason } => { /* connection dead */ }
-//!             Event::Empty { tag } => { /* empty response */ }
-//!         }
+//! // 3. Process application events
+//! while let Some(event) = conn.poll_event() {
+//!     match event {
+//!         Event::Reply { tag, response } => { /* handle streaming reply */ }
+//!         Event::Done { tag } => { /* command completed */ }
+//!         Event::Trap { tag, response } => { /* handle error */ }
+//!         Event::Fatal { reason } => { /* connection dead */ }
+//!         Event::Empty { tag } => { /* empty response */ }
 //!     }
 //! }
 //! ```
