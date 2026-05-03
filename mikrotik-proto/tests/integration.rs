@@ -375,8 +375,8 @@ fn back_to_back_streaming_replies() {
     assert_eq!(events.len(), 11); // 10 replies + 1 done
 
     // Verify all 10 replies have correct data
-    for i in 0..10 {
-        match &events[i] {
+    for (i, event) in events.iter().enumerate().take(10) {
+        match event {
             Event::Reply { tag: t, response } => {
                 assert_eq!(*t, tag);
                 let expected_name = format!("ether{i}");
@@ -521,12 +521,10 @@ fn reply_for_cancelled_command_is_ignored() {
     // Replies for unknown tags are silently dropped; Done still produces an event
     // because dispatch_response always pushes Done regardless of in_flight status
     for event in &events {
-        match event {
-            Event::Reply { tag: t, .. } => {
-                panic!("should not receive reply for cancelled tag {t:?}")
-            }
-            _ => {} // Done is acceptable
+        if let Event::Reply { tag: t, .. } = event {
+            panic!("should not receive reply for cancelled tag {t:?}")
         }
+        // Done is acceptable
     }
 }
 

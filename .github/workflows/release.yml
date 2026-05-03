@@ -3,44 +3,35 @@ name: Publish Crate
 on:
   push:
     tags:
-      - 'v*.*.*'  # This workflow is triggered when a tag matching this pattern is pushed.
+      - 'v*.*.*'
 
 jobs:
-  toolchain:
-      name: ⚒️ Toolchain
-      runs-on: ubuntu-latest
-      steps:
-        - name: ⚒️ Toolchain Info
-          run: |
-            cargo --version --verbose
-            rustc --version
-            cargo clippy --version
+  preflight:
+    name: 🛡️ Preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🛒 Checkout
+        uses: actions/checkout@v6
 
-  clippy:
-        name: 📎 Clippy
-        needs: toolchain
-        runs-on: ubuntu-latest
-        steps:
-            - name: 🛒 Checkout
-              uses: actions/checkout@v6
+      - name: 📎 Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
-            - name: 📎 Clippy
-              run: |
-                cargo clippy
+      - name: 🧪 Test
+        run: cargo test --workspace
 
   publish-and-release:
     name: 🚀 Publish and Release
     runs-on: ubuntu-latest
-    needs: clippy
+    needs: preflight
     permissions:
-        contents: write
-        packages: write
+      contents: write
+      packages: write
     steps:
-      - name: 🛒 Checkout Repository
+      - name: 🛒 Checkout
         uses: actions/checkout@v6
 
-      - name: 📦 Publish Crate to Crates.io
-        run: cargo publish -p mikrotik-rs --token ${{ secrets.CRATES_IO_TOKEN }}
+      - name: 📦 Publish all crates to crates.io
+        run: cargo publish --workspace --token ${{ secrets.CRATES_IO_TOKEN }}
 
       - name: 📢 Create GitHub Release
         uses: softprops/action-gh-release@v2

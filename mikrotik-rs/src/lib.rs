@@ -6,16 +6,16 @@
 //! in parallel through channels.
 //!
 //! This crate re-exports types from:
-//! - [`mikrotik_proto`](proto) — sans-IO protocol implementation (always available)
-//! - [`mikrotik_tokio`](tokio_client) — Tokio-based async client (requires the `tokio` feature)
-//! - [`mikrotik_embassy`](embassy_client) — Embassy embedded async client (requires the `embassy` feature)
+//! - `mikrotik-proto` — sans-IO protocol implementation (always available)
+//! - `mikrotik-tokio` — Tokio-based async client (requires the `tokio` feature)
+//! - `mikrotik-embassy` — Embassy embedded async client (requires the `embassy` feature)
 //!
 //! ## Feature flags
 //!
 //! | Feature   | Default | Description |
 //! |-----------|---------|-------------|
 //! | `tokio`   | **yes** | Enables the Tokio async adapter and [`MikrotikDevice`] client |
-//! | `embassy` | no      | Enables the Embassy embedded async adapter and [`run`](embassy_client::run) function |
+//! | `embassy` | no      | Enables the Embassy embedded async adapter and `run` function |
 //!
 //! To use only the protocol types without pulling in any runtime:
 //!
@@ -43,8 +43,8 @@
 //!   Tokio's async runtime. Provides the high-level [`MikrotikDevice`] client.
 //!
 //! - **`mikrotik-embassy`** — Embedded async adapter that drives `mikrotik-proto`
-//!   using Embassy's networking stack. Provides a [`run`](embassy_client::run) function
-//!   that the user spawns as an Embassy task.
+//!   using Embassy's networking stack. Provides a `run` function that the user
+//!   spawns as an Embassy task.
 //!
 //! - **`mikrotik-rs`** (this crate) — Convenience re-exports from all crates.
 //!
