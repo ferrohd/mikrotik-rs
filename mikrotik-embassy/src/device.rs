@@ -107,7 +107,7 @@ where
     M: RawMutex,
 {
     // ── Phase 1: Login handshake ──
-    let mut hs = Handshaking::new(username, password);
+    let mut hs = Handshaking::new(username, password)?;
     flush_transmits_hs(&mut hs, transport).await?;
 
     let mut buf = [0u8; 2048];
@@ -160,7 +160,7 @@ where
         match select(cmd_rx.receive(), transport.read(buf)).await {
             // ── Command received from user ──
             Either::First(command) => {
-                conn.send_command(&command)?;
+                conn.send_command(command)?;
                 // Transmits will be flushed at top of next iteration
             }
 
