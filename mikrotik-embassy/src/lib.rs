@@ -5,17 +5,16 @@
 //! Embassy async embedded client for the `MikroTik` `RouterOS` API.
 //!
 //! This crate provides an embedded-friendly async adapter built on top of the
-//! sans-IO [`mikrotik_proto`] crate. It is **transport-agnostic** — it works
+//! sans-IO [`mikrotik_proto`] crate. It is **transport-agnostic**: it works
 //! with any type implementing [`embedded_io_async::Read`] + [`embedded_io_async::Write`]:
 //!
 //! - **Plain TCP**: `embassy_net::tcp::TcpSocket`
 //! - **TLS**: `embedded_tls::TlsConnection` (for `MikroTik` API-SSL on port 8729)
-//! - **Any other**: UART, pipes, test mocks, etc.
+//! - **Any other**: UART, pipes, test mocks, etc. if you feel fancy.
 //!
 //! # Architecture
 //!
-//! Unlike the Tokio adapter which spawns a background actor task, the Embassy
-//! adapter exposes a single [`run`] function that the user spawns as an
+//! The Embassy adapter exposes a single [`run`] function that the user spawns as an
 //! `#[embassy_executor::task]`. Communication happens through statically
 //! allocated [`embassy_sync::channel::Channel`]s:
 //!

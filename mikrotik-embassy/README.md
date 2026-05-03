@@ -2,7 +2,7 @@
 
 Embassy async embedded client for the [MikroTik RouterOS API](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API).
 
-This crate provides an embedded-friendly async adapter built on top of the sans-IO [`mikrotik-proto`](https://crates.io/crates/mikrotik-proto) crate. It is **transport-agnostic** — it works with any type implementing [`embedded_io_async::Read`](https://docs.rs/embedded-io-async) + [`Write`](https://docs.rs/embedded-io-async): plain TCP, TLS, UART, or anything else.
+This crate provides an embedded-friendly async adapter built on top of the sans-IO [`mikrotik-proto`](https://crates.io/crates/mikrotik-proto) crate. It is **transport-agnostic**: works with any type implementing [`embedded_io_async::Read`](https://docs.rs/embedded-io-async) + [`Write`](https://docs.rs/embedded-io-async): plain TCP, TLS, UART, or anything else.
 
 **If you just want to talk to a router from a standard OS**, use [`mikrotik-rs`](https://crates.io/crates/mikrotik-rs) with the `tokio` feature instead. This crate is for `#![no_std]` embedded targets running Embassy.
 
@@ -42,12 +42,12 @@ async fn mikrotik_task(stack: embassy_net::Stack<'static>) {
 - **Backpressure via `try_send`** — if the event channel is full, events are dropped rather than blocking the network loop.
 
 ```text
-  ┌─────────────────────────────────────────────────────────┐
-  │  User tasks                                             │
-  │                                                         │
-  │  Task A ──► CMD_CHANNEL ──┐       ┌──► EVT_CHANNEL ──► Task B
-  │             (Sender)      │       │    (Receiver)       │
-  └───────────────────────────┼───────┼─────────────────────┘
+  ┌───────────────────────────────────────────────────────────────┐
+  │  User tasks                                                   │
+  │                                                               │
+  │  Task A ──► CMD_CHANNEL ──┐       ┌──► EVT_CHANNEL ──► Task B │
+  │             (Sender)      │       │    (Receiver)             │
+  └───────────────────────────┼───────┼───────────────────────────┘
                               │       │
   ┌───────────────────────────┼───────┼─────────────────────┐
   │  run() task               ▼       │                     │
@@ -90,26 +90,6 @@ mikrotik_embassy::run(
     CMD.receiver(), EVT.sender(),
 ).await.unwrap();
 ```
-
-## Key differences from mikrotik-tokio
-
-| | mikrotik-tokio | mikrotik-embassy |
-|---|---|---|
-| Runtime | Tokio (std) | Embassy (no_std) |
-| Transport | `TcpStream` (hardcoded) | Generic `Read + Write` |
-| Spawning | Spawns its own background actor | Caller spawns `run()` as a task |
-| Event routing | Per-command `mpsc::Receiver` via `HashMap` | Single shared `Channel`, filter by `Tag` |
-| Cancellation | Drop receiver to cancel one command | Not yet implemented |
-| Read buffer | Heap-allocated `Vec<u8>` | Stack-allocated `[u8; 2048]` |
-
-## Part of the mikrotik-rs workspace
-
-| Crate | Purpose |
-|---|---|
-| [`mikrotik-proto`](https://crates.io/crates/mikrotik-proto) | Sans-IO protocol core (`#![no_std]`) |
-| [`mikrotik-tokio`](https://crates.io/crates/mikrotik-tokio) | Tokio async adapter |
-| [`mikrotik-embassy`](https://crates.io/crates/mikrotik-embassy) | Embassy embedded async adapter (this crate) |
-| [`mikrotik-rs`](https://crates.io/crates/mikrotik-rs) | Convenience re-exports from all |
 
 ## License
 

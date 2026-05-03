@@ -4,7 +4,7 @@
 use embedded_io::Error;
 use embedded_io_async::{Read, Write};
 
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_sync::channel::{Receiver, Sender};
 
@@ -188,10 +188,7 @@ async fn flush_transmits_hs<T: Write>(
     transport: &mut T,
 ) -> Result<(), DeviceError> {
     while let Some(transmit) = hs.poll_transmit() {
-        transport
-            .write_all(&transmit.data)
-            .await
-            .map_err(map_io)?;
+        transport.write_all(&transmit.data).await.map_err(map_io)?;
     }
     Ok(())
 }
@@ -202,10 +199,7 @@ async fn flush_transmits_conn<T: Write>(
     transport: &mut T,
 ) -> Result<(), DeviceError> {
     while let Some(transmit) = conn.poll_transmit() {
-        transport
-            .write_all(&transmit.data)
-            .await
-            .map_err(map_io)?;
+        transport.write_all(&transmit.data).await.map_err(map_io)?;
     }
     Ok(())
 }

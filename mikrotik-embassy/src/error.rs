@@ -10,7 +10,6 @@ use mikrotik_proto::error::{ConnectionError, LoginError};
 /// (`TcpSocket`, `TlsConnection`, UART, etc.) are mapped to
 /// [`embedded_io::ErrorKind`].
 #[derive(Debug)]
-#[non_exhaustive]
 pub enum DeviceError {
     /// Transport I/O error (read/write failure).
     ///
