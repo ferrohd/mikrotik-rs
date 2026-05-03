@@ -304,7 +304,5 @@ fn route_event(
                 let _ = sender.try_send(event.clone());
             }
         }
-        #[allow(unreachable_patterns)]
-        _ => {}
     }
 }
