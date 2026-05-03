@@ -356,9 +356,9 @@ async fn graceful_shutdown_on_drop() {
         let mut buf = [0u8; 4096];
         loop {
             match mock.reader.read(&mut buf).await {
-                Ok(0) => break,    // Connection closed — success
+                Ok(0) => break,     // Connection closed — success
                 Ok(_n) => continue, // Got cancel or other data — keep reading
-                Err(_) => break,   // Error — connection dropped
+                Err(_) => break,    // Error — connection dropped
             }
         }
     });
