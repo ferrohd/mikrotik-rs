@@ -3,26 +3,25 @@
 ![docs.rs](https://img.shields.io/docsrs/mikrotik-rs)
 ![Crates.io](https://img.shields.io/crates/v/mikrotik-rs)
 ![Crates.io License](https://img.shields.io/crates/l/mikrotik-rs)
-![Libraries.io dependency status for latest release](https://img.shields.io/librariesio/release/cargo/mikrotik-rs)
 ![Crates.io Total Downloads](https://img.shields.io/crates/d/mikrotik-rs)
 ![GitHub Repo stars](https://img.shields.io/github/stars/ferrohd/mikrotik-rs)
 
-An asynchronous [MikroTik RouterOS API](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API) client for Rust, built on [Tokio](https://tokio.rs/).
+A Rust client for the [MikroTik RouterOS API](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API).
 
 Send commands, stream responses, and manage multiple concurrent operations against MikroTik routers
 with a type-safe, channel-based API.
 
 ## Highlights
 
-- **Fully async** -- built on Tokio with non-blocking I/O throughout
-- **Concurrent command execution** -- each command gets its own response channel; run as many in parallel as you need
-- **Typestate command builder** -- the compiler enforces correct command construction order
-- **Compile-time command validation** -- the `command!` macro validates RouterOS command paths at compile time
-- **Zero-copy protocol parsing** -- sentences and words are parsed directly from the receive buffer
-- **Complete query support** -- equality, comparison, presence, and boolean operators for RouterOS queries
-- **Structured error handling** -- a typed error hierarchy with `thiserror`, fully `Clone`-able
-- **No `unsafe` code** -- `unsafe_code = "forbid"` is enforced at the workspace level
-- **Automatic lifecycle management** -- dropping a response receiver cancels the command on the router; dropping all device handles cancels everything
+- **Sans-IO protocol core** — `#![no_std]`-compatible, runtime-agnostic protocol implementation
+- **Tokio adapter** — high-level async client with background actor, per-command channels, and TLS support
+- **Embassy adapter** — embedded-friendly async client, transport-agnostic over `embedded-io-async`
+- **Typestate command builder** — the compiler enforces correct command construction order
+- **Compile-time command validation** — the `command!` macro validates RouterOS command paths at compile time
+- **Zero-copy protocol parsing** — words are parsed lazily from the receive buffer with byte-level dispatch
+- **Concurrent command execution** — each command is tagged with a UUID v4 for response demultiplexing
+- **Automatic lifecycle management** — dropping a response receiver cancels the command on the router
+- **No `unsafe` code** — `unsafe_code = "forbid"` is enforced at the workspace level
 
 ## Installation
 
@@ -30,36 +29,59 @@ with a type-safe, channel-based API.
 cargo add mikrotik-rs
 ```
 
-**Requirements:** Rust 2024 edition, Tokio runtime.
-
 ## Quick start
 
 ```rust
-use mikrotik_rs::{protocol::command::CommandBuilder, MikrotikDevice};
+use mikrotik_rs::{MikrotikDevice, CommandBuilder, Event};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Connect to the router
     let device = MikrotikDevice::connect("192.168.88.1:8728", "admin", Some("password")).await?;
 
-    // Build a command
     let cmd = CommandBuilder::new()
         .command("/system/resource/print")
         .build();
 
-    // Send it -- returns a dedicated channel for this command's responses
-    let mut responses = device.send_command(cmd).await?;
+    let mut rx = device.send_command(cmd).await?;
 
-    while let Some(result) = responses.recv().await {
-        println!("{:?}", result?);
+    while let Some(event) = rx.recv().await {
+        match event {
+            Event::Reply { response, .. } => println!("{:?}", response.attributes),
+            Event::Done { .. } => break,
+            Event::Trap { response, .. } => eprintln!("error: {}", response.message),
+            other => println!("{other:?}"),
+        }
     }
 
     Ok(())
 }
 ```
 
-`MikrotikDevice` is cheaply `Clone`-able -- share it across tasks, spawn concurrent commands, and let each one
-stream responses independently.
+`MikrotikDevice` is cheaply `Clone`-able — share it across tasks, spawn concurrent commands, and let
+each one stream responses independently.
+
+## Feature flags
+
+| Feature     | Default | Description |
+|-------------|---------|-------------|
+| `tokio`     | **yes** | Enables the Tokio async adapter and `MikrotikDevice` client |
+| `embassy`   | no      | Enables the Embassy embedded async adapter |
+| `tokio-tls` | no      | Enables TLS support via `tokio-rustls` |
+
+```toml
+# Plaintext (default)
+mikrotik-rs = "0.7"
+
+# TLS for API-SSL (port 8729) — bring your own crypto provider
+mikrotik-rs = { version = "0.7", features = ["tokio-tls"] }
+rustls = { version = "0.23", features = ["ring"] }  # or "aws-lc-rs"
+
+# Embassy embedded adapter (no_std)
+mikrotik-rs = { version = "0.7", default-features = false, features = ["embassy"] }
+
+# Protocol types only (no runtime)
+mikrotik-rs = { version = "0.7", default-features = false }
+```
 
 ## Usage
 
@@ -69,7 +91,7 @@ The `CommandBuilder` uses a typestate pattern: you **must** call `.command()` be
 The compiler rejects incorrect ordering.
 
 ```rust
-use mikrotik_rs::protocol::command::CommandBuilder;
+use mikrotik_rs::CommandBuilder;
 
 let cmd = CommandBuilder::new()
     .command("/interface/ethernet/monitor")
@@ -80,16 +102,13 @@ let cmd = CommandBuilder::new()
 
 ### The `command!` macro
 
-For static command paths, the `command!` macro validates the path at compile time and provides a
-more concise syntax:
+For static command paths, the `command!` macro validates the path at compile time:
 
 ```rust
 use mikrotik_rs::command;
 
-// Simple command
 let cmd = command!("/interface/print");
 
-// Command with attributes
 let cmd = command!(
     "/interface/ethernet/monitor",
     numbers = "0,1",
@@ -103,42 +122,57 @@ let cmd = command!(
 
 ### Handling responses
 
-Every call to `send_command` returns an `mpsc::Receiver` scoped to that command.
-Responses arrive as `CommandResponse` variants:
+Every call to `send_command` returns an `mpsc::Receiver<Event>` scoped to that command:
 
 ```rust
-use mikrotik_rs::protocol::CommandResponse;
+use mikrotik_rs::Event;
 
 let mut rx = device.send_command(cmd).await?;
 
-while let Some(result) = rx.recv().await {
-    match result? {
-        CommandResponse::Reply(reply) => {
-            // Key-value data from the router
-            println!("attributes: {:?}", reply.attributes);
+while let Some(event) = rx.recv().await {
+    match event {
+        Event::Reply { response, .. } => {
+            println!("attributes: {:?}", response.attributes);
         }
-        CommandResponse::Done(_) => {
+        Event::Done { .. } => {
             println!("command completed");
         }
-        CommandResponse::Trap(trap) => {
-            // Router-side error (e.g., invalid command, permission denied)
-            eprintln!("trap: {} (category: {:?})", trap.message, trap.category);
+        Event::Trap { response, .. } => {
+            eprintln!("trap: {} (category: {:?})", response.message, response.category);
         }
-        CommandResponse::Fatal(reason) => {
-            // Fatal protocol error -- connection is dead
+        Event::Fatal { reason } => {
             eprintln!("fatal: {reason}");
         }
-        CommandResponse::Empty(_) => {
+        Event::Empty { .. } => {
             // RouterOS 7.18+: command had no data to return
         }
     }
 }
 ```
 
+### TLS connections
+
+With the `tokio-tls` feature enabled, use the builder for TLS:
+
+```rust
+// Accept self-signed certs (typical for MikroTik routers)
+let device = MikrotikDevice::builder("192.168.88.1:8729")
+    .credentials("admin", Some("password"))
+    .tls_insecure()
+    .connect()
+    .await?;
+
+// Or with a custom rustls ClientConfig
+let device = MikrotikDevice::builder("192.168.88.1:8729")
+    .credentials("admin", Some("password"))
+    .tls_config(my_config, server_name)
+    .connect()
+    .await?;
+```
+
 ### Streaming responses
 
-Commands that produce continuous output (e.g., traffic monitoring, resource polling) stream
-results through the same channel:
+Commands that produce continuous output stream results through the same channel:
 
 ```rust
 let monitor = CommandBuilder::new()
@@ -148,10 +182,8 @@ let monitor = CommandBuilder::new()
 
 let mut rx = device.send_command(monitor).await?;
 
-// Receives updates continuously until the channel is dropped
-while let Some(result) = rx.recv().await {
-    let reply = result?;
-    println!("{:?}", reply);
+while let Some(event) = rx.recv().await {
+    println!("{event:?}");
 }
 // Dropping `rx` automatically sends /cancel to the router
 ```
@@ -161,7 +193,7 @@ while let Some(result) = rx.recv().await {
 Filter results using RouterOS query operations:
 
 ```rust
-use mikrotik_rs::protocol::command::{CommandBuilder, QueryOperator};
+use mikrotik_rs::{CommandBuilder, QueryOperator};
 
 let cmd = CommandBuilder::new()
     .command("/interface/print")
@@ -170,8 +202,6 @@ let cmd = CommandBuilder::new()
     .query_operations([QueryOperator::And].into_iter())
     .build();
 ```
-
-Available query methods:
 
 | Method | Wire format | Description |
 |---|---|---|
@@ -182,52 +212,33 @@ Available query methods:
 | `query_not_present(k)` | `?-k` | Property does not exist |
 | `query_operations(ops)` | `?#...` | Boolean stack operations (`And`, `Or`, `Not`, `Dot`) |
 
-### Raw byte attributes
+## Workspace
 
-For non-UTF-8 or binary attribute values:
+The library is split into focused crates:
 
-```rust
-let cmd = CommandBuilder::new()
-    .command("/file/print")
-    .attribute_raw("contents", Some(&[0x00, 0xFF, 0xAB]))
-    .build();
+| Crate | Purpose |
+|---|---|
+| [`mikrotik-proto`](mikrotik-proto/) | Sans-IO protocol core (`#![no_std]`) — wire format, commands, responses, connection state machine |
+| [`mikrotik-tokio`](mikrotik-tokio/) | Tokio async adapter — background actor, per-command channels, TLS |
+| [`mikrotik-embassy`](mikrotik-embassy/) | Embassy embedded async adapter — transport-agnostic over `embedded-io-async` |
+| [`mikrotik-rs`](mikrotik-rs/) | Convenience re-exports from all crates |
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                        mikrotik-rs                              │
+│                    (re-exports from all)                        │
+├──────────────────────────┬──────────────────────────────────────┤
+│      mikrotik-tokio      │         mikrotik-embassy             │
+│   (Tokio async adapter)  │   (Embassy embedded adapter)         │
+├──────────────────────────┴──────────────────────────────────────┤
+│                       mikrotik-proto                            │
+│           Sans-IO protocol core (#![no_std])                    │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-Responses expose both `attributes` (UTF-8 strings) and `attributes_raw` (byte vectors) on `ReplyResponse`.
-
-## Architecture
-
-```
-                        ┌──────────────────────────┐
-  MikrotikDevice ──────►│   Background Actor Task  │
-    (Clone-able)        │                          │
-                        │  ┌────────┐  ┌────────┐  │
-  send_command() ──────►│  │ Writer │  │ Reader │  │◄──── TCP
-                        │  └────────┘  └────────┘  │
-                        │        ▲          │       │
-                        │        │    route by UUID │
-                        │   commands   responses    │
-                        └──────────────────────────┘
-                                            │
-                          ┌─────────────────┼─────────────────┐
-                          ▼                 ▼                  ▼
-                    Receiver<Cmd1>    Receiver<Cmd2>    Receiver<CmdN>
-```
-
-- **Actor pattern** -- a single spawned Tokio task owns the TCP connection and multiplexes
-  commands/responses over it.
-- **UUID tagging** -- every command is tagged with a UUID v4. Responses from the router include
-  this tag, enabling correct routing to per-command channels.
-- **Graceful shutdown** -- dropping all `MikrotikDevice` handles cancels every active command
-  on the router and tears down the connection cleanly.
 
 ## Examples
 
-The repository includes runnable examples in [`examples/`](examples/)
-
-## Minimum supported Rust version
-
-This crate uses the **Rust 2024 edition** and requires a compatible toolchain.
+The repository includes runnable examples in [`examples/`](examples/).
 
 ## Contributing
 
@@ -235,12 +246,7 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 
 ## License
 
-Licensed under either of
-
-- [MIT license](LICENSE-MIT)
-- [Apache License, Version 2.0](LICENSE-APACHE)
-
-at your option.
+Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE) at your option.
 
 ## Disclaimer
 
