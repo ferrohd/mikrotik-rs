@@ -20,7 +20,9 @@ workspace = true
 [features]
 default = ["tokio"]
 tokio = ["dep:mikrotik-tokio"]
+embassy = ["dep:mikrotik-embassy"]
 
 [dependencies]
 mikrotik-proto = { workspace = true }
 mikrotik-tokio = { workspace = true, optional = true }
+mikrotik-embassy = { workspace = true, optional = true }

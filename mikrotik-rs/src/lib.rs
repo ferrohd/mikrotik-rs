@@ -6,25 +6,34 @@
 //! in parallel through channels.
 //!
 //! This crate re-exports types from:
-//! - [`mikrotik_proto`](proto) — sans-IO protocol implementation (always available)
-//! - [`mikrotik_tokio`](tokio_client) — Tokio-based async client (requires the `tokio` feature)
+//! - `mikrotik-proto` — sans-IO protocol implementation (always available)
+//! - `mikrotik-tokio` — Tokio-based async client (requires the `tokio` feature)
+//! - `mikrotik-embassy` — Embassy embedded async client (requires the `embassy` feature)
 //!
 //! ## Feature flags
 //!
-//! | Feature | Default | Description |
-//! |---------|---------|-------------|
-//! | `tokio` | **yes** | Enables the Tokio async adapter and [`MikrotikDevice`] client |
+//! | Feature   | Default | Description |
+//! |-----------|---------|-------------|
+//! | `tokio`   | **yes** | Enables the Tokio async adapter and [`MikrotikDevice`] client |
+//! | `embassy` | no      | Enables the Embassy embedded async adapter and `run` function |
 //!
-//! To use only the protocol types without pulling in Tokio:
+//! To use only the protocol types without pulling in any runtime:
 //!
 //! ```toml
 //! [dependencies]
 //! mikrotik-rs = { version = "0.7", default-features = false }
 //! ```
 //!
+//! To use the Embassy adapter instead of Tokio:
+//!
+//! ```toml
+//! [dependencies]
+//! mikrotik-rs = { version = "0.7", default-features = false, features = ["embassy"] }
+//! ```
+//!
 //! ## Architecture
 //!
-//! The library is split into three crates:
+//! The library is split into multiple crates:
 //!
 //! - **`mikrotik-proto`** — `#![no_std]`-compatible, runtime-agnostic protocol core.
 //!   Handles wire-format encoding/decoding, command building, response parsing,
@@ -33,7 +42,11 @@
 //! - **`mikrotik-tokio`** — Thin async adapter that drives `mikrotik-proto` using
 //!   Tokio's async runtime. Provides the high-level [`MikrotikDevice`] client.
 //!
-//! - **`mikrotik-rs`** (this crate) — Convenience re-exports from both crates.
+//! - **`mikrotik-embassy`** — Embedded async adapter that drives `mikrotik-proto`
+//!   using Embassy's networking stack. Provides a `run` function that the user
+//!   spawns as an Embassy task.
+//!
+//! - **`mikrotik-rs`** (this crate) — Convenience re-exports from all crates.
 //!
 //! ## Examples
 //!
@@ -87,3 +100,11 @@ pub use mikrotik_tokio as tokio_client;
 pub use mikrotik_tokio::MikrotikDevice;
 #[cfg(feature = "tokio")]
 pub use mikrotik_tokio::error::{ActorError, DeviceError, DeviceResult};
+
+// ── Embassy adapter (behind "embassy" feature) ──
+
+/// Re-export of the Embassy embedded async adapter crate.
+///
+/// Only available when the `embassy` feature is enabled.
+#[cfg(feature = "embassy")]
+pub use mikrotik_embassy as embassy_client;

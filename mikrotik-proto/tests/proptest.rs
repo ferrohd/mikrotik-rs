@@ -185,11 +185,9 @@ proptest! {
     /// It may return Err (missing tag, etc.) but must not crash.
     #[test]
     fn parse_well_formed_sentence_no_panic(sentence in arb_sentence()) {
-        match codec::decode_sentence(&sentence) {
-            Ok(Decode::Complete { value: raw, .. }) => {
-                let _ = mikrotik_proto::response::CommandResponse::parse(&raw);
-            }
-            _ => {} // incomplete or error is fine
+        if let Ok(Decode::Complete { value: raw, .. }) = codec::decode_sentence(&sentence) {
+            let _ = mikrotik_proto::response::CommandResponse::parse(&raw);
         }
+        // incomplete or error is fine
     }
 }

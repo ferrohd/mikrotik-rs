@@ -4,7 +4,7 @@
 //! router echoes back in all response sentences (`.tag=<value>`). This allows
 //! multiplexing multiple in-flight commands over a single connection.
 //!
-//! `Tag` is a newtype wrapper around [`Uuid`] that provides type safety —
+//! `Tag` is a newtype wrapper around [`uuid::Uuid`] that provides type safety —
 //! you cannot accidentally pass a random `Uuid` where a command tag is expected.
 
 use core::fmt;
@@ -27,7 +27,7 @@ impl Tag {
         Self(Uuid::new_v4())
     }
 
-    /// Create a tag from an existing [`Uuid`] in a const context.
+    /// Create a tag from an existing [`uuid::Uuid`] in a const context.
     pub const fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
     }
