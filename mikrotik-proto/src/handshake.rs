@@ -65,21 +65,19 @@ impl Handshaking {
     /// The login command is immediately queued for transmission.
     /// Call [`poll_transmit()`](Self::poll_transmit) to get the bytes to send.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the internal `Connection` is unexpectedly in a dead state.
-    /// This cannot occur during normal construction.
-    pub fn new(username: &str, password: Option<&str>) -> Self {
+    /// Returns [`ConnectionError`] if the internal connection could not
+    /// accept the login command.
+    pub fn new(username: &str, password: Option<&str>) -> Result<Self, ConnectionError> {
         let mut conn = Connection::new();
         let login_cmd = CommandBuilder::login(username, password);
-        let tag = conn
-            .send_command(login_cmd)
-            .expect("new connection cannot be dead");
+        let tag = conn.send_command(login_cmd)?;
 
-        Handshaking {
+        Ok(Handshaking {
             inner: conn,
             login_tag: tag,
-        }
+        })
     }
 
     /// Feed received bytes from the transport.
@@ -181,7 +179,7 @@ mod tests {
 
     #[test]
     fn test_successful_login() {
-        let mut hs = Handshaking::new("admin", Some("password"));
+        let mut hs = Handshaking::new("admin", Some("password")).unwrap();
 
         // Must have pending transmit (the login command)
         let transmit = hs.poll_transmit().unwrap();
@@ -204,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_failed_login() {
-        let mut hs = Handshaking::new("admin", Some("wrong"));
+        let mut hs = Handshaking::new("admin", Some("wrong")).unwrap();
         while hs.poll_transmit().is_some() {}
 
         let trap_wire = build_trap(hs.login_tag(), "invalid user name or password");
@@ -220,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_fatal_during_login() {
-        let mut hs = Handshaking::new("admin", Some("pass"));
+        let mut hs = Handshaking::new("admin", Some("pass")).unwrap();
         while hs.poll_transmit().is_some() {}
 
         let fatal_wire = build_sentence(&[b"!fatal", b"connection limit reached"]);
@@ -236,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_partial_login_response() {
-        let mut hs = Handshaking::new("admin", Some("pass"));
+        let mut hs = Handshaking::new("admin", Some("pass")).unwrap();
         while hs.poll_transmit().is_some() {}
 
         let done_wire = build_done(hs.login_tag());

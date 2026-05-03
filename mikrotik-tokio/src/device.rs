@@ -99,7 +99,7 @@ impl MikrotikDevice {
         stream.set_nodelay(true)?;
 
         // Perform the login handshake using the sans-IO handshake state machine
-        let mut hs = Handshaking::new(username, password);
+        let mut hs = Handshaking::new(username, password)?;
 
         // Flush the login command
         while let Some(transmit) = hs.poll_transmit() {
