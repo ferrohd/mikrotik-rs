@@ -52,7 +52,7 @@ pub enum DeviceError {
     Login(#[from] LoginError),
 
     /// TLS handshake or protocol error.
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "tokio-tls")]
     #[error("TLS error: {0}")]
     Tls(#[from] rustls::Error),
 

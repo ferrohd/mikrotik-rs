@@ -1,7 +1,7 @@
 //! Typestate builder for constructing [`MikrotikDevice`] connections.
 //!
 //! The builder enforces at compile time that TLS configuration is only
-//! possible when the `tls` feature is enabled. The transport state type
+//! possible when the `tokio-tls` feature is enabled. The transport state type
 //! carries its own configuration data — no runtime enums or phantom markers.
 //!
 //! # Examples
@@ -44,8 +44,8 @@ pub struct Plaintext;
 
 /// TLS transport — carries the [`rustls::ClientConfig`] and server name for SNI.
 ///
-/// Only available when the `tls` feature is enabled.
-#[cfg(feature = "tls")]
+/// Only available when the `tokio-tls` feature is enabled.
+#[cfg(feature = "tokio-tls")]
 pub struct Tls {
     config: alloc::sync::Arc<rustls::ClientConfig>,
     server_name: rustls::pki_types::ServerName<'static>,
@@ -55,7 +55,7 @@ pub struct Tls {
 ///
 /// The `Transport` type parameter carries transport-specific configuration:
 /// - [`Plaintext`] — no additional config needed
-/// - [`Tls`] — carries the `ClientConfig` and server name (requires `tls` feature)
+/// - [`Tls`] — carries the `ClientConfig` and server name (requires `tokio-tls` feature)
 ///
 /// Use [`MikrotikDevice::builder()`] to create an instance.
 #[must_use]
@@ -65,7 +65,7 @@ pub struct DeviceBuilder<A, Transport> {
     password: Option<String>,
     /// Transport-specific state. [`Plaintext`] carries nothing;
     /// [`Tls`] carries the `ClientConfig` and server name.
-    /// Read in the `Tls::connect()` path (behind `#[cfg(feature = "tls")]`).
+    /// Read in the `Tls::connect()` path (behind `#[cfg(feature = "tokio-tls")]`).
     #[allow(dead_code)] // consumed by Tls::connect() when tls feature is enabled
     transport: Transport,
 }
@@ -110,7 +110,7 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Plaintext> {
     ///
     /// Suitable for `MikroTik` routers which use self-signed certificates.
     /// TLS handshake signatures are still verified to prevent downgrade attacks.
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "tokio-tls")]
     pub fn tls_insecure(self) -> DeviceBuilder<A, Tls> {
         let config = crate::tls::insecure_client_config();
         // Use a dummy server name — MikroTik routers don't validate SNI
@@ -132,7 +132,7 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Plaintext> {
     ///
     /// Use this for custom certificate verification, certificate pinning,
     /// or other advanced TLS configurations.
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "tokio-tls")]
     pub fn tls_config(
         self,
         config: alloc::sync::Arc<rustls::ClientConfig>,
@@ -150,7 +150,7 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Plaintext> {
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "tokio-tls")]
 impl<A: ToSocketAddrs> DeviceBuilder<A, Tls> {
     /// Connect over TLS.
     ///

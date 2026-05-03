@@ -35,7 +35,7 @@ struct DeviceCommand {
 /// # Connection
 ///
 /// Use [`builder()`](Self::builder) for full control over the connection, including
-/// optional TLS support (requires the `tls` feature flag):
+/// optional TLS support (requires the `tokio-tls` feature flag):
 ///
 /// ```rust,ignore
 /// // Plaintext TCP
@@ -77,7 +77,7 @@ const _: () = {
 impl MikrotikDevice {
     /// Create a builder for establishing a connection to a `MikroTik` device.
     ///
-    /// The builder supports plaintext TCP and, with the `tls` feature enabled,
+    /// The builder supports plaintext TCP and, with the `tokio-tls` feature enabled,
     /// TLS connections (for API-SSL on port 8729).
     ///
     /// See [`DeviceBuilder`] for the full API.

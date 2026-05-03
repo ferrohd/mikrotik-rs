@@ -21,9 +21,7 @@ workspace = true
 default = ["tokio"]
 tokio = ["dep:mikrotik-tokio"]
 embassy = ["dep:mikrotik-embassy"]
-tls = ["mikrotik-tokio?/tls"]
-ring = ["mikrotik-tokio?/ring"]
-aws-lc-rs = ["mikrotik-tokio?/aws-lc-rs"]
+tokio-tls = ["mikrotik-tokio?/tokio-tls"]
 
 [dependencies]
 mikrotik-proto = { workspace = true }

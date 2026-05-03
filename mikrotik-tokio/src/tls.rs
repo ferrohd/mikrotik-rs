@@ -68,17 +68,16 @@ impl ServerCertVerifier for NoVerifier {
 
 /// Build a [`ClientConfig`] that accepts any server certificate.
 ///
-/// Uses the default [`CryptoProvider`] (which must be installed by the user
-/// via `ring` or `aws-lc-rs` feature flags).
+/// Uses the default [`CryptoProvider`], which the application must install
+/// by depending on `rustls` with a crypto backend feature (`ring` or
+/// `aws-lc-rs`). See [`CryptoProvider::install_default`] for details.
 ///
 /// # Panics
 ///
-/// Panics if no crypto provider has been installed. Users must enable either
-/// the `ring` or `aws-lc-rs` feature flag (which automatically installs
-/// the provider).
+/// Panics if no crypto provider has been installed.
 pub(crate) fn insecure_client_config() -> Arc<ClientConfig> {
     let provider = CryptoProvider::get_default().cloned().expect(
-        "a rustls CryptoProvider must be installed — enable the `ring` or `aws-lc-rs` feature",
+        "no rustls CryptoProvider installed — add `rustls` with `ring` or `aws-lc-rs` feature to your dependencies",
     );
 
     let config = ClientConfig::builder()

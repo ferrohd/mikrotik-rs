@@ -11,9 +11,7 @@ repository.workspace = true
 doctest = false
 
 [features]
-tls = ["dep:tokio-rustls", "dep:rustls"]
-ring = ["tokio-rustls?/ring", "rustls?/ring"]
-aws-lc-rs = ["tokio-rustls?/aws_lc_rs", "rustls?/aws_lc_rs"]
+tokio-tls = ["dep:tokio-rustls", "dep:rustls"]
 
 [dependencies]
 mikrotik-proto = { workspace = true }

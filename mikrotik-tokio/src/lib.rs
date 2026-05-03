@@ -11,14 +11,14 @@
 //!
 //! | Feature     | Description |
 //! |-------------|-------------|
-//! | `tls`       | Enable TLS support via `tokio-rustls` (requires a crypto backend) |
-//! | `ring`      | Use the `ring` crypto backend for TLS |
-//! | `aws-lc-rs` | Use the `aws-lc-rs` crypto backend for TLS |
+//! | `tokio-tls` | Enable TLS support via `tokio-rustls` (bring your own crypto provider) |
 //!
-//! To enable TLS, activate the `tls` feature **and** a crypto backend:
+//! To enable TLS, activate the `tokio-tls` feature and add `rustls` with a
+//! crypto backend to your dependencies:
 //!
 //! ```toml
-//! mikrotik-tokio = { version = "0.1", features = ["tls", "ring"] }
+//! mikrotik-tokio = { version = "0.1", features = ["tokio-tls"] }
+//! rustls = { version = "0.23", features = ["ring"] }  # or "aws-lc-rs"
 //! ```
 
 extern crate alloc;
@@ -30,7 +30,7 @@ mod device;
 /// Tokio-specific error types.
 pub mod error;
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "tokio-tls")]
 mod tls;
 
 pub use device::MikrotikDevice;
