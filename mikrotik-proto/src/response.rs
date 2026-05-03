@@ -16,7 +16,6 @@ use hashbrown::HashMap;
 
 use crate::codec::RawSentence;
 use crate::error::{MissingWord, ProtocolError, TrapCategoryError, WordType};
-use crate::sentence::Sentence;
 use crate::tag::Tag;
 use crate::word::{Word, WordAttribute, WordCategory};
 
@@ -63,9 +62,9 @@ impl CommandResponse {
     /// Returns [`ProtocolError`] if the sentence structure is invalid,
     /// contains unexpected word types, or is missing required fields.
     pub fn parse(raw: &RawSentence<'_>) -> Result<Self, ProtocolError> {
-        let mut sentence = Sentence::new(raw);
+        let mut words = raw.typed_words();
 
-        let word = sentence
+        let word = words
             .next()
             .ok_or::<ProtocolError>(MissingWord::Category.into())??;
 
@@ -76,7 +75,7 @@ impl CommandResponse {
 
         match category {
             WordCategory::Done => {
-                let word = sentence
+                let word = words
                     .next()
                     .ok_or::<ProtocolError>(MissingWord::Tag.into())??;
 
@@ -91,7 +90,7 @@ impl CommandResponse {
                 let mut attributes = HashMap::<String, Option<String>>::new();
                 let mut attributes_raw = HashMap::<String, Option<Vec<u8>>>::new();
 
-                for word in sentence {
+                for word in words {
                     let word = word?;
                     match word {
                         Word::Tag(t) => tag = Some(t),
@@ -125,7 +124,7 @@ impl CommandResponse {
                 let mut category = None;
                 let mut message = None;
 
-                for word in sentence {
+                for word in words {
                     let word = word?;
                     match word {
                         Word::Tag(t) => tag = Some(t),
@@ -167,7 +166,7 @@ impl CommandResponse {
                 }))
             }
             WordCategory::Fatal => {
-                let word = sentence
+                let word = words
                     .next()
                     .ok_or::<ProtocolError>(MissingWord::Message.into())??;
 
@@ -179,7 +178,7 @@ impl CommandResponse {
                 Ok(CommandResponse::Fatal(String::from(reason)))
             }
             WordCategory::Empty => {
-                let word = sentence
+                let word = words
                     .next()
                     .ok_or::<ProtocolError>(MissingWord::Tag.into())??;
 

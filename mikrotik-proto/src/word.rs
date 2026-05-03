@@ -99,28 +99,34 @@ impl<'a> TryFrom<&'a [u8]> for Word<'a> {
     type Error = WordError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
-        // First, check if it's a category or tag word by attempting UTF-8 conversion.
-        // Categories and tags must be valid UTF-8 as they are fixed API words.
-        if let Ok(s) = core::str::from_utf8(value) {
-            // Try to parse as category first
-            if let Ok(category) = WordCategory::try_from(s) {
-                return Ok(Word::Category(category));
+        // Dispatch on the first byte to avoid redundant UTF-8 validation.
+        // Categories are matched as raw byte slices (ASCII-only, no UTF-8 needed).
+        // Tags parse the UUID directly from ASCII bytes.
+        // Only messages and unknown words pay for UTF-8 validation.
+        match value.first() {
+            // Category words: "!done", "!re", "!trap", "!fatal", "!empty"
+            Some(b'!') => match value {
+                b"!done" => Ok(Word::Category(WordCategory::Done)),
+                b"!re" => Ok(Word::Category(WordCategory::Reply)),
+                b"!trap" => Ok(Word::Category(WordCategory::Trap)),
+                b"!fatal" => Ok(Word::Category(WordCategory::Fatal)),
+                b"!empty" => Ok(Word::Category(WordCategory::Empty)),
+                _ => Ok(Word::Message(core::str::from_utf8(value)?)),
+            },
+            // Tag words: ".tag=<uuid>" — parse UUID directly from ASCII bytes
+            Some(b'.') => {
+                if value.starts_with(b".tag=") {
+                    let tag = Tag::try_from_ascii_bytes(&value[5..])?;
+                    Ok(Word::Tag(tag))
+                } else {
+                    Ok(Word::Message(core::str::from_utf8(value)?))
+                }
             }
-
-            // Try to parse as tag if it starts with ".tag="
-            if let Some(stripped) = s.strip_prefix(".tag=") {
-                let tag = stripped.parse::<Tag>()?;
-                return Ok(Word::Tag(tag));
-            }
+            // Attribute words: "=key=value"
+            Some(b'=') => Ok(Word::Attribute(WordAttribute::try_from(value)?)),
+            // Everything else is a message (must be valid UTF-8)
+            _ => Ok(Word::Message(core::str::from_utf8(value)?)),
         }
-
-        // Handle attributes — they start with `=` regardless of UTF-8 validity
-        if !value.is_empty() && value[0] == b'=' {
-            return Ok(Word::Attribute(WordAttribute::try_from(value)?));
-        }
-
-        // If all else fails, return as a message (must be valid UTF-8)
-        Ok(Word::Message(core::str::from_utf8(value)?))
     }
 }
 

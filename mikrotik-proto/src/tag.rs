@@ -38,6 +38,15 @@ impl Tag {
     pub fn encode_lower<'a>(&self, buf: &'a mut [u8]) -> &'a str {
         self.0.as_hyphenated().encode_lower(buf)
     }
+
+    /// Parse a tag from ASCII bytes without requiring UTF-8 validation.
+    ///
+    /// This is the fast path used by word parsing — the `.tag=<uuid>` value
+    /// on the wire is always ASCII hex digits and hyphens, so we can skip
+    /// `from_utf8` entirely and hand the bytes directly to the UUID parser.
+    pub fn try_from_ascii_bytes(bytes: &[u8]) -> Result<Self, uuid::Error> {
+        Uuid::try_parse_ascii(bytes).map(Self)
+    }
 }
 
 impl Default for Tag {

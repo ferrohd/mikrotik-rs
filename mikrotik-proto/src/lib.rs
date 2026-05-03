@@ -23,9 +23,9 @@
 //! ┌─────────────────────────────────────────────────────┐
 //! │  mikrotik-proto (this crate)                        │
 //! │                                                     │
-//! │  codec ──▶ sentence ──▶ response                    │
+//! │  codec (RawSentence) ──▶ response                    │
 //! │                           ▲                         │
-//! │  command ─────────────────┘                          │
+//! │  command ─────────────────┘                         │
 //! │                                                     │
 //! │  connection (state machine, multiplexing)            │
 //! │  handshake  (typestate login flow)                   │
@@ -55,8 +55,6 @@ pub mod handshake;
 pub mod macros;
 /// Response types for parsed command responses.
 pub mod response;
-/// Sentence parsing: zero-copy iteration over decoded wire-format sentences.
-pub mod sentence;
 /// Command tag — a unique identifier for correlating commands with responses.
 pub mod tag;
 /// Word types: the fundamental unit of the MikroTik API protocol.
