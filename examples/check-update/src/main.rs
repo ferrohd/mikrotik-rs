@@ -1,4 +1,4 @@
-use mikrotik_rs::{MikrotikDevice, protocol::command::CommandBuilder};
+use mikrotik_rs::{CommandBuilder, MikrotikDevice};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -10,8 +10,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut update_responses = device.send_command(check_updates).await?;
 
-    while let Some(res) = update_responses.recv().await {
-        println!(">> Get System Res Response {:?}", res);
+    while let Some(event) = update_responses.recv().await {
+        println!(">> Update Response {event:?}");
     }
 
     Ok(())

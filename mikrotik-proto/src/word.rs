@@ -1,36 +1,40 @@
-use std::{
+//! Word types: the fundamental unit of the MikroTik API protocol.
+//!
+//! Every MikroTik API sentence is composed of *words*. Each word is a
+//! length-prefixed byte sequence that falls into one of four categories:
+//!
+//! - **Category** — response type identifier (`!done`, `!re`, `!trap`, `!fatal`, `!empty`)
+//! - **Tag** — command correlation tag (`.tag=<uuid>`)
+//! - **Attribute** — key-value pair (`=key=value`)
+//! - **Message** — free-form text (used for `!fatal` reasons)
+
+use core::{
     fmt::{self, Display, Formatter},
     str::Utf8Error,
 };
-use uuid::Uuid;
 
 use thiserror::Error;
 
-use super::error::WordType;
+use crate::error::WordType;
+use crate::tag::Tag;
 
-/// Represents a word in a Mikrotik [`Sentence`].
+/// Represents a word in a `MikroTik` API sentence.
 ///
-/// Words can be of three types:
-/// - A category word, which represents the type of sentence, such as `!done`, `!re`, `!trap`, `!fatal`, or `!empty`.
-/// - A tag word, which represents a tag value like `.tag=123`.
-/// - An attribute word, which represents a key-value pair like `=name=ether1`.
+/// Words are the fundamental unit of the `MikroTik` wire protocol.
+/// This type borrows from the underlying byte buffer for zero-copy parsing.
 ///
-/// The word can be converted into one of these types using the [`TryFrom`] trait.
+/// # Variants
 ///
-/// # Examples
-///
-/// ```
-/// use mikrotik::command::reader::Word;
-///
-/// let word = Word::try_from(b"=name=ether1");
-/// assert_eq!(word.unwrap().attribute(), Some(("name", Some("ether1"))));
-/// ```
+/// - `Category` — response type (`!done`, `!re`, `!trap`, `!fatal`, `!empty`)
+/// - `Tag` — command correlation UUID (`.tag=<uuid>`)
+/// - `Attribute` — key-value pair (`=key=value`)
+/// - `Message` — free-form text (typically a `!fatal` reason)
 #[derive(Debug, PartialEq)]
 pub enum Word<'a> {
     /// A category word, such as `!done`, `!re`, `!trap`, `!fatal`, or `!empty`.
     Category(WordCategory),
     /// A tag word, such as `.tag=550e8400-e29b-41d4-a716-446655440000`.
-    Tag(Uuid),
+    Tag(Tag),
     /// An attribute word, such as `=name=ether1`.
     Attribute(WordAttribute<'a>),
     /// An unrecognized word. Usually this is a `!fatal` reason message.
@@ -47,14 +51,14 @@ impl Word<'_> {
     }
 
     /// Returns the tag of the word, if it is a tag word.
-    pub fn tag(&self) -> Option<Uuid> {
+    pub fn tag(&self) -> Option<Tag> {
         match self {
             Word::Tag(tag) => Some(*tag),
             _ => None,
         }
     }
 
-    /// Returns the generic word, if it is a generic word.
+    /// Returns the generic message, if it is a message word.
     /// This is usually a `!fatal` reason message.
     pub fn generic(&self) -> Option<&str> {
         match self {
@@ -63,7 +67,7 @@ impl Word<'_> {
         }
     }
 
-    /// Returns the type of the Word.
+    /// Returns the type discriminant of this word.
     pub fn word_type(&self) -> WordType {
         match self {
             Word::Category(_) => WordType::Category,
@@ -77,8 +81,8 @@ impl Word<'_> {
 impl Display for Word<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Word::Category(category) => write!(f, "{}", category),
-            Word::Tag(tag) => write!(f, ".tag={}", tag),
+            Word::Category(category) => write!(f, "{category}"),
+            Word::Tag(tag) => write!(f, ".tag={tag}"),
             Word::Attribute(WordAttribute {
                 key,
                 value,
@@ -86,7 +90,7 @@ impl Display for Word<'_> {
             }) => {
                 write!(f, "={}={}", key, value.unwrap_or(""))
             }
-            Word::Message(generic) => write!(f, "{}", generic),
+            Word::Message(generic) => write!(f, "{generic}"),
         }
     }
 }
@@ -95,46 +99,52 @@ impl<'a> TryFrom<&'a [u8]> for Word<'a> {
     type Error = WordError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
-        // First, check if it's a category or tag word by attempting UTF-8 conversion
-        // Categories and tags must be valid UTF-8 as they are fixed API words
-        if let Ok(s) = std::str::from_utf8(value) {
-            // Try to parse as category first
-            if let Ok(category) = WordCategory::try_from(s) {
-                return Ok(Word::Category(category));
+        // Dispatch on the first byte to avoid redundant UTF-8 validation.
+        // Categories are matched as raw byte slices (ASCII-only, no UTF-8 needed).
+        // Tags parse the UUID directly from ASCII bytes.
+        // Only messages and unknown words pay for UTF-8 validation.
+        match value.first() {
+            // Category words: "!done", "!re", "!trap", "!fatal", "!empty"
+            Some(b'!') => match value {
+                b"!done" => Ok(Word::Category(WordCategory::Done)),
+                b"!re" => Ok(Word::Category(WordCategory::Reply)),
+                b"!trap" => Ok(Word::Category(WordCategory::Trap)),
+                b"!fatal" => Ok(Word::Category(WordCategory::Fatal)),
+                b"!empty" => Ok(Word::Category(WordCategory::Empty)),
+                _ => Ok(Word::Message(core::str::from_utf8(value)?)),
+            },
+            // Tag words: ".tag=<uuid>" — parse UUID directly from ASCII bytes
+            Some(b'.') => {
+                if value.starts_with(b".tag=") {
+                    let tag = Tag::try_from_ascii_bytes(&value[5..])?;
+                    Ok(Word::Tag(tag))
+                } else {
+                    Ok(Word::Message(core::str::from_utf8(value)?))
+                }
             }
-
-            // Try to parse as tag if it starts with ".tag="
-            if let Some(stripped) = s.strip_prefix(".tag=") {
-                let tag = stripped.parse::<Uuid>()?;
-                return Ok(Word::Tag(tag));
-            }
+            // Attribute words: "=key=value"
+            Some(b'=') => Ok(Word::Attribute(WordAttribute::try_from(value)?)),
+            // Everything else is a message (must be valid UTF-8)
+            _ => Ok(Word::Message(core::str::from_utf8(value)?)),
         }
-
-        // Handle attributes - we know they start with = regardless of UTF-8 validity
-        if !value.is_empty() && value[0] == b'=' {
-            // Pass the raw bytes to WordAttribute which now handles UTF-8 validation internally
-            return Ok(Word::Attribute(WordAttribute::try_from(value)?));
-        }
-
-        // If all else fails, return as a message (must be valid UTF-8!)
-        Ok(Word::Message(std::str::from_utf8(value)?))
     }
 }
 
-/// Represents the type of of a response.
-/// The type is derived from the first [`Word`] in a [`Sentence`].
+/// Represents the type of a response sentence.
+///
+/// Derived from the first [`Word`] in a sentence.
 /// Valid types are `!done`, `!re`, `!trap`, `!fatal`, and `!empty`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WordCategory {
-    /// Represents a `!done` response.
+    /// Represents a `!done` response — command completed successfully.
     Done,
-    /// Represents a `!re` response.
+    /// Represents a `!re` response — a reply with attribute data.
     Reply,
-    /// Represents a `!trap` response.
+    /// Represents a `!trap` response — an error or warning.
     Trap,
-    /// Represents a `!fatal` response.
+    /// Represents a `!fatal` response — a fatal connection error.
     Fatal,
-    /// Represents a `!empty` response.
+    /// Represents a `!empty` response (`RouterOS` 7.18+) — no data to reply with.
     Empty,
 }
 
@@ -165,14 +175,17 @@ impl Display for WordCategory {
     }
 }
 
-/// Represents a key-value pair in a Mikrotik [`Sentence`].
-#[derive(Debug, PartialEq)]
+/// Represents a key-value attribute pair in a `MikroTik` API sentence.
+///
+/// Attributes are encoded as `=key=value` on the wire. The key is always
+/// valid UTF-8, but the value may contain arbitrary binary data.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WordAttribute<'a> {
-    /// The key of the attribute.
+    /// The key of the attribute (always valid UTF-8).
     pub key: &'a str,
-    /// The value of the attribute, if present and in valid UTF-8.
+    /// The value as a UTF-8 string, if it is valid UTF-8. `None` if empty or non-UTF-8.
     pub value: Option<&'a str>,
-    /// The value of the attribute, if present, in bytes.
+    /// The raw byte value. `None` if the value is empty.
     pub value_raw: Option<&'a [u8]>,
 }
 
@@ -190,23 +203,23 @@ impl<'a> TryFrom<&'a [u8]> for WordAttribute<'a> {
 
         // Key part must exist and be valid UTF-8
         let key_bytes = parts.next().ok_or(WordError::Attribute)?;
-        let key = std::str::from_utf8(key_bytes).map_err(|_| WordError::AttributeKeyNotUtf8)?;
+        let key = core::str::from_utf8(key_bytes).map_err(|_| WordError::AttributeKeyNotUtf8)?;
 
         // Value part is optional; treat an empty value as None.
         let value_raw = parts.next().filter(|value| !value.is_empty());
 
-        // If we have a non-empty value, try to decode as UTF-8 but keep raw bytes regardless
-        let value = value_raw.and_then(|v| std::str::from_utf8(v).ok());
+        // If we have a non-empty value, try to decode as UTF-8
+        let value = value_raw.and_then(|v| core::str::from_utf8(v).ok());
 
         Ok(Self {
             key,
-            value_raw,
             value,
+            value_raw,
         })
     }
 }
 
-/// Represents an error that occurred while parsing a [`Word`].
+/// Errors that can occur while parsing a [`Word`].
 #[derive(Error, Debug, PartialEq, Clone)]
 pub enum WordError {
     /// The word is not a valid UTF-8 string.
@@ -225,6 +238,11 @@ pub enum WordError {
 
 #[cfg(test)]
 mod tests {
+    extern crate alloc;
+    use alloc::format;
+
+    use uuid::Uuid;
+
     use super::*;
 
     impl<'a> From<(&'a str, Option<&'a str>)> for WordAttribute<'a> {
@@ -239,7 +257,6 @@ mod tests {
 
     #[test]
     fn test_word_parsing() {
-        // Test cases for `Word::try_from` function
         assert_eq!(
             Word::try_from(b"!done".as_ref()).unwrap(),
             Word::Category(WordCategory::Done)
@@ -247,10 +264,10 @@ mod tests {
 
         assert_eq!(
             Word::try_from(b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8".as_ref()).unwrap(),
-            Word::Tag(Uuid::from_bytes([
+            Word::Tag(Tag::from(Uuid::from_bytes([
                 0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6,
                 0xd7, 0xd8
-            ]))
+            ])))
         );
 
         assert_eq!(
@@ -287,14 +304,13 @@ mod tests {
 
     #[test]
     fn test_display_for_word() {
-        // Test cases for `Display` implementation for `Word`
         let word = Word::Category(WordCategory::Done);
         assert_eq!(format!("{}", word), "!done");
 
-        let word = Word::Tag(Uuid::from_bytes([
+        let word = Word::Tag(Tag::from(Uuid::from_bytes([
             0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6,
             0xd7, 0xd8,
-        ]));
+        ])));
         assert_eq!(
             format!("{}", word),
             ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"

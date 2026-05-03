@@ -7,9 +7,10 @@ keywords.workspace = true
 license.workspace = true
 categories.workspace = true
 repository.workspace = true
+publish = false
 
 [dependencies]
-mikrotik-rs = {package = "mikrotik-rs",  path = "../../mikrotik-rs" }
+mikrotik-rs = { package = "mikrotik-rs", path = "../../mikrotik-rs" }
 
 [lints]
 workspace = true

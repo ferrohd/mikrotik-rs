@@ -1,4 +1,5 @@
-use mikrotik_rs::{command, protocol::command::CommandBuilder};
+use mikrotik_rs::CommandBuilder;
+use mikrotik_rs::command;
 
 fn main() {
     let macro_command = command!(
@@ -13,8 +14,10 @@ fn main() {
     let builder_command = CommandBuilder::with_tag(tag)
         .command("/some/random/command")
         .attribute("attribute1", Some("1"))
-        .attribute("attribute2", Some("2"))
+        .attribute("attribute2", None)
+        .attribute("attribute3", Some("2"))
         .build();
 
-    assert_eq!(macro_command.data, builder_command.data);
+    assert_eq!(macro_command.data(), builder_command.data());
+    println!("Macro and builder produce identical wire data!");
 }

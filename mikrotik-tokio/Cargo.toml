@@ -1,0 +1,22 @@
+[package]
+name = "mikrotik-tokio"
+description = "Tokio-based async client for MikroTik RouterOS API"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mikrotik-proto = { workspace = true }
+tokio = { workspace = true, features = ["net", "sync", "rt", "macros", "io-util"] }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["net", "sync", "rt", "macros", "io-util", "rt-multi-thread"] }
+
+[lints]
+workspace = true

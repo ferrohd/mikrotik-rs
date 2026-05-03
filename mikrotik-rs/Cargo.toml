@@ -1,6 +1,6 @@
 [package]
 name = "mikrotik-rs"
-version = "0.6.1"
+version = "0.7.0"
 description = "Asynchronous Rust library for interfacing with MikroTik routers"
 edition.workspace = true
 authors.workspace = true
@@ -17,14 +17,10 @@ doctest = false
 [lints]
 workspace = true
 
+[features]
+default = ["tokio"]
+tokio = ["dep:mikrotik-tokio"]
+
 [dependencies]
-thiserror = { workspace = true }
-uuid = { version = "1", default-features = false, features = ["v4"] }
-tokio = { workspace = true, features = [
-    "net",
-    "sync",
-    "signal",
-    "rt",
-    "macros",
-    "io-util",
-] }
+mikrotik-proto = { workspace = true }
+mikrotik-tokio = { workspace = true, optional = true }

@@ -1,4 +1,4 @@
-use mikrotik_rs::{MikrotikDevice, protocol::command::CommandBuilder};
+use mikrotik_rs::{CommandBuilder, MikrotikDevice};
 
 // Using the current_thread flavor because multiple threads are not needed for this example
 #[tokio::main]
@@ -9,8 +9,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut users_stream = device.send_command(get_users_cmd).await?;
 
-    while let Some(interface) = users_stream.recv().await {
-        println!(">> Get Users Response {:?}", interface);
+    while let Some(event) = users_stream.recv().await {
+        println!(">> Get Users Response {event:?}");
     }
 
     Ok(())
