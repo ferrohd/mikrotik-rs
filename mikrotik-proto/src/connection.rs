@@ -10,7 +10,7 @@
 //! let mut conn = Connection::new();
 //!
 //! // Send a command
-//! let tag = conn.send_command(&cmd)?;
+//! let tag = conn.send_command(cmd)?;
 //!
 //! // In your event loop:
 //! loop {
@@ -242,7 +242,7 @@ impl Connection {
     /// # Errors
     ///
     /// Returns [`ConnectionError::Closed`] if the connection is dead.
-    pub fn send_command(&mut self, command: &Command) -> Result<Tag, ConnectionError> {
+    pub fn send_command(&mut self, command: Command) -> Result<Tag, ConnectionError> {
         if self.state == State::Dead {
             return Err(ConnectionError::Closed);
         }
@@ -251,7 +251,7 @@ impl Connection {
 
         // Queue the wire-format data for transmission
         self.outbound.push_back(Transmit {
-            data: command.data().to_vec(),
+            data: command.into_data(),
         });
 
         // Track as in-flight
@@ -472,14 +472,15 @@ mod tests {
     fn test_send_command_queues_transmit() {
         let mut conn = Connection::new();
         let cmd = CommandBuilder::new().command("/test").build();
-        let tag = conn.send_command(&cmd).unwrap();
+        let expected_data = cmd.data().to_vec();
+        let tag = conn.send_command(cmd).unwrap();
 
         assert!(conn.is_in_flight(tag));
         assert_eq!(conn.in_flight_count(), 1);
         assert!(conn.has_pending_transmit());
 
         let transmit = conn.poll_transmit().unwrap();
-        assert_eq!(transmit.data, cmd.data);
+        assert_eq!(transmit.data, expected_data);
         assert!(!conn.has_pending_transmit());
     }
 
@@ -487,7 +488,7 @@ mod tests {
     fn test_done_response_completes_command() {
         let mut conn = Connection::new();
         let cmd = CommandBuilder::new().command("/test").build();
-        let tag = conn.send_command(&cmd).unwrap();
+        let tag = conn.send_command(cmd).unwrap();
 
         // Drain transmit
         while conn.poll_transmit().is_some() {}
@@ -508,7 +509,7 @@ mod tests {
     fn test_empty_response_completes_command() {
         let mut conn = Connection::new();
         let cmd = CommandBuilder::new().command("/test").build();
-        let tag = conn.send_command(&cmd).unwrap();
+        let tag = conn.send_command(cmd).unwrap();
         while conn.poll_transmit().is_some() {}
 
         let wire = build_empty(tag);
@@ -525,7 +526,7 @@ mod tests {
     fn test_streaming_replies_then_done() {
         let mut conn = Connection::new();
         let cmd = CommandBuilder::new().command("/interface/print").build();
-        let tag = conn.send_command(&cmd).unwrap();
+        let tag = conn.send_command(cmd).unwrap();
         while conn.poll_transmit().is_some() {}
 
         // Two replies
@@ -574,7 +575,7 @@ mod tests {
     fn test_trap_response_terminates_command() {
         let mut conn = Connection::new();
         let cmd = CommandBuilder::new().command("/test").build();
-        let tag = conn.send_command(&cmd).unwrap();
+        let tag = conn.send_command(cmd).unwrap();
         while conn.poll_transmit().is_some() {}
 
         conn.receive(&build_trap(tag, "no such command")).unwrap();
@@ -594,8 +595,8 @@ mod tests {
         let mut conn = Connection::new();
         let cmd1 = CommandBuilder::new().command("/test1").build();
         let cmd2 = CommandBuilder::new().command("/test2").build();
-        conn.send_command(&cmd1).unwrap();
-        conn.send_command(&cmd2).unwrap();
+        conn.send_command(cmd1).unwrap();
+        conn.send_command(cmd2).unwrap();
         while conn.poll_transmit().is_some() {}
 
         conn.receive(&build_fatal("out of memory")).unwrap();
@@ -610,7 +611,7 @@ mod tests {
 
         // Further operations should fail
         let cmd3 = CommandBuilder::new().command("/test3").build();
-        assert!(conn.send_command(&cmd3).is_err());
+        assert!(conn.send_command(cmd3).is_err());
         assert!(conn.receive(&[]).is_err());
     }
 
@@ -618,7 +619,7 @@ mod tests {
     fn test_partial_receive() {
         let mut conn = Connection::new();
         let cmd = CommandBuilder::new().command("/test").build();
-        let tag = conn.send_command(&cmd).unwrap();
+        let tag = conn.send_command(cmd).unwrap();
         while conn.poll_transmit().is_some() {}
 
         let wire = build_done(tag);
@@ -638,7 +639,7 @@ mod tests {
     fn test_cancel_command() {
         let mut conn = Connection::new();
         let cmd = CommandBuilder::new().command("/test").build();
-        let tag = conn.send_command(&cmd).unwrap();
+        let tag = conn.send_command(cmd).unwrap();
         while conn.poll_transmit().is_some() {}
 
         conn.cancel_command(tag).unwrap();
@@ -657,8 +658,8 @@ mod tests {
         let mut conn = Connection::new();
         let cmd1 = CommandBuilder::new().command("/test1").build();
         let cmd2 = CommandBuilder::new().command("/test2").build();
-        conn.send_command(&cmd1).unwrap();
-        conn.send_command(&cmd2).unwrap();
+        conn.send_command(cmd1).unwrap();
+        conn.send_command(cmd2).unwrap();
         while conn.poll_transmit().is_some() {}
 
         conn.cancel_all();
@@ -677,8 +678,8 @@ mod tests {
         let mut conn = Connection::new();
         let cmd1 = CommandBuilder::new().command("/test1").build();
         let cmd2 = CommandBuilder::new().command("/test2").build();
-        let tag1 = conn.send_command(&cmd1).unwrap();
-        let tag2 = conn.send_command(&cmd2).unwrap();
+        let tag1 = conn.send_command(cmd1).unwrap();
+        let tag2 = conn.send_command(cmd2).unwrap();
         while conn.poll_transmit().is_some() {}
 
         // Concatenate both done responses into a single byte buffer

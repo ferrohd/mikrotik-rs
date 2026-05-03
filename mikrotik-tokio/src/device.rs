@@ -209,7 +209,7 @@ async fn run_actor(
             // they can trigger O(n) event routing.
             msg = cmd_rx.recv() => match msg {
                 Some(DeviceCommand { command, respond_to }) => {
-                    match conn.send_command(&command) {
+                    match conn.send_command(command) {
                         Ok(tag) => {
                             response_map.insert(tag, respond_to);
                         }

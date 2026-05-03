@@ -73,7 +73,7 @@ impl Handshaking {
         let mut conn = Connection::new();
         let login_cmd = CommandBuilder::login(username, password);
         let tag = conn
-            .send_command(&login_cmd)
+            .send_command(login_cmd)
             .expect("new connection cannot be dead");
 
         Handshaking {
