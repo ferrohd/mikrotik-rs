@@ -55,7 +55,7 @@ pub struct Tls {
 ///
 /// The `Transport` type parameter carries transport-specific configuration:
 /// - [`Plaintext`] — no additional config needed
-/// - [`Tls`] — carries the `ClientConfig` and server name (requires `tokio-tls` feature)
+/// - `Tls` — carries the `ClientConfig` and server name (requires `tokio-tls` feature)
 ///
 /// Use [`MikrotikDevice::builder()`] to create an instance.
 #[must_use]
