@@ -49,8 +49,34 @@ jobs:
             - name: 🛒 Checkout
               uses: actions/checkout@v6
 
-            - name: 🧪 Test
+            - name: 🧪 Test (default features)
               run: cargo test --workspace
+
+    test-features:
+        name: 🧪 Test feature combinations
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - name: "mikrotik-proto (no_std)"
+                      cmd: cargo test -p mikrotik-proto --no-default-features
+                    - name: "mikrotik-proto (std)"
+                      cmd: cargo test -p mikrotik-proto --features std
+                    - name: "mikrotik-rs (no runtime, no std)"
+                      cmd: cargo check -p mikrotik-rs --no-default-features
+                    - name: "mikrotik-rs (embassy, no std)"
+                      cmd: cargo check -p mikrotik-rs --no-default-features --features embassy
+                    - name: "mikrotik-rs (tokio, no std)"
+                      cmd: cargo check -p mikrotik-rs --no-default-features --features tokio
+                    - name: "mikrotik-rs (std only, no runtime)"
+                      cmd: cargo check -p mikrotik-rs --no-default-features --features std
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v6
+
+            - name: 🧪 ${{ matrix.name }}
+              run: ${{ matrix.cmd }}
 
     doc:
         name: 📖 Doc
