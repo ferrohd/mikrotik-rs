@@ -65,6 +65,15 @@ The process for submitting a pull request is as follows:
 - Add or update the documentation as needed.
 - Submit your pull request with a comprehensive description of your changes.
 
+## Contributor License Agreement
+
+By submitting a pull request, you agree that:
+
+1. Your contributions are licensed under the AGPL-3.0-only license.
+2. You grant the project maintainer (Alessandro Ferrara) a perpetual, worldwide, non-exclusive, royalty-free license to use, reproduce, modify, and distribute your contributions under any other license, including a commercial license.
+
+This is necessary to support the project's dual-licensing model.
+
 ## Questions?
 
 Don't hesitate to ask! Open an issue and tag it as a question.
