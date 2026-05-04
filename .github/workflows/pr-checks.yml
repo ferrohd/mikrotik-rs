@@ -53,30 +53,23 @@ jobs:
               run: cargo test --workspace
 
     test-features:
-        name: 🧪 Test feature combinations
+        name: 🧪 Feature combinations
         runs-on: ubuntu-latest
-        strategy:
-            fail-fast: false
-            matrix:
-                include:
-                    - name: "mikrotik-proto (no_std)"
-                      cmd: cargo test -p mikrotik-proto --no-default-features
-                    - name: "mikrotik-proto (std)"
-                      cmd: cargo test -p mikrotik-proto --features std
-                    - name: "mikrotik-rs (no runtime, no std)"
-                      cmd: cargo check -p mikrotik-rs --no-default-features
-                    - name: "mikrotik-rs (embassy, no std)"
-                      cmd: cargo check -p mikrotik-rs --no-default-features --features embassy
-                    - name: "mikrotik-rs (tokio, no std)"
-                      cmd: cargo check -p mikrotik-rs --no-default-features --features tokio
-                    - name: "mikrotik-rs (std only, no runtime)"
-                      cmd: cargo check -p mikrotik-rs --no-default-features --features std
         steps:
             - name: 🛒 Checkout
               uses: actions/checkout@v6
 
-            - name: 🧪 ${{ matrix.name }}
-              run: ${{ matrix.cmd }}
+            - name: 📦 Install cargo-hack
+              uses: taiki-e/install-action@cargo-hack
+
+            - name: 🔍 Check each feature independently
+              run: cargo hack check --each-feature --no-dev-deps --workspace --ignore-private
+
+            - name: 🔍 Check feature powerset (facade)
+              run: cargo hack check --feature-powerset --depth 2 --no-dev-deps -p mikrotik-rs
+
+            - name: 🧪 Test no_std path
+              run: cargo test -p mikrotik-proto --no-default-features
 
     doc:
         name: 📖 Doc
