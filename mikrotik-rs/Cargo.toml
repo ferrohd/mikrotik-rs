@@ -18,7 +18,8 @@ doctest = false
 workspace = true
 
 [features]
-default = ["tokio"]
+default = ["tokio", "std"]
+std = ["mikrotik-proto/std"]
 tokio = ["dep:mikrotik-tokio"]
 embassy = ["dep:mikrotik-embassy"]
 tokio-tls = ["mikrotik-tokio?/tokio-tls"]

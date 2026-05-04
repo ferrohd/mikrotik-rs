@@ -14,7 +14,7 @@ doctest = false
 tokio-tls = ["dep:tokio-rustls", "dep:rustls"]
 
 [dependencies]
-mikrotik-proto = { workspace = true }
+mikrotik-proto = { workspace = true, features = ["std"] }
 tokio = { workspace = true, features = ["net", "sync", "rt", "macros", "io-util"] }
 thiserror = { workspace = true }
 tokio-rustls = { version = "0.26", default-features = false, features = ["tls12"], optional = true }

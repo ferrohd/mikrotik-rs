@@ -9,6 +9,9 @@ repository.workspace = true
 
 [lib]
 
+[features]
+std = []
+
 [dependencies]
 thiserror = { workspace = true }
 uuid = { workspace = true }
