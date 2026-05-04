@@ -34,7 +34,7 @@ jobs:
         run: cargo publish --workspace --token ${{ secrets.CRATES_IO_TOKEN }}
 
       - name: 📢 Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Release ${{ github.ref }}
           draft: false
