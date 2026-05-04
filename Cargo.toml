@@ -18,9 +18,9 @@ uuid = { version = "1", default-features = false, features = ["v4"] }
 hashbrown = "0.17"
 
 # Internal crates
-mikrotik-proto = { version = "0.1.0", path = "mikrotik-proto" }
-mikrotik-tokio = { version = "0.1.0", path = "mikrotik-tokio" }
-mikrotik-embassy = { version = "0.1.0", path = "mikrotik-embassy" }
+mikrotik-proto = { version = "0.2.0", path = "mikrotik-proto" }
+mikrotik-tokio = { version = "0.2.0", path = "mikrotik-tokio" }
+mikrotik-embassy = { version = "0.1.1", path = "mikrotik-embassy" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
