@@ -1,0 +1,47 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: ["type: enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea to improve mikrotik-rs? Describe it below. Please search existing issues first to avoid duplicates.
+
+  - type: dropdown
+    id: crate
+    attributes:
+      label: Related crate
+      description: Which crate would this feature affect?
+      options:
+        - mikrotik-rs
+        - mikrotik-proto
+        - mikrotik-tokio
+        - mikrotik-embassy
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What problem does this solve, or what use case does it enable?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work? API sketches, pseudocode, or a description are all welcome.
+      render: rust
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds or alternative approaches you've tried or thought about.
+    validations:
+      required: false
