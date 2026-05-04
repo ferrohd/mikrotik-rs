@@ -6,7 +6,7 @@ resolver = "3"
 edition = "2024"
 authors = ["Alessandro Ferrara"]
 keywords = ["mikrotik", "router", "api", "async", "tokio"]
-license = "MIT OR Apache-2.0"
+license = "AGPL-3.0-only"
 categories = ["api-bindings", "asynchronous", "network-programming"]
 repository = "https://github.com/ferrohd/mikrotik-rs"
 
