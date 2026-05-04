@@ -14,6 +14,7 @@
 //!
 //! | Feature     | Default | Description |
 //! |-------------|---------|-------------|
+//! | `std`       | **yes** | Uses `std::collections::HashMap` in public response types. Disable for `no_std` (falls back to `hashbrown::HashMap`). |
 //! | `tokio`     | **yes** | Enables the Tokio async adapter and [`MikrotikDevice`] client |
 //! | `embassy`   | no      | Enables the Embassy embedded async adapter and `run` function |
 //! | `tokio-tls` | no      | Enables TLS support via `tokio-rustls` (bring your own crypto provider) |
@@ -84,6 +85,7 @@ compile_error!("This library supports 32-bit architectures or higher.");
 pub use mikrotik_proto as proto;
 
 // Re-export key protocol types at crate root
+pub use mikrotik_proto::HashMap;
 pub use mikrotik_proto::command::{Command, CommandBuilder, QueryOperator};
 pub use mikrotik_proto::connection::{Connection, Event, State, Transmit};
 pub use mikrotik_proto::error::{ConnectionError, LoginError, ProtocolError};
