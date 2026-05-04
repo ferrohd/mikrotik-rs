@@ -12,7 +12,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::{self, Display, Formatter};
 
-use hashbrown::HashMap;
+use crate::HashMap;
 
 use crate::codec::RawSentence;
 use crate::error::{MissingWord, ProtocolError, TrapCategoryError, WordType};

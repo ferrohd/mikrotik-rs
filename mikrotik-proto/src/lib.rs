@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 //! # mikrotik-proto
 //!
@@ -16,6 +16,12 @@
 //! This crate performs **no I/O**. It accepts byte slices as input and produces
 //! byte buffers and events as output. A runtime adapter (e.g., `mikrotik-tokio`)
 //! is responsible for actual network communication.
+//!
+//! # Feature flags
+//!
+//! | Feature | Default | Description |
+//! |---------|---------|-------------|
+//! | `std`   | no      | Uses `std::collections::HashMap` in public types. When disabled (default), falls back to `hashbrown::HashMap` for `no_std` compatibility. |
 //!
 //! # Architecture
 //!
@@ -40,6 +46,16 @@
 //! ```
 
 extern crate alloc;
+
+// Re-export the appropriate HashMap type based on feature flags.
+//
+// When the `std` feature is enabled (default), public types use
+// `std::collections::HashMap`. When disabled (for `no_std` environments),
+// they fall back to `hashbrown::HashMap`.
+#[cfg(not(feature = "std"))]
+pub use hashbrown::HashMap;
+#[cfg(feature = "std")]
+pub use std::collections::HashMap;
 
 /// Wire-format codec for MikroTik API length-prefixed words and sentences.
 pub mod codec;

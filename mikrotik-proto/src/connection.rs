@@ -42,13 +42,13 @@ use alloc::collections::VecDeque;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use crate::HashMap;
 use crate::codec::{self, Decode};
 use crate::command::{Command, CommandBuilder};
 use crate::error::ConnectionError;
 use crate::response::{CommandResponse, ReplyResponse, TrapResponse};
 use crate::tag::Tag;
 use crate::word::Word;
-use hashbrown::HashMap;
 
 /// Application-facing events produced by the connection state machine.
 ///
