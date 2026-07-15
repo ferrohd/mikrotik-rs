@@ -10,6 +10,8 @@ use mikrotik_proto::connection::Event;
 use mikrotik_tokio::MikrotikDevice;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::sync::{mpsc, oneshot};
+use tokio::time::{Duration, timeout};
 
 // ── Wire-format helpers (simulate what a router sends) ──
 
@@ -115,6 +117,54 @@ async fn mock_listener() -> (TcpListener, String) {
     (listener, addr)
 }
 
+fn encode_numbered_replies(tag: &str, count: usize) -> Vec<u8> {
+    let mut data = Vec::new();
+    for index in 0..count {
+        let value = index.to_string();
+        data.extend_from_slice(&encode_reply(tag, &[("sequence", &value)]));
+    }
+    data
+}
+
+async fn wait_for_queued_events(rx: &mpsc::UnboundedReceiver<Event>, expected: usize) {
+    timeout(Duration::from_secs(1), async {
+        while rx.len() < expected {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("expected events were not queued in time");
+}
+
+async fn receive_exact(rx: &mut mpsc::UnboundedReceiver<Event>, count: usize) -> Vec<Event> {
+    timeout(Duration::from_secs(1), async {
+        let mut events = Vec::with_capacity(count);
+        for _ in 0..count {
+            events.push(rx.recv().await.expect("response channel closed early"));
+        }
+        events
+    })
+    .await
+    .expect("timed out receiving command events")
+}
+
+fn assert_numbered_replies_then_done(events: &[Event], reply_count: usize) {
+    assert_eq!(events.len(), reply_count + 1, "events: {events:?}");
+
+    for (index, event) in events[..reply_count].iter().enumerate() {
+        match event {
+            Event::Reply { response, .. } => assert_eq!(
+                response.attributes.get("sequence"),
+                Some(&Some(index.to_string())),
+                "reply {index} was reordered or lost"
+            ),
+            other => panic!("expected Reply at index {index}, got {other:?}"),
+        }
+    }
+
+    assert!(matches!(events.last(), Some(Event::Done { .. })));
+}
+
 // ── Tests ──
 
 #[tokio::test]
@@ -198,6 +248,106 @@ async fn send_command_receive_reply() {
     assert!(rx.recv().await.is_none());
 
     mock.await.unwrap();
+}
+
+async fn assert_unbounded_reply_burst(reply_count: usize) {
+    let (listener, addr) = mock_listener().await;
+    let (release_mock_tx, release_mock_rx) = oneshot::channel();
+
+    let mock = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut mock = MockStream::new(stream);
+
+        let words = mock.read_sentence().await;
+        let login_tag = extract_tag(&words);
+        mock.write_all(&encode_done(&login_tag)).await;
+
+        let words = mock.read_sentence().await;
+        let command_tag = extract_tag(&words);
+
+        let mut response = encode_numbered_replies(&command_tag, reply_count);
+        response.extend_from_slice(&encode_done(&command_tag));
+        mock.write_all(&response).await;
+
+        tokio::select! {
+            biased;
+            words = mock.read_sentence() => Some(words),
+            _ = release_mock_rx => None,
+        }
+    });
+
+    let device = MikrotikDevice::connect(&addr, "admin", Some("password"))
+        .await
+        .unwrap();
+    let command = CommandBuilder::new().command("/interface/print").build();
+    let mut rx = device.send_command(command).await.unwrap();
+
+    // Do not consume until the complete burst, including Done, has been queued.
+    wait_for_queued_events(&rx, reply_count + 1).await;
+    let events = receive_exact(&mut rx, reply_count + 1).await;
+
+    release_mock_tx.send(()).unwrap();
+    let unexpected_outbound = mock.await.unwrap();
+    assert!(
+        unexpected_outbound.is_none(),
+        "command was unexpectedly cancelled: {unexpected_outbound:?}"
+    );
+    assert_numbered_replies_then_done(&events, reply_count);
+    assert!(rx.recv().await.is_none());
+}
+
+#[tokio::test]
+async fn reply_burst_larger_than_previous_capacity_is_delivered() {
+    assert_unbounded_reply_burst(40).await;
+}
+
+#[tokio::test]
+async fn done_is_delivered_after_exactly_sixteen_replies() {
+    assert_unbounded_reply_burst(16).await;
+}
+
+#[tokio::test]
+async fn dropping_response_receiver_cancels_command_on_next_reply() {
+    let (listener, addr) = mock_listener().await;
+    let (command_seen_tx, command_seen_rx) = oneshot::channel();
+    let (receiver_dropped_tx, receiver_dropped_rx) = oneshot::channel();
+
+    let mock = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut mock = MockStream::new(stream);
+
+        let words = mock.read_sentence().await;
+        let login_tag = extract_tag(&words);
+        mock.write_all(&encode_done(&login_tag)).await;
+
+        let words = mock.read_sentence().await;
+        let command_tag = extract_tag(&words);
+        command_seen_tx.send(()).unwrap();
+
+        receiver_dropped_rx.await.unwrap();
+        mock.write_all(&encode_reply(&command_tag, &[("value", "late")]))
+            .await;
+
+        let cancel = mock.read_sentence().await;
+        assert_eq!(cancel[0], "/cancel");
+        assert_eq!(extract_tag(&cancel), command_tag);
+        assert!(cancel.contains(&format!("=tag={command_tag}")));
+    });
+
+    let device = MikrotikDevice::connect(&addr, "admin", Some("password"))
+        .await
+        .unwrap();
+    let command = CommandBuilder::new().command("/tool/torch").build();
+    let rx = device.send_command(command).await.unwrap();
+
+    command_seen_rx.await.unwrap();
+    drop(rx);
+    receiver_dropped_tx.send(()).unwrap();
+
+    timeout(Duration::from_secs(1), mock)
+        .await
+        .expect("mock did not receive /cancel")
+        .unwrap();
 }
 
 #[tokio::test]
@@ -305,7 +455,7 @@ async fn concurrent_commands() {
     // Each receiver should get its own reply + done (responses arrive in reverse)
     // But each channel only receives events for its own tag.
     // Collect until we see a terminal event (Done).
-    async fn collect_until_done(rx: &mut tokio::sync::mpsc::Receiver<Event>) -> Vec<Event> {
+    async fn collect_until_done(rx: &mut mpsc::UnboundedReceiver<Event>) -> Vec<Event> {
         let mut events = Vec::new();
         while let Some(event) = rx.recv().await {
             let is_terminal = matches!(&event, Event::Done { .. } | Event::Empty { .. });
@@ -332,6 +482,62 @@ async fn concurrent_commands() {
     assert!(matches!(&e1[1], Event::Done { .. }));
 
     mock.await.unwrap();
+}
+
+#[tokio::test]
+async fn slow_consumer_does_not_block_multiplexed_command() {
+    let (listener, addr) = mock_listener().await;
+    let (release_mock_tx, release_mock_rx) = oneshot::channel();
+
+    let mock = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut mock = MockStream::new(stream);
+
+        let words = mock.read_sentence().await;
+        let login_tag = extract_tag(&words);
+        mock.write_all(&encode_done(&login_tag)).await;
+
+        let first = mock.read_sentence().await;
+        let first_tag = extract_tag(&first);
+        let second = mock.read_sentence().await;
+        let second_tag = extract_tag(&second);
+
+        let mut response = encode_numbered_replies(&first_tag, 40);
+        response.extend_from_slice(&encode_reply(&second_tag, &[("value", "second")]));
+        response.extend_from_slice(&encode_done(&second_tag));
+        response.extend_from_slice(&encode_done(&first_tag));
+        mock.write_all(&response).await;
+
+        tokio::select! {
+            biased;
+            words = mock.read_sentence() => Some(words),
+            _ = release_mock_rx => None,
+        }
+    });
+
+    let device = MikrotikDevice::connect(&addr, "admin", Some("password"))
+        .await
+        .unwrap();
+    let first = CommandBuilder::new().command("/slow").build();
+    let second = CommandBuilder::new().command("/fast").build();
+    let mut first_rx = device.send_command(first).await.unwrap();
+    let mut second_rx = device.send_command(second).await.unwrap();
+
+    // Consume the second command first while all first-command events remain queued.
+    let second_events = receive_exact(&mut second_rx, 2).await;
+    assert!(matches!(second_events[0], Event::Reply { .. }));
+    assert!(matches!(second_events[1], Event::Done { .. }));
+
+    wait_for_queued_events(&first_rx, 41).await;
+    let first_events = receive_exact(&mut first_rx, 41).await;
+
+    release_mock_tx.send(()).unwrap();
+    let unexpected_outbound = mock.await.unwrap();
+    assert!(
+        unexpected_outbound.is_none(),
+        "slow command was unexpectedly cancelled: {unexpected_outbound:?}"
+    );
+    assert_numbered_replies_then_done(&first_events, 40);
 }
 
 #[tokio::test]
@@ -396,12 +602,16 @@ async fn fatal_error_propagates_to_all_receivers() {
         mock.write_all(&encode_done(&login_tag)).await;
 
         // Read 2 commands
-        let _words1 = mock.read_sentence().await;
+        let words1 = mock.read_sentence().await;
+        let first_tag = extract_tag(&words1);
         let _words2 = mock.read_sentence().await;
 
-        // Send a fatal error — no need to keep the connection alive,
-        // the bytes are in the TCP buffer.
-        mock.write_all(&encode_fatal("out of memory")).await;
+        // Queue a large reply burst for the first command, then terminate the
+        // entire connection. The second command must still receive Fatal even
+        // while the first receiver is not being consumed.
+        let mut response = encode_numbered_replies(&first_tag, 40);
+        response.extend_from_slice(&encode_fatal("out of memory"));
+        mock.write_all(&response).await;
     });
 
     let device = MikrotikDevice::connect(&addr, "admin", Some("pass"))
@@ -413,26 +623,25 @@ async fn fatal_error_propagates_to_all_receivers() {
     let mut rx1 = device.send_command(cmd1).await.unwrap();
     let mut rx2 = device.send_command(cmd2).await.unwrap();
 
-    // After the actor processes !fatal:
-    //   1. route_event drains response_map → sends Fatal to both Senders → drops them
-    //   2. Actor sees conn is dead → shutdown = true → exits → final cleanup
-    //   3. Both receivers get Some(Fatal) then None (channel closed)
-    let mut got_fatal_1 = false;
-    while let Some(event) = rx1.recv().await {
-        if matches!(event, Event::Fatal { .. }) {
-            got_fatal_1 = true;
+    // Consume the second receiver first to verify one backlogged command does
+    // not delay fatal notification for another active command.
+    let second_events = receive_exact(&mut rx2, 1).await;
+    assert!(matches!(second_events[0], Event::Fatal { .. }));
+    assert!(rx2.recv().await.is_none());
+
+    wait_for_queued_events(&rx1, 41).await;
+    let first_events = receive_exact(&mut rx1, 41).await;
+    for (index, event) in first_events[..40].iter().enumerate() {
+        match event {
+            Event::Reply { response, .. } => assert_eq!(
+                response.attributes.get("sequence"),
+                Some(&Some(index.to_string()))
+            ),
+            other => panic!("expected Reply at index {index}, got {other:?}"),
         }
     }
-
-    let mut got_fatal_2 = false;
-    while let Some(event) = rx2.recv().await {
-        if matches!(event, Event::Fatal { .. }) {
-            got_fatal_2 = true;
-        }
-    }
-
-    assert!(got_fatal_1, "rx1 should receive Fatal event");
-    assert!(got_fatal_2, "rx2 should receive Fatal event");
+    assert!(matches!(first_events.last(), Some(Event::Fatal { .. })));
+    assert!(rx1.recv().await.is_none());
 
     mock.await.unwrap();
 }
