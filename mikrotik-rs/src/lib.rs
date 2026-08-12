@@ -1,9 +1,9 @@
 #![warn(missing_docs)]
-//! # `MikroTik`-rs
+//! # oxidns-mikrotik-rs
 //!
-//! `mikrotik-rs` is a Rust library for interfacing with `MikroTik` routers via
-//! the `RouterOS` API protocol. It allows sending commands and receiving responses
-//! in parallel through channels.
+//! OxiDNS-maintained fork of `mikrotik-rs`, a Rust library for interfacing with
+//! `MikroTik` routers via the `RouterOS` API protocol. The Tokio adapter uses
+//! lossless per-command response delivery under burst traffic.
 //!
 //! This crate re-exports types from:
 //! - `mikrotik-proto` — sans-IO protocol implementation (always available)
@@ -23,21 +23,21 @@
 //!
 //! ```toml
 //! [dependencies]
-//! mikrotik-rs = { version = "0.7", default-features = false }
+//! mikrotik-rs = { package = "oxidns-mikrotik-rs", version = "0.8.1", default-features = false }
 //! ```
 //!
 //! To use the Embassy adapter instead of Tokio:
 //!
 //! ```toml
 //! [dependencies]
-//! mikrotik-rs = { version = "0.7", default-features = false, features = ["embassy"] }
+//! mikrotik-rs = { package = "oxidns-mikrotik-rs", version = "0.8.1", default-features = false, features = ["embassy"] }
 //! ```
 //!
 //! To enable TLS (e.g., for API-SSL on port 8729):
 //!
 //! ```toml
 //! [dependencies]
-//! mikrotik-rs = { version = "0.7", features = ["tokio-tls"] }
+//! mikrotik-rs = { package = "oxidns-mikrotik-rs", version = "0.8.1", features = ["tokio-tls"] }
 //! rustls = { version = "0.23", features = ["ring"] }  # or "aws-lc-rs"
 //! ```
 //!
@@ -49,14 +49,14 @@
 //!   Handles wire-format encoding/decoding, command building, response parsing,
 //!   and the connection state machine. Performs no I/O.
 //!
-//! - **`mikrotik-tokio`** — Thin async adapter that drives `mikrotik-proto` using
+//! - **`oxidns-mikrotik-tokio`** — Thin async adapter that drives `mikrotik-proto` using
 //!   Tokio's async runtime. Provides the high-level [`MikrotikDevice`] client.
 //!
 //! - **`mikrotik-embassy`** — Embedded async adapter that drives `mikrotik-proto`
 //!   using Embassy's networking stack. Provides a `run` function that the user
 //!   spawns as an Embassy task.
 //!
-//! - **`mikrotik-rs`** (this crate) — Convenience re-exports from all crates.
+//! - **`oxidns-mikrotik-rs`** (this crate) — Convenience re-exports from all crates.
 //!
 //! ## Examples
 //!

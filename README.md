@@ -1,10 +1,16 @@
-# mikrotik-rs
+# oxidns-mikrotik-rs
 
-![docs.rs](https://img.shields.io/docsrs/mikrotik-rs)
-![Crates.io](https://img.shields.io/crates/v/mikrotik-rs)
-![Crates.io License](https://img.shields.io/crates/l/mikrotik-rs)
-![Crates.io Total Downloads](https://img.shields.io/crates/d/mikrotik-rs)
-![GitHub Repo stars](https://img.shields.io/github/stars/ferrohd/mikrotik-rs)
+![docs.rs](https://img.shields.io/docsrs/oxidns-mikrotik-rs)
+![Crates.io](https://img.shields.io/crates/v/oxidns-mikrotik-rs)
+![Crates.io License](https://img.shields.io/crates/l/oxidns-mikrotik-rs)
+![Crates.io Total Downloads](https://img.shields.io/crates/d/oxidns-mikrotik-rs)
+![GitHub Repo stars](https://img.shields.io/github/stars/svenshi/mikrotik-rs)
+
+This is an OxiDNS-maintained fork of
+[`mikrotik-rs`](https://github.com/ferrohd/mikrotik-rs). It preserves all
+protocol events during burst traffic by using unbounded per-command channels in
+the Tokio adapter. Consumers of long-running streams must continuously drain or
+drop their receiver to avoid unbounded memory growth.
 
 A Rust client for the [MikroTik RouterOS API](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API).
 
@@ -26,8 +32,18 @@ with a type-safe, channel-based API.
 ## Installation
 
 ```bash
-cargo add mikrotik-rs
+cargo add oxidns-mikrotik-rs --rename mikrotik-rs
 ```
+
+OxiDNS keeps the original dependency key so existing `mikrotik_rs` imports do
+not change:
+
+```toml
+mikrotik-rs = { package = "oxidns-mikrotik-rs", version = "0.8.1", optional = true }
+```
+
+This replaces the temporary Git-based `[patch.crates-io]` entries for
+`mikrotik-proto` and `mikrotik-tokio`.
 
 ## Quick start
 
@@ -70,17 +86,17 @@ each one stream responses independently.
 
 ```toml
 # Plaintext (default)
-mikrotik-rs = "0.7"
+mikrotik-rs = { package = "oxidns-mikrotik-rs", version = "0.8.1" }
 
 # TLS for API-SSL (port 8729) — bring your own crypto provider
-mikrotik-rs = { version = "0.7", features = ["tokio-tls"] }
+mikrotik-rs = { package = "oxidns-mikrotik-rs", version = "0.8.1", features = ["tokio-tls"] }
 rustls = { version = "0.23", features = ["ring"] }  # or "aws-lc-rs"
 
 # Embassy embedded adapter (no_std)
-mikrotik-rs = { version = "0.7", default-features = false, features = ["embassy"] }
+mikrotik-rs = { package = "oxidns-mikrotik-rs", version = "0.8.1", default-features = false, features = ["embassy"] }
 
 # Protocol types only (no runtime)
-mikrotik-rs = { version = "0.7", default-features = false }
+mikrotik-rs = { package = "oxidns-mikrotik-rs", version = "0.8.1", default-features = false }
 ```
 
 ## Usage
@@ -218,17 +234,17 @@ The library is split into focused crates:
 
 | Crate | Purpose |
 |---|---|
-| [`mikrotik-proto`](mikrotik-proto/) | Sans-IO protocol core (`#![no_std]`) — wire format, commands, responses, connection state machine |
-| [`mikrotik-tokio`](mikrotik-tokio/) | Tokio async adapter — background actor, per-command channels, TLS |
-| [`mikrotik-embassy`](mikrotik-embassy/) | Embassy embedded async adapter — transport-agnostic over `embedded-io-async` |
-| [`mikrotik-rs`](mikrotik-rs/) | Convenience re-exports from all crates |
+| [`mikrotik-proto`](https://crates.io/crates/mikrotik-proto) | Sans-IO protocol core (`#![no_std]`) — wire format, commands, responses, connection state machine |
+| [`oxidns-mikrotik-tokio`](https://crates.io/crates/oxidns-mikrotik-tokio) | OxiDNS Tokio adapter — lossless per-command channels, background actor, TLS |
+| [`mikrotik-embassy`](https://crates.io/crates/mikrotik-embassy) | Embassy embedded async adapter — transport-agnostic over `embedded-io-async` |
+| [`oxidns-mikrotik-rs`](https://crates.io/crates/oxidns-mikrotik-rs) | Convenience re-exports from all crates |
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                        mikrotik-rs                              │
+│                   oxidns-mikrotik-rs                           │
 │                    (re-exports from all)                        │
 ├──────────────────────────┬──────────────────────────────────────┤
-│      mikrotik-tokio      │         mikrotik-embassy             │
+│ oxidns-mikrotik-tokio    │         mikrotik-embassy             │
 │   (Tokio async adapter)  │   (Embassy embedded adapter)         │
 ├──────────────────────────┴──────────────────────────────────────┤
 │                       mikrotik-proto                            │
@@ -238,17 +254,18 @@ The library is split into focused crates:
 
 ## Examples
 
-The repository includes runnable examples in [`examples/`](examples/).
+The repository includes runnable examples in
+[`examples/`](https://github.com/svenshi/mikrotik-rs/tree/v0.8.1/examples).
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+Contributions are welcome. Please read
+[`CONTRIBUTING.md`](https://github.com/svenshi/mikrotik-rs/blob/v0.8.1/CONTRIBUTING.md)
+before opening a pull request.
 
 ## License
 
-Licensed under the [GNU Affero General Public License v3.0](LICENSE).
-
-For commercial licensing options (use without AGPL obligations), contact the project maintainer.
+Licensed under the GNU Affero General Public License v3.0 (`AGPL-3.0-only`).
 
 ## Disclaimer
 
