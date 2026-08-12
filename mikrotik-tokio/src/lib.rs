@@ -1,7 +1,9 @@
 #![warn(missing_docs)]
-//! # mikrotik-tokio
+//! # oxidns-mikrotik-tokio
 //!
-//! Tokio-based async client for `MikroTik` `RouterOS` API.
+//! OxiDNS-maintained fork of the Tokio-based async client for the `MikroTik`
+//! `RouterOS` API. It uses unbounded per-command response channels so burst
+//! traffic cannot silently discard protocol events.
 //!
 //! This crate provides a high-level async interface built on top of the
 //! sans-IO [`mikrotik_proto`] crate. It drives the protocol state machine
@@ -17,7 +19,7 @@
 //! crypto backend to your dependencies:
 //!
 //! ```toml
-//! mikrotik-tokio = { version = "0.1", features = ["tokio-tls"] }
+//! mikrotik-tokio = { package = "oxidns-mikrotik-tokio", version = "0.2.1", features = ["tokio-tls"] }
 //! rustls = { version = "0.23", features = ["ring"] }  # or "aws-lc-rs"
 //! ```
 

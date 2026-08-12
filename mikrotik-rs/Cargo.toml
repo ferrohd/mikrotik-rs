@@ -1,7 +1,7 @@
 [package]
-name = "mikrotik-rs"
-version = "0.8.0"
-description = "Asynchronous Rust library for interfacing with MikroTik routers"
+name = "oxidns-mikrotik-rs"
+version = "0.8.1"
+description = "OxiDNS-maintained MikroTik RouterOS client with lossless Tokio response delivery"
 edition.workspace = true
 authors.workspace = true
 keywords.workspace = true
@@ -9,9 +9,10 @@ license.workspace = true
 categories.workspace = true
 repository.workspace = true
 readme = "../README.md"
-publish = true
+publish = ["crates-io"]
 
 [lib]
+name = "mikrotik_rs"
 doctest = false
 
 [lints]

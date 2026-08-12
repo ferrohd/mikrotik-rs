@@ -1,10 +1,17 @@
-# mikrotik-tokio
+# oxidns-mikrotik-tokio
 
-Tokio-based async client for the [MikroTik RouterOS API](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API).
+OxiDNS-maintained fork of the Tokio-based async client for the [MikroTik RouterOS API](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API).
+
+This fork replaces bounded per-command response channels with unbounded channels,
+preventing reply and terminal events from being silently lost during burst traffic.
 
 This crate provides a high-level async interface built on top of the sans-IO [`mikrotik-proto`](https://crates.io/crates/mikrotik-proto) crate. It drives the protocol state machine using Tokio's async runtime.
 
-**If you just want to talk to a router**, use [`mikrotik-rs`](https://crates.io/crates/mikrotik-rs) instead.
+**If you just want to talk to a router**, use [`oxidns-mikrotik-rs`](https://crates.io/crates/oxidns-mikrotik-rs) instead.
+
+```toml
+mikrotik-tokio = { package = "oxidns-mikrotik-tokio", version = "0.2.1" }
+```
 
 ## Quick start
 
@@ -46,8 +53,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 `MikrotikDevice` is a thin async wrapper around `mikrotik_proto::Connection`:
 
 - **`connect()`** opens a TCP connection, performs the login handshake, and spawns a background actor task.
-- **`send_command()`** sends a command and returns an `mpsc::Receiver<Event>` scoped to that command.
+- **`send_command()`** sends a command and returns an `mpsc::UnboundedReceiver<Event>` scoped to that command.
 - **Drop-based cancellation** — dropping a receiver sends `/cancel` to the router. Dropping all `MikrotikDevice` handles shuts down the connection gracefully.
+
+Response channels are unbounded so queue capacity never drops protocol events
+or blocks unrelated multiplexed commands behind a slow consumer. Long-running
+streaming commands must continuously drain or drop their receiver to avoid
+unbounded memory growth.
 
 ```text
   ┌──────────────────┐   ┌──────────────────┐
@@ -85,8 +97,8 @@ The actor owns the TCP connection and all protocol logic. Each command gets its 
 
 ## When to use this crate directly
 
-Probably never. `mikrotik-rs` exposes features via feature flags and defaults to `tokio` anyway.
+Probably never. `oxidns-mikrotik-rs` exposes features via feature flags and defaults to `tokio` anyway.
 
 ## License
 
-Licensed under either of [MIT](../LICENSE-MIT) or [Apache-2.0](../LICENSE-APACHE) at your option.
+Licensed under the GNU Affero General Public License v3.0 (`AGPL-3.0-only`).

@@ -1,13 +1,15 @@
 [package]
-name = "mikrotik-tokio"
-description = "Tokio-based async client for MikroTik RouterOS API"
-version = "0.2.0"
+name = "oxidns-mikrotik-tokio"
+description = "OxiDNS-maintained Tokio client for MikroTik RouterOS with lossless response delivery"
+version = "0.2.1"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+publish = ["crates-io"]
 
 [lib]
+name = "mikrotik_tokio"
 doctest = false
 
 [features]
@@ -21,7 +23,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["tls12"
 rustls = { version = "0.23", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["net", "sync", "rt", "macros", "io-util", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["net", "sync", "rt", "macros", "io-util", "rt-multi-thread", "time"] }
 
 [lints]
 workspace = true
