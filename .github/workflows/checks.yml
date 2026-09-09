@@ -15,7 +15,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: 🛒 Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@v7
 
             - name: 🦀 Toolchain
               uses: dtolnay/rust-toolchain@stable
@@ -30,7 +30,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: 🛒 Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@v7
 
             - name: 🦀 Toolchain
               uses: dtolnay/rust-toolchain@stable
@@ -45,7 +45,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: 🛒 Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@v7
 
             - name: 🦀 Toolchain
               uses: dtolnay/rust-toolchain@stable
@@ -58,7 +58,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: 🛒 Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@v7
 
             - name: 🦀 Toolchain
               uses: dtolnay/rust-toolchain@stable
@@ -71,7 +71,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: 🛒 Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@v7
 
             - name: 🦀 Toolchain
               uses: dtolnay/rust-toolchain@stable
@@ -95,7 +95,7 @@ jobs:
             RUSTDOCFLAGS: -D warnings
         steps:
             - name: 🛒 Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@v7
 
             - name: 🦀 Toolchain
               uses: dtolnay/rust-toolchain@stable
