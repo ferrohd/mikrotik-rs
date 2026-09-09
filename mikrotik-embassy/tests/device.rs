@@ -1,7 +1,7 @@
 //! Integration tests for the Embassy async adapter.
 //!
 //! These tests use a mock router — a local TCP listener that speaks the
-//! MikroTik wire protocol. The client side wraps a tokio `TcpStream` with
+//! `MikroTik` wire protocol. The client side wraps a tokio `TcpStream` with
 //! `embedded_io_adapters::FromTokio` to get `embedded_io_async::Read + Write`,
 //! which is what `mikrotik_embassy::run()` expects.
 //!
@@ -100,9 +100,7 @@ impl MockStream {
             }
 
             let n = self.reader.read(&mut read_buf).await.expect("read failed");
-            if n == 0 {
-                panic!("connection closed before sentence complete");
-            }
+            assert!(n > 0, "connection closed before sentence complete");
             self.buf.extend_from_slice(&read_buf[..n]);
         }
     }

@@ -23,11 +23,13 @@ pub struct Tag(Uuid);
 
 impl Tag {
     /// Generate a new random tag (UUID v4).
+    #[must_use]
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
 
     /// Create a tag from an existing [`uuid::Uuid`] in a const context.
+    #[must_use]
     pub const fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
     }
@@ -44,6 +46,10 @@ impl Tag {
     /// This is the fast path used by word parsing — the `.tag=<uuid>` value
     /// on the wire is always ASCII hex digits and hyphens, so we can skip
     /// `from_utf8` entirely and hand the bytes directly to the UUID parser.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`uuid::Error`] if `bytes` is not a well-formed ASCII UUID.
     pub fn try_from_ascii_bytes(bytes: &[u8]) -> Result<Self, uuid::Error> {
         Uuid::try_parse_ascii(bytes).map(Self)
     }

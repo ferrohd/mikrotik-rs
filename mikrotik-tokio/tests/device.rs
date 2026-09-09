@@ -1,7 +1,7 @@
-//! Integration tests for the MikrotikDevice async client.
+//! Integration tests for the `MikrotikDevice` async client.
 //!
 //! These tests use a mock router — a local TCP listener that speaks the
-//! MikroTik wire protocol. The mock reads commands, verifies them, and
+//! `MikroTik` wire protocol. The mock reads commands, verifies them, and
 //! sends canned responses, exercising the full async pipeline.
 
 use mikrotik_proto::codec;
@@ -87,9 +87,7 @@ impl MockStream {
 
             // Need more data
             let n = self.reader.read(&mut read_buf).await.expect("read failed");
-            if n == 0 {
-                panic!("connection closed before sentence complete");
-            }
+            assert!(n > 0, "connection closed before sentence complete");
             self.buf.extend_from_slice(&read_buf[..n]);
         }
     }
@@ -113,6 +111,19 @@ async fn mock_listener() -> (TcpListener, String) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap().to_string();
     (listener, addr)
+}
+
+/// Drain a receiver until a terminal event (`Done` / `Empty`) arrives.
+async fn collect_until_done(rx: &mut tokio::sync::mpsc::UnboundedReceiver<Event>) -> Vec<Event> {
+    let mut events = Vec::new();
+    while let Some(event) = rx.recv().await {
+        let is_terminal = matches!(&event, Event::Done { .. } | Event::Empty { .. });
+        events.push(event);
+        if is_terminal {
+            break;
+        }
+    }
+    events
 }
 
 // ── Tests ──
@@ -304,19 +315,6 @@ async fn concurrent_commands() {
 
     // Each receiver should get its own reply + done (responses arrive in reverse)
     // But each channel only receives events for its own tag.
-    // Collect until we see a terminal event (Done).
-    async fn collect_until_done(rx: &mut tokio::sync::mpsc::Receiver<Event>) -> Vec<Event> {
-        let mut events = Vec::new();
-        while let Some(event) = rx.recv().await {
-            let is_terminal = matches!(&event, Event::Done { .. } | Event::Empty { .. });
-            events.push(event);
-            if is_terminal {
-                break;
-            }
-        }
-        events
-    }
-
     let (e1, e2, e3) = tokio::join!(
         collect_until_done(&mut rx1),
         collect_until_done(&mut rx2),
@@ -353,14 +351,10 @@ async fn graceful_shutdown_on_drop() {
         // Wait for the client to drop and the TCP connection to close.
         // The actor sees cmd_rx closed → cancel_all → flush → shutdown → wr.shutdown().
         // We should see cancel data, then EOF.
+        // Keep reading while data arrives; stop on EOF (success) or error
+        // (peer dropped), both of which mean the connection is gone.
         let mut buf = [0u8; 4096];
-        loop {
-            match mock.reader.read(&mut buf).await {
-                Ok(0) => break,     // Connection closed — success
-                Ok(_n) => continue, // Got cancel or other data — keep reading
-                Err(_) => break,    // Error — connection dropped
-            }
-        }
+        while matches!(mock.reader.read(&mut buf).await, Ok(n) if n > 0) {}
     });
 
     {

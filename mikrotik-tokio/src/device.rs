@@ -20,7 +20,7 @@ use crate::error::{DeviceError, DeviceResult};
 /// Internal command sent from the [`MikrotikDevice`] handle to the actor task.
 struct DeviceCommand {
     command: Command,
-    respond_to: mpsc::Sender<Event>,
+    respond_to: mpsc::UnboundedSender<Event>,
 }
 
 /// A client for interacting with `MikroTik` devices.
@@ -118,6 +118,17 @@ impl MikrotikDevice {
     /// - [`Event::Trap`] — if the command encounters an error
     /// - [`Event::Fatal`] — if a fatal connection error occurs
     ///
+    /// # Buffering
+    ///
+    /// The returned channel is **unbounded**, so no event is ever dropped, even
+    /// if the consumer falls behind. A slow consumer never causes the actor to
+    /// stall either, which would block every other command multiplexed over the
+    /// same connection.
+    ///
+    /// The trade-off is memory: a high-rate streaming command (`/tool/torch`,
+    /// `/interface/monitor-traffic`) whose receiver is never polled will queue
+    /// events indefinitely. Drain the receiver, or drop it to stop the command.
+    ///
     /// # Cancellation
     ///
     /// **Dropping the receiver** automatically sends a `/cancel` to the router
@@ -128,8 +139,11 @@ impl MikrotikDevice {
     ///
     /// Returns `DeviceError::Actor(ActorError::CommandSendFailed)` if the
     /// connection actor has shut down.
-    pub async fn send_command(&self, command: Command) -> DeviceResult<mpsc::Receiver<Event>> {
-        let (response_tx, response_rx) = mpsc::channel::<Event>(16);
+    pub async fn send_command(
+        &self,
+        command: Command,
+    ) -> DeviceResult<mpsc::UnboundedReceiver<Event>> {
+        let (response_tx, response_rx) = mpsc::unbounded_channel::<Event>();
 
         self.cmd_tx
             .send(DeviceCommand {
@@ -146,7 +160,7 @@ impl std::fmt::Debug for DeviceCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DeviceCommand")
             .field("tag", &self.command.tag)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -211,7 +225,7 @@ where
 {
     let (mut rd, mut wr) = tokio::io::split(stream);
     let mut buf = vec![0u8; 8192];
-    let mut response_map: HashMap<Tag, mpsc::Sender<Event>> = HashMap::new();
+    let mut response_map: HashMap<Tag, mpsc::UnboundedSender<Event>> = HashMap::new();
     let mut shutdown = false;
 
     while !shutdown {
@@ -232,8 +246,8 @@ where
 
             // Commands first — bounded, fast, prevents starvation under
             // sustained inbound traffic.
-            msg = cmd_rx.recv() => match msg {
-                Some(DeviceCommand { command, respond_to }) => {
+            msg = cmd_rx.recv() => {
+                if let Some(DeviceCommand { command, respond_to }) = msg {
                     match conn.send_command(command) {
                         Ok(tag) => {
                             response_map.insert(tag, respond_to);
@@ -242,8 +256,7 @@ where
                             shutdown = true;
                         }
                     }
-                }
-                None => {
+                } else {
                     // All MikrotikDevice handles dropped — graceful shutdown
                     conn.cancel_all();
                     while let Some(transmit) = conn.poll_transmit() {
@@ -255,7 +268,8 @@ where
 
             // Read from network → feed to Connection
             result = rd.read(&mut buf) => match result {
-                Ok(0) => {
+                // EOF and I/O failure are both terminal for this connection.
+                Ok(0) | Err(_) => {
                     shutdown = true;
                 }
                 Ok(n) => {
@@ -267,9 +281,6 @@ where
                         route_event(&mut response_map, &mut conn, event);
                     }
                 }
-                Err(_) => {
-                    shutdown = true;
-                }
             },
         }
     }
@@ -279,7 +290,7 @@ where
 
 /// Route a protocol event to the appropriate per-command channel.
 fn route_event(
-    response_map: &mut HashMap<Tag, mpsc::Sender<Event>>,
+    response_map: &mut HashMap<Tag, mpsc::UnboundedSender<Event>>,
     conn: &mut Connection,
     event: Event,
 ) {
@@ -287,7 +298,7 @@ fn route_event(
         Event::Reply { tag, .. } => {
             let tag = *tag;
             if let Some(sender) = response_map.get(&tag)
-                && sender.try_send(event).is_err()
+                && sender.send(event).is_err()
             {
                 response_map.remove(&tag);
                 let _ = conn.cancel_command(tag);
@@ -296,12 +307,12 @@ fn route_event(
         Event::Done { tag } | Event::Empty { tag } | Event::Trap { tag, .. } => {
             let tag = *tag;
             if let Some(sender) = response_map.remove(&tag) {
-                let _ = sender.try_send(event);
+                let _ = sender.send(event);
             }
         }
         Event::Fatal { .. } => {
             for (_, sender) in response_map.drain() {
-                let _ = sender.try_send(event.clone());
+                let _ = sender.send(event.clone());
             }
         }
     }

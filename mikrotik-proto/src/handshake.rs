@@ -126,11 +126,13 @@ impl Handshaking {
     }
 
     /// Get a reference to the underlying connection state (read-only introspection).
+    #[must_use]
     pub fn state(&self) -> State {
         self.inner.state()
     }
 
     /// The login command's tag.
+    #[must_use]
     pub fn login_tag(&self) -> Tag {
         self.login_tag
     }
@@ -145,6 +147,7 @@ impl Authenticated {
     }
 
     /// Consume this handle and return the inner connection.
+    #[must_use]
     pub fn into_connection(self) -> Connection {
         self.inner
     }

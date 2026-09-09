@@ -153,6 +153,7 @@ impl Connection {
     ///
     /// The connection starts in the [`State::Active`] state with no in-flight
     /// commands.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             state: State::Active,
@@ -323,31 +324,37 @@ impl Connection {
     // ── Category A: Getters ──
 
     /// Current connection state.
+    #[must_use]
     pub fn state(&self) -> State {
         self.state
     }
 
     /// Whether the connection is still active (not fatally closed).
+    #[must_use]
     pub fn is_active(&self) -> bool {
         self.state == State::Active
     }
 
     /// Number of commands currently in-flight.
+    #[must_use]
     pub fn in_flight_count(&self) -> usize {
         self.in_flight.len()
     }
 
     /// Whether there is data pending to be transmitted.
+    #[must_use]
     pub fn has_pending_transmit(&self) -> bool {
         !self.outbound.is_empty()
     }
 
     /// Number of bytes currently buffered awaiting a complete sentence.
+    #[must_use]
     pub fn recv_buffer_len(&self) -> usize {
         self.recv_buf.len()
     }
 
     /// Check if a specific tag is currently in-flight.
+    #[must_use]
     pub fn is_in_flight(&self, tag: Tag) -> bool {
         self.in_flight.contains_key(&tag)
     }
@@ -457,7 +464,7 @@ mod tests {
         for (k, v) in attrs {
             words.push(format!("={k}={v}").into_bytes());
         }
-        let word_refs: Vec<&[u8]> = words.iter().map(|w| w.as_slice()).collect();
+        let word_refs: Vec<&[u8]> = words.iter().map(Vec::as_slice).collect();
         build_sentence(&word_refs)
     }
 

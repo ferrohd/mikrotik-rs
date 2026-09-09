@@ -81,11 +81,13 @@ impl<'a> RawSentence<'a> {
     }
 
     /// Returns the number of words in this sentence.
+    #[must_use]
     pub fn word_count(&self) -> usize {
         self.words.len()
     }
 
     /// Returns `true` if the sentence contains no words.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.words.is_empty()
     }
@@ -252,7 +254,7 @@ pub fn decode_sentence(src: &[u8]) -> Result<Decode<RawSentence<'_>>, DecodeErro
 pub fn encode_length(len: u32, dst: &mut Vec<u8>) {
     match len {
         0x00..=0x7F => {
-            dst.push(len as u8);
+            dst.push((len & 0xFF) as u8);
         }
         0x80..=0x3FFF => {
             let l = len | 0x8000;
@@ -355,7 +357,7 @@ mod tests {
         assert_eq!(
             result,
             Decode::Complete {
-                value: (0x200000, 4),
+                value: (0x0020_0000, 4),
                 bytes_consumed: 4,
             }
         );
@@ -368,7 +370,7 @@ mod tests {
         assert_eq!(
             result,
             Decode::Complete {
-                value: (0x10000000, 5),
+                value: (0x1000_0000, 5),
                 bytes_consumed: 5,
             }
         );
@@ -498,10 +500,12 @@ mod tests {
                         assert_eq!(bc2, s2.len());
                         assert_eq!(raw2.word_count(), 2);
                     }
-                    _ => panic!("expected Complete for second sentence"),
+                    Decode::Incomplete { .. } => {
+                        panic!("expected Complete for second sentence")
+                    }
                 }
             }
-            _ => panic!("expected Complete for first sentence"),
+            Decode::Incomplete { .. } => panic!("expected Complete for first sentence"),
         }
     }
 

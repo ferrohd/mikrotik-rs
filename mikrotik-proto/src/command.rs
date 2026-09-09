@@ -24,6 +24,22 @@ use core::marker::PhantomData;
 use crate::codec;
 use crate::tag::Tag;
 
+/// Encode the length prefix for a word that is being assembled in place.
+///
+/// The builder writes word bodies directly into `buf` to avoid an intermediate
+/// allocation, so it computes the length itself instead of going through
+/// [`codec::encode_word`]. This helper keeps the `usize` → `u32` narrowing in
+/// one place.
+///
+/// # Panics
+///
+/// Panics if `word_len` exceeds [`u32::MAX`] (4 GiB), which the wire format
+/// cannot represent.
+fn encode_word_len(word_len: usize, buf: &mut Vec<u8>) {
+    let len = u32::try_from(word_len).expect("word length exceeds u32::MAX");
+    codec::encode_length(len, buf);
+}
+
 /// Marker type: no command word has been set yet.
 pub struct NoCmd;
 
@@ -79,6 +95,7 @@ impl CommandBuilder<NoCmd> {
     }
 
     /// Builds a login command with the provided username and optional password.
+    #[must_use]
     pub fn login(username: &str, password: Option<&str>) -> Command {
         Self::new()
             .command("/login")
@@ -88,6 +105,7 @@ impl CommandBuilder<NoCmd> {
     }
 
     /// Builds a command to cancel a specific running command identified by `tag`.
+    #[must_use]
     pub fn cancel(tag: Tag) -> Command {
         // Use the same tag so the cancel is correlated
         Self::with_tag(tag)
@@ -130,6 +148,10 @@ impl CommandBuilder<Cmd> {
     /// * `key` — The attribute's key.
     /// * `value` — The attribute's value. If `None`, the attribute is treated
     ///   as a flag (e.g., `=key=`).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn attribute(self, key: &str, value: Option<&str>) -> Self {
         let Self { tag, mut buf, .. } = self;
 
@@ -137,7 +159,7 @@ impl CommandBuilder<Cmd> {
         // Avoid format!() allocation
         let value_bytes = value.unwrap_or("");
         let word_len = 1 + key.len() + 1 + value_bytes.len();
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.push(b'=');
         buf.extend_from_slice(key.as_bytes());
         buf.push(b'=');
@@ -153,12 +175,16 @@ impl CommandBuilder<Cmd> {
     /// Adds an attribute with a raw byte value to the command being built.
     ///
     /// Use this method when your attribute values might contain non-UTF-8 or binary data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn attribute_raw(self, key: &str, value: Option<&[u8]>) -> Self {
         let Self { tag, mut buf, .. } = self;
 
         let value_bytes = value.unwrap_or(&[]);
         let word_len = 1 + key.len() + 1 + value_bytes.len();
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.push(b'=');
         buf.extend_from_slice(key.as_bytes());
         buf.push(b'=');
@@ -181,10 +207,14 @@ impl CommandBuilder<Cmd> {
     /// Adds a query to check if a property is present.
     ///
     /// Pushes `true` if an item has a value for the property, `false` if it does not.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_is_present(self, name: &str) -> Self {
         let Self { tag, mut buf, .. } = self;
         let word_len = 1 + name.len(); // "?" + name
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.push(b'?');
         buf.extend_from_slice(name.as_bytes());
         CommandBuilder {
@@ -195,10 +225,14 @@ impl CommandBuilder<Cmd> {
     }
 
     /// Adds a query to check if a property is absent.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_not_present(self, name: &str) -> Self {
         let Self { tag, mut buf, .. } = self;
         let word_len = 2 + name.len(); // "?-" + name
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.extend_from_slice(b"?-");
         buf.extend_from_slice(name.as_bytes());
         CommandBuilder {
@@ -209,10 +243,14 @@ impl CommandBuilder<Cmd> {
     }
 
     /// Adds a query to check if a property equals a value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_equal(self, name: &str, value: &str) -> Self {
         let Self { tag, mut buf, .. } = self;
         let word_len = 1 + name.len() + 1 + value.len(); // "?" + name + "=" + value
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.push(b'?');
         buf.extend_from_slice(name.as_bytes());
         buf.push(b'=');
@@ -225,10 +263,14 @@ impl CommandBuilder<Cmd> {
     }
 
     /// Adds a query to check if a property is greater than a value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_gt(self, key: &str, value: &str) -> Self {
         let Self { tag, mut buf, .. } = self;
         let word_len = 2 + key.len() + 1 + value.len(); // "?>" + key + "=" + value
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.extend_from_slice(b"?>");
         buf.extend_from_slice(key.as_bytes());
         buf.push(b'=');
@@ -241,10 +283,14 @@ impl CommandBuilder<Cmd> {
     }
 
     /// Adds a query to check if a property is less than a value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_lt(self, key: &str, value: &str) -> Self {
         let Self { tag, mut buf, .. } = self;
         let word_len = 2 + key.len() + 1 + value.len(); // "?<" + key + "=" + value
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.extend_from_slice(b"?<");
         buf.extend_from_slice(key.as_bytes());
         buf.push(b'=');
@@ -258,14 +304,18 @@ impl CommandBuilder<Cmd> {
 
     /// Adds query operations (combination operators for the query stack).
     ///
-    /// See [MikroTik API Queries](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API#API-Queries).
+    /// See [`MikroTik` API Queries](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API#API-Queries).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_operations(self, operations: impl Iterator<Item = QueryOperator>) -> Self {
         let Self { tag, mut buf, .. } = self;
 
         // Collect operation chars: "?#" + operator chars
         let ops: Vec<u8> = operations.map(QueryOperator::code).collect();
         let word_len = 2 + ops.len(); // "?#" + ops
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.extend_from_slice(b"?#");
         buf.extend_from_slice(&ops);
 
@@ -277,6 +327,7 @@ impl CommandBuilder<Cmd> {
     }
 
     /// Finalizes the command construction, producing a [`Command`].
+    #[must_use]
     pub fn build(self) -> Command {
         let Self { tag, mut buf, .. } = self;
         // Terminate the sentence
@@ -301,11 +352,13 @@ pub struct Command {
 
 impl Command {
     /// Returns the wire-format encoded command data.
+    #[must_use]
     pub fn data(&self) -> &[u8] {
         &self.data
     }
 
     /// Consumes the command and returns the wire-format data.
+    #[must_use]
     pub fn into_data(self) -> Vec<u8> {
         self.data
     }
@@ -349,7 +402,7 @@ mod tests {
     ]));
     const TEST_TAG_WORD: &str = ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8";
 
-    /// Helper to parse the RouterOS length-prefixed "words" out of the command data.
+    /// Helper to parse the `RouterOS` length-prefixed "words" out of the command data.
     fn parse_words(data: &[u8]) -> Vec<String> {
         let mut words = Vec::new();
         let mut i = 0;
@@ -359,9 +412,10 @@ mod tests {
             if len == 0 {
                 break;
             }
-            if i + len > data.len() {
-                panic!("Malformed command data: length prefix exceeds available data.");
-            }
+            assert!(
+                i + len <= data.len(),
+                "Malformed command data: length prefix exceeds available data."
+            );
             let word = &data[i..i + len];
             i += len;
             words.push(String::from_utf8_lossy(word).into_owned());
@@ -484,7 +538,7 @@ mod tests {
                 assert_eq!(words[3], b"=disabled=");
                 assert_eq!(words.len(), 4);
             }
-            _ => panic!("expected Complete"),
+            codec::Decode::Incomplete { .. } => panic!("expected Complete"),
         }
     }
 }
