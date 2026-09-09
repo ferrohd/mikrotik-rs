@@ -1,10 +1,9 @@
 name: PR Cargo Preflight Checks
 
+# Push-to-master runs live in release-plz.yml, which gates the release job on
+# the same suite. Triggering here too would run every check twice per push.
 on:
     pull_request:
-        branches:
-            - master
-    push:
         branches:
             - master
 
