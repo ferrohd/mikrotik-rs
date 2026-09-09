@@ -160,7 +160,7 @@ impl std::fmt::Debug for DeviceCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DeviceCommand")
             .field("tag", &self.command.tag)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -246,8 +246,8 @@ where
 
             // Commands first — bounded, fast, prevents starvation under
             // sustained inbound traffic.
-            msg = cmd_rx.recv() => match msg {
-                Some(DeviceCommand { command, respond_to }) => {
+            msg = cmd_rx.recv() => {
+                if let Some(DeviceCommand { command, respond_to }) = msg {
                     match conn.send_command(command) {
                         Ok(tag) => {
                             response_map.insert(tag, respond_to);
@@ -256,8 +256,7 @@ where
                             shutdown = true;
                         }
                     }
-                }
-                None => {
+                } else {
                     // All MikrotikDevice handles dropped — graceful shutdown
                     conn.cancel_all();
                     while let Some(transmit) = conn.poll_transmit() {
@@ -269,7 +268,8 @@ where
 
             // Read from network → feed to Connection
             result = rd.read(&mut buf) => match result {
-                Ok(0) => {
+                // EOF and I/O failure are both terminal for this connection.
+                Ok(0) | Err(_) => {
                     shutdown = true;
                 }
                 Ok(n) => {
@@ -280,9 +280,6 @@ where
                     while let Some(event) = conn.poll_event() {
                         route_event(&mut response_map, &mut conn, event);
                     }
-                }
-                Err(_) => {
-                    shutdown = true;
                 }
             },
         }

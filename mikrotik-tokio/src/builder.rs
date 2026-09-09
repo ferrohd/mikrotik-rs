@@ -110,6 +110,11 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Plaintext> {
     ///
     /// Suitable for `MikroTik` routers which use self-signed certificates.
     /// TLS handshake signatures are still verified to prevent downgrade attacks.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the built-in placeholder server name fails to parse, which
+    /// cannot happen for the fixed `"mikrotik"` literal.
     #[cfg(feature = "tokio-tls")]
     pub fn tls_insecure(self) -> DeviceBuilder<A, Tls> {
         let config = crate::tls::insecure_client_config();
