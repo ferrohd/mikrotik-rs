@@ -15,7 +15,7 @@ use core::fmt::{self, Display, Formatter};
 use crate::HashMap;
 
 use crate::codec::RawSentence;
-use crate::error::{MissingWord, ProtocolError, TrapCategoryError, WordType};
+use crate::error::{MissingWord, ProtocolError, SentenceError, TrapCategoryError, WordType};
 use crate::tag::Tag;
 use crate::word::{Word, WordAttribute, WordCategory};
 
@@ -74,122 +74,131 @@ impl CommandResponse {
         })?;
 
         match category {
-            WordCategory::Done => {
-                let word = words
-                    .next()
-                    .ok_or::<ProtocolError>(MissingWord::Tag.into())??;
+            WordCategory::Done => Ok(Self::Done(DoneResponse {
+                tag: next_tag(&mut words)?,
+            })),
+            WordCategory::Reply => parse_reply(words).map(Self::Reply),
+            WordCategory::Trap => parse_trap(words).map(Self::Trap),
+            WordCategory::Fatal => parse_fatal(&mut words).map(Self::Fatal),
+            WordCategory::Empty => Ok(Self::Empty(EmptyResponse {
+                tag: next_tag(&mut words)?,
+            })),
+        }
+    }
+}
 
-                let tag = word.tag().ok_or(ProtocolError::WordSequence {
+/// Consume the next word and require it to be a tag.
+///
+/// Shared by the `!done` and `!empty` sentence forms, which carry nothing else.
+fn next_tag<'a, I>(words: &mut I) -> Result<Tag, ProtocolError>
+where
+    I: Iterator<Item = Result<Word<'a>, SentenceError>>,
+{
+    let word = words
+        .next()
+        .ok_or::<ProtocolError>(MissingWord::Tag.into())??;
+
+    word.tag().ok_or(ProtocolError::WordSequence {
+        word: word.into(),
+        expected: alloc::vec![WordType::Tag],
+    })
+}
+
+/// Parse the remainder of a `!re` sentence: a tag plus arbitrary attributes.
+fn parse_reply<'a, I>(words: I) -> Result<ReplyResponse, ProtocolError>
+where
+    I: Iterator<Item = Result<Word<'a>, SentenceError>>,
+{
+    let mut tag = None;
+    let mut attributes = HashMap::<String, Option<String>>::new();
+    let mut attributes_raw = HashMap::<String, Option<Vec<u8>>>::new();
+
+    for word in words {
+        match word? {
+            Word::Tag(t) => tag = Some(t),
+            Word::Attribute(WordAttribute {
+                key,
+                value,
+                value_raw,
+            }) => {
+                attributes.insert(String::from(key), value.map(String::from));
+                attributes_raw.insert(String::from(key), value_raw.map(Vec::from));
+            }
+            word => {
+                return Err(ProtocolError::WordSequence {
                     word: word.into(),
-                    expected: alloc::vec![WordType::Tag],
-                })?;
-                Ok(CommandResponse::Done(DoneResponse { tag }))
-            }
-            WordCategory::Reply => {
-                let mut tag = None;
-                let mut attributes = HashMap::<String, Option<String>>::new();
-                let mut attributes_raw = HashMap::<String, Option<Vec<u8>>>::new();
-
-                for word in words {
-                    let word = word?;
-                    match word {
-                        Word::Tag(t) => tag = Some(t),
-                        Word::Attribute(WordAttribute {
-                            key,
-                            value,
-                            value_raw,
-                        }) => {
-                            attributes.insert(String::from(key), value.map(String::from));
-                            attributes_raw.insert(String::from(key), value_raw.map(Vec::from));
-                        }
-                        word => {
-                            return Err(ProtocolError::WordSequence {
-                                word: word.into(),
-                                expected: alloc::vec![WordType::Tag, WordType::Attribute],
-                            });
-                        }
-                    }
-                }
-
-                let tag = tag.ok_or::<ProtocolError>(MissingWord::Tag.into())?;
-
-                Ok(CommandResponse::Reply(ReplyResponse {
-                    tag,
-                    attributes,
-                    attributes_raw,
-                }))
-            }
-            WordCategory::Trap => {
-                let mut tag = None;
-                let mut category = None;
-                let mut message = None;
-
-                for word in words {
-                    let word = word?;
-                    match word {
-                        Word::Tag(t) => tag = Some(t),
-                        Word::Attribute(WordAttribute {
-                            key,
-                            value,
-                            value_raw: _,
-                        }) => match key {
-                            "category" => {
-                                category = value.map(TrapCategory::try_from).transpose()?;
-                            }
-                            "message" => {
-                                message = value.map(String::from);
-                            }
-                            key => {
-                                return Err(TrapCategoryError::InvalidAttribute {
-                                    key: String::from(key),
-                                    value: value.map(String::from),
-                                }
-                                .into());
-                            }
-                        },
-                        word => {
-                            return Err(ProtocolError::WordSequence {
-                                word: word.into(),
-                                expected: alloc::vec![WordType::Tag, WordType::Attribute],
-                            });
-                        }
-                    }
-                }
-
-                let tag = tag.ok_or::<ProtocolError>(MissingWord::Tag.into())?;
-                let message = message.ok_or(TrapCategoryError::MissingMessageAttribute)?;
-
-                Ok(CommandResponse::Trap(TrapResponse {
-                    tag,
-                    category,
-                    message,
-                }))
-            }
-            WordCategory::Fatal => {
-                let word = words
-                    .next()
-                    .ok_or::<ProtocolError>(MissingWord::Message.into())??;
-
-                let reason = word.generic().ok_or(ProtocolError::WordSequence {
-                    word: word.word_type(),
-                    expected: alloc::vec![WordType::Message],
-                })?;
-
-                Ok(CommandResponse::Fatal(String::from(reason)))
-            }
-            WordCategory::Empty => {
-                let word = words
-                    .next()
-                    .ok_or::<ProtocolError>(MissingWord::Tag.into())??;
-
-                let tag = word.tag().ok_or(ProtocolError::WordSequence {
-                    word: word.into(),
-                    expected: alloc::vec![WordType::Tag],
-                })?;
-                Ok(CommandResponse::Empty(EmptyResponse { tag }))
+                    expected: alloc::vec![WordType::Tag, WordType::Attribute],
+                });
             }
         }
     }
+
+    Ok(ReplyResponse {
+        tag: tag.ok_or::<ProtocolError>(MissingWord::Tag.into())?,
+        attributes,
+        attributes_raw,
+    })
+}
+
+/// Parse the remainder of a `!trap` sentence: a tag, a required `message`,
+/// and an optional `category`.
+fn parse_trap<'a, I>(words: I) -> Result<TrapResponse, ProtocolError>
+where
+    I: Iterator<Item = Result<Word<'a>, SentenceError>>,
+{
+    let mut tag = None;
+    let mut category = None;
+    let mut message = None;
+
+    for word in words {
+        match word? {
+            Word::Tag(t) => tag = Some(t),
+            Word::Attribute(WordAttribute {
+                key,
+                value,
+                value_raw: _,
+            }) => match key {
+                "category" => category = value.map(TrapCategory::try_from).transpose()?,
+                "message" => message = value.map(String::from),
+                key => {
+                    return Err(TrapCategoryError::InvalidAttribute {
+                        key: String::from(key),
+                        value: value.map(String::from),
+                    }
+                    .into());
+                }
+            },
+            word => {
+                return Err(ProtocolError::WordSequence {
+                    word: word.into(),
+                    expected: alloc::vec![WordType::Tag, WordType::Attribute],
+                });
+            }
+        }
+    }
+
+    Ok(TrapResponse {
+        tag: tag.ok_or::<ProtocolError>(MissingWord::Tag.into())?,
+        category,
+        message: message.ok_or(TrapCategoryError::MissingMessageAttribute)?,
+    })
+}
+
+/// Parse the remainder of a `!fatal` sentence: a single free-form reason word.
+fn parse_fatal<'a, I>(words: &mut I) -> Result<FatalResponse, ProtocolError>
+where
+    I: Iterator<Item = Result<Word<'a>, SentenceError>>,
+{
+    let word = words
+        .next()
+        .ok_or::<ProtocolError>(MissingWord::Message.into())??;
+
+    let reason = word.generic().ok_or(ProtocolError::WordSequence {
+        word: word.word_type(),
+        expected: alloc::vec![WordType::Message],
+    })?;
+
+    Ok(String::from(reason))
 }
 
 /// Represents a successful command completion response.
