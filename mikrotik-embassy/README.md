@@ -93,6 +93,6 @@ mikrotik_embassy::run(
 
 ## License
 
-Licensed under the [GNU Affero General Public License v3.0](../LICENSE).
+Licensed under the [GNU Affero General Public License v3.0](LICENSE).
 
 For commercial licensing options (use without AGPL obligations), contact the project maintainer.
