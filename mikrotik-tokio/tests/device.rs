@@ -305,7 +305,7 @@ async fn concurrent_commands() {
     // Each receiver should get its own reply + done (responses arrive in reverse)
     // But each channel only receives events for its own tag.
     // Collect until we see a terminal event (Done).
-    async fn collect_until_done(rx: &mut tokio::sync::mpsc::Receiver<Event>) -> Vec<Event> {
+    async fn collect_until_done(rx: &mut tokio::sync::mpsc::UnboundedReceiver<Event>) -> Vec<Event> {
         let mut events = Vec::new();
         while let Some(event) = rx.recv().await {
             let is_terminal = matches!(&event, Event::Done { .. } | Event::Empty { .. });

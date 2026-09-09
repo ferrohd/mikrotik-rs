@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 `MikrotikDevice` is a thin async wrapper around `mikrotik_proto::Connection`:
 
 - **`connect()`** opens a TCP connection, performs the login handshake, and spawns a background actor task.
-- **`send_command()`** sends a command and returns an `mpsc::Receiver<Event>` scoped to that command.
+- **`send_command()`** sends a command and returns an `mpsc::UnboundedReceiver<Event>` scoped to that command.
 - **Drop-based cancellation** — dropping a receiver sends `/cancel` to the router. Dropping all `MikrotikDevice` handles shuts down the connection gracefully.
 
 ```text
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   └────────┬─────────┘   └────────┬─────────┘
            │  send_command()      │
            └──────────┬───────────┘
-                      │ mpsc::Sender<DeviceCommand>
+                      │ mpsc::Sender<DeviceCommand>  (bounded)
                       ▼
   ┌────────────────────────────────────────────────────────┐
   │                Background Actor Task                   │
@@ -78,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   │   Sender₁  Sender₂  Sender₃   response_map             │
   └───────┼────────┼────────┼──────────────────────────────┘
           ▼        ▼        ▼
-    Receiver₁ Receiver₂ Receiver₃  (one per command)
+    Receiver₁ Receiver₂ Receiver₃  (one per command, unbounded)
 ```
 
 The actor owns the TCP connection and all protocol logic. Each command gets its own response channel, enabling safe concurrent use from multiple tasks.
