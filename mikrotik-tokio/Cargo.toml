@@ -1,7 +1,7 @@
 [package]
 name = "mikrotik-tokio"
 description = "Tokio-based async client for MikroTik RouterOS API"
-version = "0.3.0"
+version = "0.3.1"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
