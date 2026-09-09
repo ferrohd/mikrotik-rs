@@ -24,3 +24,10 @@ mikrotik-embassy = { version = "0.1.1", path = "mikrotik-embassy" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+suspicious = "warn"
+complexity = "warn"
+perf = "warn"
+style = "warn"
+pedantic = "warn"

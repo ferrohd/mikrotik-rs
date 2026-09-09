@@ -12,3 +12,6 @@ publish = false
 [dependencies]
 mikrotik-rs = {package = "mikrotik-rs",  path = "../../mikrotik-rs" }
 tokio = { workspace = true, features = ["full"] }
+
+[lints]
+workspace = true
