@@ -1,0 +1,31 @@
+[workspace]
+# Publish only when the release PR is merged, not on every commit to master.
+release_always = false
+
+# Pin the tag template. The default switches to "v{{ version }}" whenever the
+# workspace has a single publishable package, so pinning keeps tag names stable
+# regardless of how many crates are published.
+git_tag_name = "{{ package }}-v{{ version }}"
+
+# `cargo publish` verifies by building with default features only, which would
+# leave the tokio-tls path unverified at the moment it ships.
+publish_all_features = true
+
+pr_labels = ["release"]
+
+[changelog]
+# Never drop a breaking change, even when its type matches a skip rule below.
+protect_breaking_commits = true
+
+# Ordered: first match wins. Mirrors the conventional-commit prefixes actually
+# used in this repository.
+commit_parsers = [
+    { message = '^feat', group = "Added" },
+    { message = '^fix', group = "Fixed" },
+    { message = '^perf', group = "Performance" },
+    { message = '^refactor', group = "Changed" },
+    { message = '^docs', group = "Documentation" },
+    { message = '^chore\(deps\)', group = "Dependencies" },
+    { message = '^(ci|style|test|chore)', skip = true },
+    { message = '^.*', group = "Other" },
+]
