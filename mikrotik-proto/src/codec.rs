@@ -252,7 +252,7 @@ pub fn decode_sentence(src: &[u8]) -> Result<Decode<RawSentence<'_>>, DecodeErro
 pub fn encode_length(len: u32, dst: &mut Vec<u8>) {
     match len {
         0x00..=0x7F => {
-            dst.push(len as u8);
+            dst.push((len & 0xFF) as u8);
         }
         0x80..=0x3FFF => {
             let l = len | 0x8000;

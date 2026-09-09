@@ -24,6 +24,22 @@ use core::marker::PhantomData;
 use crate::codec;
 use crate::tag::Tag;
 
+/// Encode the length prefix for a word that is being assembled in place.
+///
+/// The builder writes word bodies directly into `buf` to avoid an intermediate
+/// allocation, so it computes the length itself instead of going through
+/// [`codec::encode_word`]. This helper keeps the `usize` → `u32` narrowing in
+/// one place.
+///
+/// # Panics
+///
+/// Panics if `word_len` exceeds [`u32::MAX`] (4 GiB), which the wire format
+/// cannot represent.
+fn encode_word_len(word_len: usize, buf: &mut Vec<u8>) {
+    let len = u32::try_from(word_len).expect("word length exceeds u32::MAX");
+    codec::encode_length(len, buf);
+}
+
 /// Marker type: no command word has been set yet.
 pub struct NoCmd;
 
@@ -130,6 +146,10 @@ impl CommandBuilder<Cmd> {
     /// * `key` — The attribute's key.
     /// * `value` — The attribute's value. If `None`, the attribute is treated
     ///   as a flag (e.g., `=key=`).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn attribute(self, key: &str, value: Option<&str>) -> Self {
         let Self { tag, mut buf, .. } = self;
 
@@ -137,7 +157,7 @@ impl CommandBuilder<Cmd> {
         // Avoid format!() allocation
         let value_bytes = value.unwrap_or("");
         let word_len = 1 + key.len() + 1 + value_bytes.len();
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.push(b'=');
         buf.extend_from_slice(key.as_bytes());
         buf.push(b'=');
@@ -153,12 +173,16 @@ impl CommandBuilder<Cmd> {
     /// Adds an attribute with a raw byte value to the command being built.
     ///
     /// Use this method when your attribute values might contain non-UTF-8 or binary data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn attribute_raw(self, key: &str, value: Option<&[u8]>) -> Self {
         let Self { tag, mut buf, .. } = self;
 
         let value_bytes = value.unwrap_or(&[]);
         let word_len = 1 + key.len() + 1 + value_bytes.len();
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.push(b'=');
         buf.extend_from_slice(key.as_bytes());
         buf.push(b'=');
@@ -181,10 +205,14 @@ impl CommandBuilder<Cmd> {
     /// Adds a query to check if a property is present.
     ///
     /// Pushes `true` if an item has a value for the property, `false` if it does not.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_is_present(self, name: &str) -> Self {
         let Self { tag, mut buf, .. } = self;
         let word_len = 1 + name.len(); // "?" + name
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.push(b'?');
         buf.extend_from_slice(name.as_bytes());
         CommandBuilder {
@@ -195,10 +223,14 @@ impl CommandBuilder<Cmd> {
     }
 
     /// Adds a query to check if a property is absent.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_not_present(self, name: &str) -> Self {
         let Self { tag, mut buf, .. } = self;
         let word_len = 2 + name.len(); // "?-" + name
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.extend_from_slice(b"?-");
         buf.extend_from_slice(name.as_bytes());
         CommandBuilder {
@@ -209,10 +241,14 @@ impl CommandBuilder<Cmd> {
     }
 
     /// Adds a query to check if a property equals a value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_equal(self, name: &str, value: &str) -> Self {
         let Self { tag, mut buf, .. } = self;
         let word_len = 1 + name.len() + 1 + value.len(); // "?" + name + "=" + value
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.push(b'?');
         buf.extend_from_slice(name.as_bytes());
         buf.push(b'=');
@@ -225,10 +261,14 @@ impl CommandBuilder<Cmd> {
     }
 
     /// Adds a query to check if a property is greater than a value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_gt(self, key: &str, value: &str) -> Self {
         let Self { tag, mut buf, .. } = self;
         let word_len = 2 + key.len() + 1 + value.len(); // "?>" + key + "=" + value
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.extend_from_slice(b"?>");
         buf.extend_from_slice(key.as_bytes());
         buf.push(b'=');
@@ -241,10 +281,14 @@ impl CommandBuilder<Cmd> {
     }
 
     /// Adds a query to check if a property is less than a value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_lt(self, key: &str, value: &str) -> Self {
         let Self { tag, mut buf, .. } = self;
         let word_len = 2 + key.len() + 1 + value.len(); // "?<" + key + "=" + value
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.extend_from_slice(b"?<");
         buf.extend_from_slice(key.as_bytes());
         buf.push(b'=');
@@ -258,14 +302,18 @@ impl CommandBuilder<Cmd> {
 
     /// Adds query operations (combination operators for the query stack).
     ///
-    /// See [MikroTik API Queries](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API#API-Queries).
+    /// See [`MikroTik` API Queries](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API#API-Queries).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn query_operations(self, operations: impl Iterator<Item = QueryOperator>) -> Self {
         let Self { tag, mut buf, .. } = self;
 
         // Collect operation chars: "?#" + operator chars
         let ops: Vec<u8> = operations.map(QueryOperator::code).collect();
         let word_len = 2 + ops.len(); // "?#" + ops
-        codec::encode_length(word_len as u32, &mut buf);
+        encode_word_len(word_len, &mut buf);
         buf.extend_from_slice(b"?#");
         buf.extend_from_slice(&ops);
 
