@@ -11,19 +11,7 @@ env:
 jobs:
   preflight:
     name: Preflight
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Format
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      - name: Test
-        run: cargo test --workspace
+    uses: ./.github/workflows/checks.yml
 
   publish:
     name: Publish
@@ -32,6 +20,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Publish all crates to crates.io
         run: cargo publish --workspace --token ${{ secrets.CRATES_IO_TOKEN }}
