@@ -16,6 +16,7 @@
 /// Panics (at compile time when used in a const context) if the command
 /// path is empty, doesn't start with `/`, contains invalid characters,
 /// has empty segments (`//`), consecutive delimiters, or a trailing delimiter.
+#[must_use]
 pub const fn check_mikrotik_command(cmd: &str) -> &str {
     let bytes = cmd.as_bytes();
     let len = bytes.len();
@@ -109,9 +110,7 @@ mod tests {
             if len == 0 {
                 break;
             }
-            if i + len > data.len() {
-                panic!("Malformed command data");
-            }
+            assert!(i + len <= data.len(), "Malformed command data");
             let word = &data[i..i + len];
             i += len;
             words.push(String::from_utf8_lossy(word).into_owned());

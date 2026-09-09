@@ -43,6 +43,7 @@ pub enum Word<'a> {
 
 impl Word<'_> {
     /// Returns the category of the word, if it is a category word.
+    #[must_use]
     pub fn category(&self) -> Option<&WordCategory> {
         match self {
             Word::Category(category) => Some(category),
@@ -51,6 +52,7 @@ impl Word<'_> {
     }
 
     /// Returns the tag of the word, if it is a tag word.
+    #[must_use]
     pub fn tag(&self) -> Option<Tag> {
         match self {
             Word::Tag(tag) => Some(*tag),
@@ -60,6 +62,7 @@ impl Word<'_> {
 
     /// Returns the generic message, if it is a message word.
     /// This is usually a `!fatal` reason message.
+    #[must_use]
     pub fn generic(&self) -> Option<&str> {
         match self {
             Word::Message(generic) => Some(generic),
@@ -68,6 +71,7 @@ impl Word<'_> {
     }
 
     /// Returns the type discriminant of this word.
+    #[must_use]
     pub fn word_type(&self) -> WordType {
         match self {
             Word::Category(_) => WordType::Category,
@@ -250,7 +254,7 @@ mod tests {
             Self {
                 key: value.0,
                 value: value.1,
-                value_raw: value.1.map(|v| v.as_bytes()),
+                value_raw: value.1.map(str::as_bytes),
             }
         }
     }
@@ -305,27 +309,27 @@ mod tests {
     #[test]
     fn test_display_for_word() {
         let word = Word::Category(WordCategory::Done);
-        assert_eq!(format!("{}", word), "!done");
+        assert_eq!(format!("{word}"), "!done");
 
         let word = Word::Tag(Tag::from(Uuid::from_bytes([
             0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6,
             0xd7, 0xd8,
         ])));
         assert_eq!(
-            format!("{}", word),
+            format!("{word}"),
             ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"
         );
 
         let word = Word::Attribute(("name", Some("ether1")).into());
-        assert_eq!(format!("{}", word), "=name=ether1");
+        assert_eq!(format!("{word}"), "=name=ether1");
 
         let word = Word::Attribute(("disabled", None).into());
-        assert_eq!(format!("{}", word), "=disabled=");
+        assert_eq!(format!("{word}"), "=disabled=");
 
         let word = Word::Message("unknownword");
-        assert_eq!(format!("{}", word), "unknownword");
+        assert_eq!(format!("{word}"), "unknownword");
 
         let word = Word::Category(WordCategory::Empty);
-        assert_eq!(format!("{}", word), "!empty");
+        assert_eq!(format!("{word}"), "!empty");
     }
 }

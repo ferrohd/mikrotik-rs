@@ -95,6 +95,7 @@ impl CommandBuilder<NoCmd> {
     }
 
     /// Builds a login command with the provided username and optional password.
+    #[must_use]
     pub fn login(username: &str, password: Option<&str>) -> Command {
         Self::new()
             .command("/login")
@@ -104,6 +105,7 @@ impl CommandBuilder<NoCmd> {
     }
 
     /// Builds a command to cancel a specific running command identified by `tag`.
+    #[must_use]
     pub fn cancel(tag: Tag) -> Command {
         // Use the same tag so the cancel is correlated
         Self::with_tag(tag)
@@ -325,6 +327,7 @@ impl CommandBuilder<Cmd> {
     }
 
     /// Finalizes the command construction, producing a [`Command`].
+    #[must_use]
     pub fn build(self) -> Command {
         let Self { tag, mut buf, .. } = self;
         // Terminate the sentence
@@ -349,11 +352,13 @@ pub struct Command {
 
 impl Command {
     /// Returns the wire-format encoded command data.
+    #[must_use]
     pub fn data(&self) -> &[u8] {
         &self.data
     }
 
     /// Consumes the command and returns the wire-format data.
+    #[must_use]
     pub fn into_data(self) -> Vec<u8> {
         self.data
     }
@@ -397,7 +402,7 @@ mod tests {
     ]));
     const TEST_TAG_WORD: &str = ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8";
 
-    /// Helper to parse the RouterOS length-prefixed "words" out of the command data.
+    /// Helper to parse the `RouterOS` length-prefixed "words" out of the command data.
     fn parse_words(data: &[u8]) -> Vec<String> {
         let mut words = Vec::new();
         let mut i = 0;
@@ -407,9 +412,10 @@ mod tests {
             if len == 0 {
                 break;
             }
-            if i + len > data.len() {
-                panic!("Malformed command data: length prefix exceeds available data.");
-            }
+            assert!(
+                i + len <= data.len(),
+                "Malformed command data: length prefix exceeds available data."
+            );
             let word = &data[i..i + len];
             i += len;
             words.push(String::from_utf8_lossy(word).into_owned());
@@ -532,7 +538,7 @@ mod tests {
                 assert_eq!(words[3], b"=disabled=");
                 assert_eq!(words.len(), 4);
             }
-            _ => panic!("expected Complete"),
+            codec::Decode::Incomplete { .. } => panic!("expected Complete"),
         }
     }
 }

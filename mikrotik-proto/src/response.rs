@@ -42,6 +42,7 @@ impl CommandResponse {
     /// Returns the tag associated with the response, if available.
     ///
     /// Returns [`None`] for [`CommandResponse::Fatal`] responses as they do not contain tags.
+    #[must_use]
     pub fn tag(&self) -> Option<Tag> {
         match self {
             Self::Done(d) => Some(d.tag),
@@ -366,7 +367,7 @@ mod tests {
         let response = parse_response(&data).unwrap();
         match response {
             CommandResponse::Done(done) => assert_eq!(done.tag, TEST_TAG),
-            other => panic!("expected Done, got {:?}", other),
+            other => panic!("expected Done, got {other:?}"),
         }
     }
 
@@ -391,7 +392,7 @@ mod tests {
                     Some(&Some(String::from("ether")))
                 );
             }
-            other => panic!("expected Reply, got {:?}", other),
+            other => panic!("expected Reply, got {other:?}"),
         }
     }
 
@@ -411,7 +412,7 @@ mod tests {
                     Some(&Some(String::from("ether1")))
                 );
             }
-            other => panic!("expected Reply, got {:?}", other),
+            other => panic!("expected Reply, got {other:?}"),
         }
     }
 
@@ -430,7 +431,7 @@ mod tests {
                 assert_eq!(trap.category, Some(TrapCategory::MissingItemOrCommand));
                 assert_eq!(trap.message, "no such command");
             }
-            other => panic!("expected Trap, got {:?}", other),
+            other => panic!("expected Trap, got {other:?}"),
         }
     }
 
@@ -440,7 +441,7 @@ mod tests {
         let response = parse_response(&data).unwrap();
         match response {
             CommandResponse::Fatal(reason) => assert_eq!(reason, "out of memory"),
-            other => panic!("expected Fatal, got {:?}", other),
+            other => panic!("expected Fatal, got {other:?}"),
         }
     }
 
@@ -450,7 +451,7 @@ mod tests {
         let response = parse_response(&data).unwrap();
         match response {
             CommandResponse::Empty(empty) => assert_eq!(empty.tag, TEST_TAG),
-            other => panic!("expected Empty, got {:?}", other),
+            other => panic!("expected Empty, got {other:?}"),
         }
     }
 

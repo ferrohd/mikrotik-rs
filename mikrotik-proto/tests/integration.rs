@@ -15,7 +15,7 @@ use mikrotik_proto::tag::Tag;
 // ── Test helpers ──
 
 /// Build a wire-format sentence from raw word byte slices.
-/// This simulates what a MikroTik router would send.
+/// This simulates what a `MikroTik` router would send.
 fn build_sentence(words: &[&[u8]]) -> Vec<u8> {
     let mut data = Vec::new();
     for word in words {
