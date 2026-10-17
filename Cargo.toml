@@ -1,14 +1,26 @@
 [workspace]
-members = ["mikrotik-proto", "mikrotik-tokio", "mikrotik-embassy", "mikrotik-rs", "examples/*"]
 resolver = "3"
+# A glob for the published crates, as the cargo book recommends, so adding one needs no edit
+# here. The examples are listed separately: they are `publish = false` members that exist to be
+# compiled, and keeping them in their own glob is what lets the justfile tell the two apart.
+members = ["crates/*", "examples/*"]
 
 [workspace.package]
+# One version for all four crates. They are a facade and its adapters, released together and
+# only useful in combination, so independent numbering bought nothing but the chance to publish
+# an incompatible pair. release-plz bumps this single value.
+version = "0.9.1"
 edition = "2024"
+# The one place the MSRV is declared; flake.nix reads it to build devShells.msrv, so this value
+# *is* the compiler `just msrv` runs. Keep clippy.toml's `msrv` in step.
+rust-version = "1.85"
 authors = ["Alessandro Ferrara"]
 keywords = ["mikrotik", "router", "api", "async", "tokio"]
 license = "AGPL-3.0-only"
 categories = ["api-bindings", "asynchronous", "network-programming"]
 repository = "https://github.com/ferrohd/mikrotik-rs"
+homepage = "https://github.com/ferrohd/mikrotik-rs"
+documentation = "https://docs.rs/mikrotik-rs"
 
 [workspace.dependencies]
 # Core dependencies
@@ -17,17 +29,23 @@ thiserror = { version = "2.0", default-features = false }
 uuid = { version = "1", default-features = false, features = ["v4"] }
 hashbrown = "0.17"
 
-# Internal crates
-mikrotik-proto = { version = "0.2.1", path = "mikrotik-proto" }
-mikrotik-tokio = { version = "0.3.0", path = "mikrotik-tokio" }
-mikrotik-embassy = { version = "0.1.2", path = "mikrotik-embassy" }
+# Internal crates. Path *and* version: `cargo publish` keeps only the version, since a path
+# means nothing on the registry.
+mikrotik-proto = { version = "0.9.1", path = "crates/mikrotik-proto" }
+mikrotik-tokio = { version = "0.9.1", path = "crates/mikrotik-tokio" }
+mikrotik-embassy = { version = "0.9.1", path = "crates/mikrotik-embassy" }
+mikrotik-rs = { version = "0.9.1", path = "crates/mikrotik-rs" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+# Was `#![warn(missing_docs)]` repeated in all four lib.rs files. Centralised and escalated:
+# every one of these crates is published, and an undocumented public item ships as a gap on
+# docs.rs that nothing flags.
+missing_docs = "deny"
 
 [workspace.lints.clippy]
-suspicious = "warn"
-complexity = "warn"
-perf = "warn"
-style = "warn"
-pedantic = "warn"
+# `priority = -1` is what makes group lints settable alongside individual overrides.
+# `all` is correctness + suspicious + complexity + perf + style, which the five separate `warn`
+# entries here previously spelled out one by one.
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

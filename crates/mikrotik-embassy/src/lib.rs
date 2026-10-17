@@ -1,5 +1,4 @@
 #![no_std]
-#![warn(missing_docs)]
 //! # mikrotik-embassy
 //!
 //! Embassy async embedded client for the `MikroTik` `RouterOS` API.

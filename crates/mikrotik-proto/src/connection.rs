@@ -657,7 +657,10 @@ mod tests {
         // Should have a cancel transmit queued
         assert!(conn.has_pending_transmit());
         let cancel_transmit = conn.poll_transmit().unwrap();
-        assert!(!cancel_transmit.data.is_empty());
+        assert!(
+            !cancel_transmit.data.is_empty(),
+            "cancelling must enqueue a /cancel sentence"
+        );
 
         // Command should no longer be in-flight
         assert_eq!(conn.in_flight_count(), 0);

@@ -3,14 +3,12 @@ name = "check-update"
 version = "0.0.0"
 edition.workspace = true
 authors.workspace = true
-keywords.workspace = true
 license.workspace = true
-categories.workspace = true
 repository.workspace = true
 publish = false
 
 [dependencies]
-mikrotik-rs = {package = "mikrotik-rs",  path = "../../mikrotik-rs" }
+mikrotik-rs = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 
 [lints]
