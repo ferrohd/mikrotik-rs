@@ -1,4 +1,3 @@
-#![warn(missing_docs)]
 //! # mikrotik-tokio
 //!
 //! Tokio-based async client for `MikroTik` `RouterOS` API.

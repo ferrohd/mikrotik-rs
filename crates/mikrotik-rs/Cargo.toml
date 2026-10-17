@@ -1,21 +1,24 @@
 [package]
 name = "mikrotik-rs"
-version = "0.9.0"
 description = "Asynchronous Rust library for interfacing with MikroTik routers"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 keywords.workspace = true
 license.workspace = true
 categories.workspace = true
 repository.workspace = true
-readme = "../README.md"
+homepage.workspace = true
+documentation.workspace = true
+# A symlink to the repository README, so GitHub and crates.io show the same text and there is
+# one copy to keep current. Cargo dereferences it into a real file when packaging — `just
+# publish` asserts that, since a dangling readme on the registry is invisible until it ships.
+readme = "README.md"
 publish = true
 
 [lib]
 doctest = false
-
-[lints]
-workspace = true
 
 [features]
 default = ["tokio", "std"]
@@ -28,3 +31,10 @@ tokio-tls = ["mikrotik-tokio?/tokio-tls"]
 mikrotik-proto = { workspace = true }
 mikrotik-tokio = { workspace = true, optional = true }
 mikrotik-embassy = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -1,0 +1,34 @@
+[package]
+name = "mikrotik-proto"
+description = "Sans-IO protocol implementation for MikroTik RouterOS API"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+keywords.workspace = true
+license.workspace = true
+categories.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+publish = true
+
+[features]
+std = []
+
+[dependencies]
+thiserror = { workspace = true }
+uuid = { workspace = true }
+hashbrown = { workspace = true }
+
+[dev-dependencies]
+proptest = "1"
+
+[lints]
+workspace = true
+
+# docs.rs builds with every feature on. `just doc` passes `--cfg docsrs` to match, so a
+# `#[cfg(docsrs)]` attribute behaves the same locally as it will on the registry.
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

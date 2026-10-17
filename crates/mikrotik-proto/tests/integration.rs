@@ -89,7 +89,10 @@ fn full_command_lifecycle() {
 
     // Drain the outbound transmit
     let transmit = conn.poll_transmit().unwrap();
-    assert!(!transmit.data.is_empty());
+    assert!(
+        !transmit.data.is_empty(),
+        "the queued command must produce bytes"
+    );
     assert!(conn.poll_transmit().is_none());
 
     // Simulate router response: one reply row + done
@@ -145,7 +148,10 @@ fn handshake_then_commands() {
 
     // Drain the login command transmit
     let login_transmit = hs.poll_transmit().unwrap();
-    assert!(!login_transmit.data.is_empty());
+    assert!(
+        !login_transmit.data.is_empty(),
+        "the handshake must send a login command"
+    );
     assert!(hs.poll_transmit().is_none());
 
     // Simulate router accepting login
@@ -296,7 +302,10 @@ fn cancel_mid_stream() {
 
     // A cancel transmit should be queued
     let cancel_transmit = conn.poll_transmit().unwrap();
-    assert!(!cancel_transmit.data.is_empty());
+    assert!(
+        !cancel_transmit.data.is_empty(),
+        "cancelling must enqueue a /cancel sentence"
+    );
 
     // Router may still send a done for the cancelled tag — should be silently dropped
     conn.receive(&build_done(tag)).unwrap();

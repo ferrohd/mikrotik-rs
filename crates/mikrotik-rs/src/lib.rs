@@ -1,4 +1,3 @@
-#![warn(missing_docs)]
 //! # `MikroTik`-rs
 //!
 //! `mikrotik-rs` is a Rust library for interfacing with `MikroTik` routers via

@@ -1,3 +1,9 @@
+//! Stream live interface counters with `/interface/monitor-traffic`.
+//!
+//! The command never completes on its own: `RouterOS` emits a new `!re` sentence per sampling
+//! interval until the tag is cancelled, which makes it the simplest demonstration of a
+//! subscription-style response stream.
+
 use mikrotik_rs::{CommandBuilder, MikrotikDevice};
 
 #[tokio::main]

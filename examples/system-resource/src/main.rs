@@ -1,3 +1,8 @@
+//! Poll router CPU, memory and uptime with `/system/resource/print`.
+//!
+//! Passing `interval=1` turns a one-shot print into a repeating one, so this doubles as a
+//! minimal example of a command whose response channel stays open indefinitely.
+
 use mikrotik_rs::{CommandBuilder, MikrotikDevice};
 
 // Using the current_thread flavor because multiple threads are not needed for this example

@@ -1,5 +1,4 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-#![warn(missing_docs)]
 //! # mikrotik-proto
 //!
 //! Sans-IO protocol implementation for the `MikroTik` `RouterOS` API.

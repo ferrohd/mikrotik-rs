@@ -218,10 +218,10 @@ The library is split into focused crates:
 
 | Crate | Purpose |
 |---|---|
-| [`mikrotik-proto`](mikrotik-proto/) | Sans-IO protocol core (`#![no_std]`) — wire format, commands, responses, connection state machine |
-| [`mikrotik-tokio`](mikrotik-tokio/) | Tokio async adapter — background actor, per-command channels, TLS |
-| [`mikrotik-embassy`](mikrotik-embassy/) | Embassy embedded async adapter — transport-agnostic over `embedded-io-async` |
-| [`mikrotik-rs`](mikrotik-rs/) | Convenience re-exports from all crates |
+| [`mikrotik-proto`](crates/mikrotik-proto/) | Sans-IO protocol core (`#![no_std]`) — wire format, commands, responses, connection state machine |
+| [`mikrotik-tokio`](crates/mikrotik-tokio/) | Tokio async adapter — background actor, per-command channels, TLS |
+| [`mikrotik-embassy`](crates/mikrotik-embassy/) | Embassy embedded async adapter — transport-agnostic over `embedded-io-async` |
+| [`mikrotik-rs`](crates/mikrotik-rs/) | Convenience re-exports from all crates |
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
