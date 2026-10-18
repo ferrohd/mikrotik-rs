@@ -421,7 +421,7 @@ mod tests {
 
     #[test]
     fn test_decode_sentence_complete() {
-        let data = build_sentence(&[b"!done", b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"]);
+        let data = build_sentence(&[b"!done", b".tag=0000000042"]);
         let result = decode_sentence(&data).unwrap();
         match result {
             Decode::Complete { value: raw, bytes_consumed } => {
@@ -429,7 +429,7 @@ mod tests {
                 assert_eq!(raw.word_count(), 2);
                 let words: Vec<_> = raw.words().collect();
                 assert_eq!(words[0], b"!done");
-                assert_eq!(words[1], b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8");
+                assert_eq!(words[1], b".tag=0000000042");
             }
             Decode::Incomplete { .. } => panic!("expected Complete"),
         }
@@ -437,7 +437,7 @@ mod tests {
 
     #[test]
     fn test_decode_sentence_incomplete() {
-        let data = build_sentence(&[b"!done", b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"]);
+        let data = build_sentence(&[b"!done", b".tag=0000000042"]);
         // Feed only partial data (cut off the last byte — the terminator)
         let partial = &data[..data.len() - 1];
         let result = decode_sentence(partial).unwrap();
@@ -446,7 +446,7 @@ mod tests {
 
     #[test]
     fn test_decode_sentence_multiple() {
-        let s1 = build_sentence(&[b"!done", b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"]);
+        let s1 = build_sentence(&[b"!done", b".tag=0000000042"]);
         let s2 = build_sentence(&[b"!re", b"=name=ether1"]);
         let mut combined = Vec::new();
         combined.extend_from_slice(&s1);
@@ -483,19 +483,11 @@ mod tests {
 
     // ── typed_words() tests (ported from sentence.rs) ──
 
-    use uuid::Uuid;
-
     use crate::tag::Tag;
     use crate::word::{WordAttribute, WordCategory};
 
-    const TEST_TAG1: Tag = Tag::from_uuid(Uuid::from_bytes([
-        0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7,
-        0xd8,
-    ]));
-    const TEST_TAG2: Tag = Tag::from_uuid(Uuid::from_bytes([
-        0xb1, 0xb2, 0xb3, 0xb4, 0xc1, 0xc2, 0xd1, 0xd2, 0xe1, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7,
-        0xe8,
-    ]));
+    const TEST_TAG1: Tag = Tag::from_raw(42);
+    const TEST_TAG2: Tag = Tag::from_raw(7);
 
     fn decode_raw(data: &[u8]) -> RawSentence<'_> {
         match decode_sentence(data).unwrap() {
@@ -506,11 +498,7 @@ mod tests {
 
     #[test]
     fn test_typed_words_done_with_tag_and_attribute() {
-        let data = build_sentence(&[
-            b"!done",
-            b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8",
-            b"=name=ether1",
-        ]);
+        let data = build_sentence(&[b"!done", b".tag=0000000042", b"=name=ether1"]);
         let raw = decode_raw(&data);
         let mut words = raw.typed_words();
 
@@ -529,7 +517,7 @@ mod tests {
 
     #[test]
     fn test_typed_words_mixed() {
-        let data = build_sentence(&[b"!re", b"=a=b", b".tag=b1b2b3b4-c1c2-d1d2-e1e2-e3e4e5e6e7e8"]);
+        let data = build_sentence(&[b"!re", b"=a=b", b".tag=0000000007"]);
         let raw = decode_raw(&data);
         let mut words = raw.typed_words();
 
@@ -555,7 +543,7 @@ mod tests {
 
     #[test]
     fn test_typed_words_empty_response() {
-        let data = build_sentence(&[b"!empty", b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"]);
+        let data = build_sentence(&[b"!empty", b".tag=0000000042"]);
         let raw = decode_raw(&data);
         let mut words = raw.typed_words();
 

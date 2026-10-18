@@ -116,7 +116,7 @@ impl<'a> TryFrom<&'a [u8]> for Word<'a> {
             // Tag words: ".tag=<uuid>" — parse UUID directly from ASCII bytes
             Some(b'.') => {
                 if value.starts_with(b".tag=") {
-                    let tag = Tag::try_from_ascii_bytes(&value[5..])?;
+                    let tag = Tag::try_from(&value[5..])?;
                     Ok(Word::Tag(tag))
                 } else {
                     Ok(Word::Message(core::str::from_utf8(value)?))
@@ -223,7 +223,7 @@ pub enum WordError {
     Utf8(#[from] Utf8Error),
     /// The word is a tag, but the tag value is invalid.
     #[error("Tag parsing error: {0}")]
-    Tag(#[from] uuid::Error),
+    Tag(#[from] crate::tag::TagParseError),
     /// The word is an attribute pair, but the format is invalid.
     #[error("Invalid attribute format")]
     Attribute,
@@ -236,8 +236,6 @@ pub enum WordError {
 mod tests {
     extern crate alloc;
     use alloc::format;
-
-    use uuid::Uuid;
 
     use super::*;
 
@@ -252,11 +250,8 @@ mod tests {
         assert_eq!(Word::try_from(b"!done".as_ref()).unwrap(), Word::Category(WordCategory::Done));
 
         assert_eq!(
-            Word::try_from(b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8".as_ref()).unwrap(),
-            Word::Tag(Tag::from(Uuid::from_bytes([
-                0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6,
-                0xd7, 0xd8
-            ])))
+            Word::try_from(b".tag=0000000042".as_ref()).unwrap(),
+            Word::Tag(Tag::from_raw(42))
         );
 
         assert_eq!(
@@ -282,7 +277,7 @@ mod tests {
         assert_eq!(Word::try_from(b"unknownword".as_ref()).unwrap(), Word::Message("unknownword"));
 
         // Invalid tag value
-        assert!(Word::try_from(b".tag=not-a-valid-uuid".as_ref()).is_err());
+        assert!(Word::try_from(b".tag=not-a-number".as_ref()).is_err());
 
         // Invalid UTF-8 sequence
         assert!(Word::try_from(b"\xFF\xFF".as_ref()).is_err());
@@ -293,11 +288,8 @@ mod tests {
         let word = Word::Category(WordCategory::Done);
         assert_eq!(format!("{word}"), "!done");
 
-        let word = Word::Tag(Tag::from(Uuid::from_bytes([
-            0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6,
-            0xd7, 0xd8,
-        ])));
-        assert_eq!(format!("{word}"), ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8");
+        let word = Word::Tag(Tag::from_raw(42));
+        assert_eq!(format!("{word}"), ".tag=0000000042");
 
         let word = Word::Attribute(("name", Some("ether1")).into());
         assert_eq!(format!("{word}"), "=name=ether1");

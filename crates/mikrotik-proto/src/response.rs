@@ -311,8 +311,6 @@ mod tests {
     use alloc::vec;
     use alloc::vec::Vec;
 
-    use uuid::Uuid;
-
     use super::*;
     use crate::codec;
     use crate::tag::Tag;
@@ -334,14 +332,11 @@ mod tests {
         }
     }
 
-    const TEST_TAG: Tag = Tag::from_uuid(Uuid::from_bytes([
-        0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7,
-        0xd8,
-    ]));
+    const TEST_TAG: Tag = Tag::from_raw(42);
 
     #[test]
     fn test_parse_done_response() {
-        let data = build_sentence(&[b"!done", b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"]);
+        let data = build_sentence(&[b"!done", b".tag=0000000042"]);
         let response = parse_response(&data).unwrap();
         match response {
             CommandResponse::Done(done) => assert_eq!(done.tag, TEST_TAG),
@@ -351,12 +346,7 @@ mod tests {
 
     #[test]
     fn test_parse_reply_response() {
-        let data = build_sentence(&[
-            b"!re",
-            b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8",
-            b"=name=ether1",
-            b"=type=ether",
-        ]);
+        let data = build_sentence(&[b"!re", b".tag=0000000042", b"=name=ether1", b"=type=ether"]);
         let response = parse_response(&data).unwrap();
         match response {
             CommandResponse::Reply(reply) => {
@@ -370,11 +360,7 @@ mod tests {
 
     #[test]
     fn test_parse_reply_with_tag_after_attributes() {
-        let data = build_sentence(&[
-            b"!re",
-            b"=name=ether1",
-            b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8",
-        ]);
+        let data = build_sentence(&[b"!re", b"=name=ether1", b".tag=0000000042"]);
         let response = parse_response(&data).unwrap();
         match response {
             CommandResponse::Reply(reply) => {
@@ -389,7 +375,7 @@ mod tests {
     fn test_parse_trap_response() {
         let data = build_sentence(&[
             b"!trap",
-            b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8",
+            b".tag=0000000042",
             b"=category=0",
             b"=message=no such command",
         ]);
@@ -416,7 +402,7 @@ mod tests {
 
     #[test]
     fn test_parse_empty_response() {
-        let data = build_sentence(&[b"!empty", b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"]);
+        let data = build_sentence(&[b"!empty", b".tag=0000000042"]);
         let response = parse_response(&data).unwrap();
         match response {
             CommandResponse::Empty(empty) => assert_eq!(empty.tag, TEST_TAG),
