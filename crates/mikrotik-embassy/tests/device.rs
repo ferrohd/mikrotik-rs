@@ -72,11 +72,7 @@ struct MockStream {
 impl MockStream {
     fn new(stream: tokio::net::TcpStream) -> Self {
         let (reader, writer) = stream.into_split();
-        Self {
-            writer,
-            reader,
-            buf: Vec::new(),
-        }
+        Self { writer, reader, buf: Vec::new() }
     }
 
     /// Read one complete sentence from the stream. Returns the decoded words.
@@ -84,14 +80,9 @@ impl MockStream {
         let mut read_buf = [0u8; 4096];
         loop {
             match codec::decode_sentence(&self.buf) {
-                Ok(codec::Decode::Complete {
-                    value: raw,
-                    bytes_consumed,
-                }) => {
-                    let words = raw
-                        .words()
-                        .map(|w| String::from_utf8_lossy(w).into_owned())
-                        .collect();
+                Ok(codec::Decode::Complete { value: raw, bytes_consumed }) => {
+                    let words =
+                        raw.words().map(|w| String::from_utf8_lossy(w).into_owned()).collect();
                     self.buf.drain(..bytes_consumed);
                     return words;
                 }
@@ -181,9 +172,7 @@ async fn login_success() {
     });
 
     // Send a command to verify the event loop is running
-    let cmd = CommandBuilder::new()
-        .command("/system/resource/print")
-        .build();
+    let cmd = CommandBuilder::new().command("/system/resource/print").build();
     cmd_channel.sender().send(cmd).await;
 
     // Read the Done event
@@ -209,8 +198,7 @@ async fn login_failure() {
         let tag = extract_tag(&words);
 
         // Send trap (auth failure)
-        mock.write_all(&encode_trap(&tag, "invalid user name or password"))
-            .await;
+        mock.write_all(&encode_trap(&tag, "invalid user name or password")).await;
     });
 
     let (cmd_channel, evt_channel) = leaked_channels();
@@ -280,14 +268,8 @@ async fn send_command_receive_reply() {
     let event = evt_channel.receiver().receive().await;
     match event {
         Event::Reply { response, .. } => {
-            assert_eq!(
-                response.attributes.get("name").unwrap(),
-                &Some("ether1".to_string())
-            );
-            assert_eq!(
-                response.attributes.get("type").unwrap(),
-                &Some("ether".to_string())
-            );
+            assert_eq!(response.attributes.get("name").unwrap(), &Some("ether1".to_string()));
+            assert_eq!(response.attributes.get("type").unwrap(), &Some("ether".to_string()));
         }
         other => panic!("expected Reply, got {other:?}"),
     }
@@ -318,8 +300,7 @@ async fn trap_response() {
         let cmd_tag = extract_tag(&words);
 
         // Send trap
-        mock.write_all(&encode_trap(&cmd_tag, "no such command prefix"))
-            .await;
+        mock.write_all(&encode_trap(&cmd_tag, "no such command prefix")).await;
     });
 
     let (cmd_channel, evt_channel) = leaked_channels();
@@ -518,17 +499,10 @@ async fn concurrent_commands() {
 
     // Count Reply and Done events per tag
     let replies_for = |tag| {
-        events
-            .iter()
-            .filter(|e| matches!(e, Event::Reply { tag: t, .. } if *t == tag))
-            .count()
+        events.iter().filter(|e| matches!(e, Event::Reply { tag: t, .. } if *t == tag)).count()
     };
-    let dones_for = |tag| {
-        events
-            .iter()
-            .filter(|e| matches!(e, Event::Done { tag: t } if *t == tag))
-            .count()
-    };
+    let dones_for =
+        |tag| events.iter().filter(|e| matches!(e, Event::Done { tag: t } if *t == tag)).count();
 
     assert_eq!(replies_for(tag1), 1, "cmd1 should have 1 reply");
     assert_eq!(replies_for(tag2), 1, "cmd2 should have 1 reply");
