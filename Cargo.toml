@@ -9,7 +9,7 @@ members = ["crates/*", "examples/*"]
 # One version for all four crates. They are a facade and its adapters, released together and
 # only useful in combination, so independent numbering bought nothing but the chance to publish
 # an incompatible pair. release-plz bumps this single value.
-version = "0.9.1"
+version = "0.10.0"
 edition = "2024"
 # The one place the MSRV is declared; flake.nix reads it to build devShells.msrv, so this value
 # *is* the compiler `just msrv` runs. Keep clippy.toml's `msrv` in step.
@@ -34,10 +34,10 @@ hashbrown = "0.17"
 
 # Internal crates. Path *and* version: `cargo publish` keeps only the version, since a path
 # means nothing on the registry.
-mikrotik-proto = { version = "0.9.1", path = "crates/mikrotik-proto" }
-mikrotik-tokio = { version = "0.9.1", path = "crates/mikrotik-tokio" }
-mikrotik-embassy = { version = "0.9.1", path = "crates/mikrotik-embassy" }
-mikrotik-rs = { version = "0.9.1", path = "crates/mikrotik-rs" }
+mikrotik-proto = { version = "0.10.0", path = "crates/mikrotik-proto" }
+mikrotik-tokio = { version = "0.10.0", path = "crates/mikrotik-tokio" }
+mikrotik-embassy = { version = "0.10.0", path = "crates/mikrotik-embassy" }
+mikrotik-rs = { version = "0.10.0", path = "crates/mikrotik-rs" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

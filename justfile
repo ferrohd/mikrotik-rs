@@ -74,23 +74,23 @@ features:
     cargo hack clippy --each-feature --workspace --ignore-private --all-targets --locked -- -D warnings
     cargo hack clippy --feature-powerset -p mikrotik-rs --all-targets --locked -- -D warnings
 
-# `check` not `build`: linking a foreign target needs its SDK, and checking already catches what
-# this is for — a dependency gating an API behind #[cfg] and a call site that ignores it, an
-# E0599 that testing on Linux never reveals. The list is `crossTargets` in flake.nix.
+# `build`, not `check`, for the bare-metal targets: this is where the no_std claim is actually
+# tested, and only codegen fails on a missing lang item or an accidental std path. A host build
+# with --no-default-features keeps std in the sysroot and so cannot fail.
 #
-# Missing, and the reason this recipe is weaker than it should be:
+# thumbv6m has no compare-and-swap, which is what stops an AtomicU32 reappearing in the
+# protocol core — that target is the RP2040, and losing it would mean losing the most common
+# board an Embassy user has.
 #
-#     cargo build -p mikrotik-proto   --target thumbv7em-none-eabihf --locked
-#     cargo build -p mikrotik-embassy --target thumbv7em-none-eabihf --locked
-#
-# `build`, not `check`, because only codegen fails on a missing lang item. Both lines fail
-# today: Tag wraps uuid::Uuid, uuid's `v4` feature pulls getrandom, and getrandom
-# compile_error!s on a target with no OS entropy. So mikrotik-embassy — a crate that exists to
-# be run on microcontrollers — has never been buildable for one, and `--no-default-features` on
-# the host never showed it, because the host sysroot still has std. Uncomment both lines in the
-# commit that gives Tag a no_std source.
-[doc('cross-checks for the shipped platforms')]
+# `check` is enough for the two hosted targets: linking them needs their SDK, and checking
+# already catches what they are for — a dependency gating an API behind #[cfg] and a call site
+# that ignores it. The list is `crossTargets` in flake.nix.
+[doc('bare-metal builds, and cross-checks for the hosted platforms')]
 targets:
+    cargo build -p mikrotik-proto --target thumbv6m-none-eabi --locked
+    cargo build -p mikrotik-embassy --target thumbv6m-none-eabi --locked
+    cargo build -p mikrotik-proto --target thumbv7em-none-eabihf --locked
+    cargo build -p mikrotik-embassy --target thumbv7em-none-eabihf --locked
     cargo check --workspace --all-features --all-targets --locked --target aarch64-apple-darwin
     cargo check --workspace --all-features --all-targets --locked --target aarch64-unknown-linux-gnu
 

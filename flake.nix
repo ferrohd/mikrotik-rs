@@ -40,14 +40,15 @@
           # complete: the override *replaces* rust-toolchain.toml's `targets` rather than
           # extending it.
           #
-          # thumbv7em-none-eabihf belongs here and is deliberately absent. mikrotik-embassy is
-          # unconditionally #![no_std] and mikrotik-proto is no_std by default, but neither can
-          # currently be built for a target without std: Tag wraps uuid::Uuid, uuid's `v4`
-          # feature pulls getrandom, and getrandom compile_error!s on bare metal. A host build
-          # with --no-default-features still has std in the sysroot, which is why that has never
-          # been caught. Add this target back in the commit that gives Tag a no_std source —
-          # until then it would only ever be a red job.
+          # The two bare-metal targets are the ones that earn their place. mikrotik-embassy is
+          # unconditionally #![no_std] and mikrotik-proto is no_std by default, but a host build
+          # with --no-default-features still has std in its sysroot, so it cannot fail — only a
+          # target without std can. thumbv7em covers Cortex-M4F/M7 (nRF52, STM32F4/H7);
+          # thumbv6m is Cortex-M0+, which has no compare-and-swap and so is what keeps an
+          # AtomicU32 from creeping back into the protocol core. That is the RP2040.
           crossTargets = [
+            "thumbv6m-none-eabi"
+            "thumbv7em-none-eabihf"
             "aarch64-apple-darwin"
             "aarch64-unknown-linux-gnu"
           ];
