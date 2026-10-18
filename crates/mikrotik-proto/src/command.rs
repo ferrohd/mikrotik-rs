@@ -38,24 +38,8 @@
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use crate::codec;
+use crate::sentence::{OutWord, Sentence};
 use crate::tag::Tag;
-
-/// Encode the length prefix for a word that is being assembled in place.
-///
-/// The builder writes word bodies directly into `buf` to avoid an intermediate
-/// allocation, so it computes the length itself instead of going through
-/// [`codec::encode_word`]. This helper keeps the `usize` → `u32` narrowing in
-/// one place.
-///
-/// # Panics
-///
-/// Panics if `word_len` exceeds [`u32::MAX`] (4 GiB), which the wire format
-/// cannot represent.
-fn encode_word_len(word_len: usize, buf: &mut Vec<u8>) {
-    let len = u32::try_from(word_len).expect("word length exceeds u32::MAX");
-    codec::encode_length(len, buf);
-}
 
 /// Marker type: no command word has been set yet.
 pub struct NoCmd;
@@ -77,7 +61,7 @@ pub struct Cmd;
 #[must_use]
 pub struct CommandBuilder<State> {
     tag: Tag,
-    buf: Vec<u8>,
+    sentence: Sentence,
     state: PhantomData<State>,
 }
 
@@ -90,7 +74,7 @@ impl Default for CommandBuilder<NoCmd> {
 impl CommandBuilder<NoCmd> {
     /// Begin building a new [`Command`] with a randomly generated tag.
     pub fn new() -> Self {
-        Self { tag: Tag::new(), buf: Vec::new(), state: PhantomData }
+        Self::with_tag(Tag::new())
     }
 
     /// Begin building a new [`Command`] with a specified tag.
@@ -100,7 +84,7 @@ impl CommandBuilder<NoCmd> {
     /// * `tag` — A [`Tag`] that identifies the command for RouterOS correlation.
     ///   **Must be unique** within a connection.
     pub fn with_tag(tag: Tag) -> Self {
-        Self { tag, buf: Vec::new(), state: PhantomData }
+        Self { tag, sentence: Sentence::default(), state: PhantomData }
     }
 
     /// Builds a login command with the provided username and optional password.
@@ -129,19 +113,10 @@ impl CommandBuilder<NoCmd> {
     ///
     /// * `command` — The MikroTik command path (e.g., `/system/resource/print`).
     pub fn command(self, command: &str) -> CommandBuilder<Cmd> {
-        let Self { tag, mut buf, .. } = self;
-
-        // Write the command word
-        codec::encode_word(command.as_bytes(), &mut buf);
-
-        // Write the tag word — avoid format!() allocation by building directly
-        // ".tag=" (5 bytes) + UUID hyphenated (36 bytes) = 41 bytes
-        let mut tag_buf = [0u8; 41];
-        tag_buf[..5].copy_from_slice(b".tag=");
-        tag.encode_lower(&mut tag_buf[5..]);
-        codec::encode_word(&tag_buf, &mut buf);
-
-        CommandBuilder { tag, buf, state: PhantomData }
+        let Self { tag, mut sentence, .. } = self;
+        sentence.word(OutWord::Command(command));
+        sentence.word(OutWord::Tag(tag));
+        CommandBuilder { tag, sentence, state: PhantomData }
     }
 }
 
@@ -173,19 +148,11 @@ impl CommandBuilder<Cmd> {
     /// # Panics
     ///
     /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
-    pub fn attribute_raw(self, key: &str, value: Option<&[u8]>) -> Self {
-        let Self { tag, mut buf, .. } = self;
-
+    pub fn attribute_raw(mut self, key: &str, value: Option<&[u8]>) -> Self {
         if let Some(value) = value {
-            let word_len = 1 + key.len() + 1 + value.len();
-            encode_word_len(word_len, &mut buf);
-            buf.push(b'=');
-            buf.extend_from_slice(key.as_bytes());
-            buf.push(b'=');
-            buf.extend_from_slice(value);
+            self.sentence.word(OutWord::Attribute { key, value });
         }
-
-        CommandBuilder { tag, buf, state: PhantomData }
+        self
     }
 
     /// Adds a valueless flag, such as `detail` or `once`.
@@ -203,9 +170,9 @@ impl CommandBuilder<Cmd> {
 
     /// Adds an attribute with a Tag value (used internally for cancel tags).
     fn attribute_tag(self, key: &str, value: Tag) -> Self {
-        let mut tag_str = [0u8; 36];
-        let s = value.encode_lower(&mut tag_str);
-        self.attribute(key, Some(s))
+        let mut buf = [0u8; 36];
+        let ascii = value.encode_lower(&mut buf);
+        self.attribute_raw(key, Some(ascii.as_bytes()))
     }
 
     /// Adds a query to check if a property is present.
@@ -215,13 +182,9 @@ impl CommandBuilder<Cmd> {
     /// # Panics
     ///
     /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
-    pub fn query_is_present(self, name: &str) -> Self {
-        let Self { tag, mut buf, .. } = self;
-        let word_len = 1 + name.len(); // "?" + name
-        encode_word_len(word_len, &mut buf);
-        buf.push(b'?');
-        buf.extend_from_slice(name.as_bytes());
-        CommandBuilder { tag, buf, state: PhantomData }
+    pub fn query_is_present(mut self, name: &str) -> Self {
+        self.sentence.word(OutWord::Present(name));
+        self
     }
 
     /// Adds a query to check if a property is absent.
@@ -229,13 +192,9 @@ impl CommandBuilder<Cmd> {
     /// # Panics
     ///
     /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
-    pub fn query_not_present(self, name: &str) -> Self {
-        let Self { tag, mut buf, .. } = self;
-        let word_len = 2 + name.len(); // "?-" + name
-        encode_word_len(word_len, &mut buf);
-        buf.extend_from_slice(b"?-");
-        buf.extend_from_slice(name.as_bytes());
-        CommandBuilder { tag, buf, state: PhantomData }
+    pub fn query_not_present(mut self, name: &str) -> Self {
+        self.sentence.word(OutWord::Absent(name));
+        self
     }
 
     /// Adds a query to check if a property equals a value.
@@ -243,15 +202,9 @@ impl CommandBuilder<Cmd> {
     /// # Panics
     ///
     /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
-    pub fn query_equal(self, name: &str, value: &str) -> Self {
-        let Self { tag, mut buf, .. } = self;
-        let word_len = 1 + name.len() + 1 + value.len(); // "?" + name + "=" + value
-        encode_word_len(word_len, &mut buf);
-        buf.push(b'?');
-        buf.extend_from_slice(name.as_bytes());
-        buf.push(b'=');
-        buf.extend_from_slice(value.as_bytes());
-        CommandBuilder { tag, buf, state: PhantomData }
+    pub fn query_equal(mut self, name: &str, value: &str) -> Self {
+        self.sentence.word(OutWord::Equal { key: name, value });
+        self
     }
 
     /// Adds a query to check if a property is greater than a value.
@@ -259,15 +212,9 @@ impl CommandBuilder<Cmd> {
     /// # Panics
     ///
     /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
-    pub fn query_gt(self, key: &str, value: &str) -> Self {
-        let Self { tag, mut buf, .. } = self;
-        let word_len = 2 + key.len() + 1 + value.len(); // "?>" + key + "=" + value
-        encode_word_len(word_len, &mut buf);
-        buf.extend_from_slice(b"?>");
-        buf.extend_from_slice(key.as_bytes());
-        buf.push(b'=');
-        buf.extend_from_slice(value.as_bytes());
-        CommandBuilder { tag, buf, state: PhantomData }
+    pub fn query_gt(mut self, key: &str, value: &str) -> Self {
+        self.sentence.word(OutWord::Greater { key, value });
+        self
     }
 
     /// Adds a query to check if a property is less than a value.
@@ -275,15 +222,9 @@ impl CommandBuilder<Cmd> {
     /// # Panics
     ///
     /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
-    pub fn query_lt(self, key: &str, value: &str) -> Self {
-        let Self { tag, mut buf, .. } = self;
-        let word_len = 2 + key.len() + 1 + value.len(); // "?<" + key + "=" + value
-        encode_word_len(word_len, &mut buf);
-        buf.extend_from_slice(b"?<");
-        buf.extend_from_slice(key.as_bytes());
-        buf.push(b'=');
-        buf.extend_from_slice(value.as_bytes());
-        CommandBuilder { tag, buf, state: PhantomData }
+    pub fn query_lt(mut self, key: &str, value: &str) -> Self {
+        self.sentence.word(OutWord::Less { key, value });
+        self
     }
 
     /// Adds query operations (combination operators for the query stack).
@@ -293,26 +234,16 @@ impl CommandBuilder<Cmd> {
     /// # Panics
     ///
     /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
-    pub fn query_operations(self, operations: impl Iterator<Item = QueryOperator>) -> Self {
-        let Self { tag, mut buf, .. } = self;
-
-        // Collect operation chars: "?#" + operator chars
-        let ops: Vec<u8> = operations.map(QueryOperator::code).collect();
-        let word_len = 2 + ops.len(); // "?#" + ops
-        encode_word_len(word_len, &mut buf);
-        buf.extend_from_slice(b"?#");
-        buf.extend_from_slice(&ops);
-
-        CommandBuilder { tag, buf, state: PhantomData }
+    pub fn query_operations(mut self, operations: &[QueryOperator]) -> Self {
+        self.sentence.word(OutWord::Operations(operations));
+        self
     }
 
     /// Finalizes the command construction, producing a [`Command`].
     #[must_use]
     pub fn build(self) -> Command {
-        let Self { tag, mut buf, .. } = self;
-        // Terminate the sentence
-        codec::encode_terminator(&mut buf);
-        Command { tag, data: buf }
+        let Self { tag, sentence, .. } = self;
+        Command { tag, data: sentence.finish() }
     }
 }
 
@@ -358,8 +289,9 @@ pub enum QueryOperator {
 }
 
 impl QueryOperator {
+    /// The operator's byte as it appears after `?#` on the wire.
     #[inline]
-    fn code(self) -> u8 {
+    pub(crate) fn code(self) -> u8 {
         match self {
             QueryOperator::Not => b'!',
             QueryOperator::And => b'&',
@@ -374,6 +306,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
+    use crate::codec;
     use alloc::string::String;
 
     const TEST_TAG: Tag = Tag::from_uuid(Uuid::from_bytes([
@@ -404,13 +337,10 @@ mod tests {
     }
 
     #[test]
-    fn test_command_builder_new() {
-        let builder = CommandBuilder::<NoCmd>::new();
-        assert_eq!(builder.buf.len(), 0);
-        // Tag should be a random non-zero UUID
-        let a = builder.tag;
+    fn test_command_builder_new_tags_are_distinct() {
+        let a = CommandBuilder::<NoCmd>::new().tag;
         let b = CommandBuilder::<NoCmd>::new().tag;
-        assert_ne!(a, b);
+        assert_ne!(a, b, "each builder must take a fresh tag");
     }
 
     #[test]
@@ -421,23 +351,24 @@ mod tests {
 
     #[test]
     fn test_command_builder_command() {
-        let builder = CommandBuilder::<NoCmd>::with_tag(TEST_TAG).command("/interface/print");
-        // Word 1: 1-byte len (0x10) + 16 bytes "/interface/print" = 17 bytes
-        // Word 2: 1-byte len (0x29) + 41 bytes ".tag=a1a2a3a4-..." = 42 bytes
-        // Total: 59 bytes
-        assert_eq!(builder.buf.len(), 59);
-        assert_eq!(&builder.buf[1..17], b"/interface/print");
-        assert_eq!(&builder.buf[18..59], TEST_TAG_WORD.as_bytes());
+        let cmd = CommandBuilder::<NoCmd>::with_tag(TEST_TAG).command("/interface/print").build();
+        let words = parse_words(&cmd.data);
+
+        assert_eq!(words[0], "/interface/print");
+        assert_eq!(words[1], TEST_TAG_WORD);
+        assert_eq!(words.len(), 2);
     }
 
     #[test]
     fn test_command_builder_attribute() {
-        let builder = CommandBuilder::<NoCmd>::with_tag(TEST_TAG)
+        let cmd = CommandBuilder::<NoCmd>::with_tag(TEST_TAG)
             .command("/interface/print")
-            .attribute("name", Some("ether1"));
+            .attribute("name", Some("ether1"))
+            .build();
+        let words = parse_words(&cmd.data);
 
-        // Attribute starts at offset 59 (after command + tag words) + 1 byte len prefix = 60
-        assert_eq!(&builder.buf[60..72], b"=name=ether1");
+        assert_eq!(words[2], "=name=ether1");
+        assert_eq!(words.len(), 3);
     }
 
     #[test]

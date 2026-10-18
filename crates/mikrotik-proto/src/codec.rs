@@ -214,7 +214,12 @@ pub fn decode_sentence(src: &[u8]) -> Result<Decode<RawSentence<'_>>, DecodeErro
 /// Encode a variable-length prefix into the destination buffer.
 ///
 /// Appends the encoded length prefix (1-5 bytes) to `dst`.
-pub fn encode_length(len: u32, dst: &mut Vec<u8>) {
+///
+/// Crate-private on purpose: this is the only primitive that can state a length
+/// independently of the bytes that follow it, which is exactly how a sentence
+/// becomes malformed. Callers outside the crate get [`encode_word`], which
+/// derives the length from its content and cannot disagree with it.
+pub(crate) fn encode_length(len: u32, dst: &mut Vec<u8>) {
     match len {
         0x00..=0x7F => {
             dst.push((len & 0xFF) as u8);
@@ -268,6 +273,56 @@ pub fn encode_terminator(dst: &mut Vec<u8>) {
 
 #[cfg(test)]
 mod tests {
+
+    // ── Property tests for the length prefix ──
+    //
+    // These live here rather than in tests/proptest.rs because `encode_length`
+    // is crate-private: it is the one primitive that can state a length
+    // independently of its content, so it is not part of the public surface.
+
+    use proptest::prelude::*;
+
+    proptest! {
+    /// encode_length → decode_length always roundtrips for any u32.
+    #[test]
+    fn codec_length_roundtrip(len in any::<u32>()) {
+        let mut buf = Vec::new();
+        encode_length(len, &mut buf);
+
+        match decode_length(&buf).unwrap() {
+            Decode::Complete { value: (decoded_len, prefix_bytes), bytes_consumed } => {
+                prop_assert_eq!(decoded_len, len);
+                prop_assert_eq!(bytes_consumed, buf.len());
+                prop_assert_eq!(prefix_bytes, buf.len());
+            }
+            Decode::Incomplete { .. } => {
+                prop_assert!(false, "encoded length should always decode completely");
+            }
+        }
+    }
+
+    /// Encoded length always produces a valid first byte in one of the 5 prefix ranges.
+    #[test]
+    fn encode_length_valid_prefix(len in any::<u32>()) {
+        let mut buf = Vec::new();
+        encode_length(len, &mut buf);
+        let first = buf[0];
+
+        // Must match one of the 5 valid prefix patterns:
+        // 1-byte: 0x00..=0x7F
+        // 2-byte: 0x80..=0xBF
+        // 3-byte: 0xC0..=0xDF
+        // 4-byte: 0xE0..=0xEF
+        // 5-byte: 0xF0..=0xF7 (spec says 0xF0..=0xF8 but only 0xF0 is used)
+        let valid = first <= 0x7F
+            || (0x80..=0xBF).contains(&first)
+            || (0xC0..=0xDF).contains(&first)
+            || (0xE0..=0xEF).contains(&first)
+            || first == 0xF0;
+        prop_assert!(valid, "invalid prefix byte: 0x{first:02X} for len 0x{len:X}");
+    }
+    }
+
     extern crate alloc;
     use alloc::vec;
     use alloc::vec::Vec;
