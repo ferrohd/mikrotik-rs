@@ -269,7 +269,7 @@ dependencies = [
 
 [[package]]
 name = "mikrotik-embassy"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "critical-section",
  "embassy-futures",
@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "mikrotik-proto"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "hashbrown",
  "proptest",
@@ -292,7 +292,7 @@ dependencies = [
 
 [[package]]
 name = "mikrotik-rs"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "mikrotik-embassy",
  "mikrotik-proto",
@@ -301,7 +301,7 @@ dependencies = [
 
 [[package]]
 name = "mikrotik-tokio"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "mikrotik-proto",
  "rustls",

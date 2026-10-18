@@ -36,7 +36,15 @@ env.RUSTDOCFLAGS = "-D warnings --cfg docsrs"
 need_stdout = false
 extraneous_args = false
 
+# Bare metal, where the no_std claim either holds or does not. thumbv6m rather than thumbv7em
+# because it is the stricter of the two: no compare-and-swap.
+[jobs.embedded]
+command = ["cargo", "build", "-p", "mikrotik-embassy", "--target", "thumbv6m-none-eabi"]
+need_stdout = false
+extraneous_args = false
+
 [keybindings]
 c = "job:clippy"
 t = "job:nextest"
 d = "job:doc"
+e = "job:embedded"
