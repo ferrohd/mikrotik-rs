@@ -6,11 +6,24 @@
 
 use mikrotik_proto::codec;
 use mikrotik_proto::command;
-use mikrotik_proto::command::CommandBuilder;
+use mikrotik_proto::command::{CommandBuilder, NoCmd};
 use mikrotik_proto::connection::{Connection, Event, State};
 use mikrotik_proto::handshake::{Handshaking, LoginProgress};
 use mikrotik_proto::response::TrapCategory;
 use mikrotik_proto::tag::Tag;
+
+/// A builder with a distinct tag, standing in for the `std`-only
+/// `CommandBuilder::new`.
+fn builder() -> CommandBuilder<NoCmd> {
+    CommandBuilder::with_tag(builder_tag())
+}
+
+/// A distinct tag per call.
+fn builder_tag() -> Tag {
+    use core::sync::atomic::{AtomicU32, Ordering};
+    static NEXT: AtomicU32 = AtomicU32::new(1);
+    Tag::from_raw(NEXT.fetch_add(1, Ordering::Relaxed))
+}
 
 // ── Test helpers ──
 
@@ -70,7 +83,7 @@ fn drain_events(conn: &mut Connection) -> Vec<Event> {
 #[test]
 fn full_command_lifecycle() {
     // Build a command using the builder
-    let cmd = CommandBuilder::new().command("/interface/print").flag("detail").build();
+    let cmd = builder().command("/interface/print").flag("detail").build();
     let tag = cmd.tag;
 
     // Send it through the connection
@@ -142,7 +155,7 @@ fn handshake_then_commands() {
     assert_eq!(conn.in_flight_count(), 0);
 
     // Now send a real command
-    let cmd = CommandBuilder::new().command("/system/resource/print").build();
+    let cmd = builder().command("/system/resource/print").build();
     let tag = conn.send_command(cmd).unwrap();
     drain_transmits(&mut conn);
 
@@ -173,9 +186,9 @@ fn concurrent_multiplexing() {
     let mut conn = Connection::new();
 
     // Send 3 commands
-    let cmd1 = CommandBuilder::new().command("/interface/print").build();
-    let cmd2 = CommandBuilder::new().command("/ip/address/print").build();
-    let cmd3 = CommandBuilder::new().command("/system/resource/print").build();
+    let cmd1 = builder().command("/interface/print").build();
+    let cmd2 = builder().command("/ip/address/print").build();
+    let cmd3 = builder().command("/system/resource/print").build();
     let tag1 = conn.send_command(cmd1).unwrap();
     let tag2 = conn.send_command(cmd2).unwrap();
     let tag3 = conn.send_command(cmd3).unwrap();
@@ -241,8 +254,7 @@ fn concurrent_multiplexing() {
 #[test]
 fn cancel_mid_stream() {
     let mut conn = Connection::new();
-    let cmd =
-        CommandBuilder::new().command("/tool/torch").attribute("interface", Some("ether1")).build();
+    let cmd = builder().command("/tool/torch").attribute("interface", Some("ether1")).build();
     let tag = conn.send_command(cmd).unwrap();
     drain_transmits(&mut conn);
 
@@ -271,7 +283,7 @@ fn cancel_mid_stream() {
 
 #[test]
 fn command_macro_roundtrip() {
-    let cmd = command!("/interface/print", name = "ether1");
+    let cmd = command!(builder_tag(), "/interface/print", name = "ether1");
     let tag = cmd.tag;
 
     let mut conn = Connection::new();
@@ -297,7 +309,7 @@ fn command_macro_roundtrip() {
 #[test]
 fn byte_at_a_time() {
     let mut conn = Connection::new();
-    let cmd = CommandBuilder::new().command("/test").build();
+    let cmd = builder().command("/test").build();
     let tag = conn.send_command(cmd).unwrap();
     drain_transmits(&mut conn);
 
@@ -319,7 +331,7 @@ fn byte_at_a_time() {
 #[test]
 fn back_to_back_streaming_replies() {
     let mut conn = Connection::new();
-    let cmd = CommandBuilder::new().command("/interface/print").build();
+    let cmd = builder().command("/interface/print").build();
     let tag = conn.send_command(cmd).unwrap();
     drain_transmits(&mut conn);
 
@@ -369,7 +381,7 @@ fn trap_with_all_categories() {
 
     for (cat_num, expected_cat) in categories {
         let mut conn = Connection::new();
-        let cmd = CommandBuilder::new().command("/test").build();
+        let cmd = builder().command("/test").build();
         let tag = conn.send_command(cmd).unwrap();
         drain_transmits(&mut conn);
 
@@ -393,8 +405,8 @@ fn trap_with_all_categories() {
 fn fatal_kills_connection() {
     let mut conn = Connection::new();
 
-    let cmd1 = CommandBuilder::new().command("/test1").build();
-    let cmd2 = CommandBuilder::new().command("/test2").build();
+    let cmd1 = builder().command("/test1").build();
+    let cmd2 = builder().command("/test2").build();
     let tag1 = conn.send_command(cmd1).unwrap();
     let _tag2 = conn.send_command(cmd2).unwrap();
     drain_transmits(&mut conn);
@@ -422,7 +434,7 @@ fn fatal_kills_connection() {
     assert_eq!(conn.in_flight_count(), 0);
 
     // Further operations must fail
-    let cmd3 = CommandBuilder::new().command("/test3").build();
+    let cmd3 = builder().command("/test3").build();
     assert!(conn.send_command(cmd3).is_err());
     assert!(conn.receive(&[]).is_err());
 }
@@ -463,7 +475,7 @@ fn empty_password_login() {
 #[test]
 fn reply_for_cancelled_command_is_ignored() {
     let mut conn = Connection::new();
-    let cmd = CommandBuilder::new().command("/tool/torch").build();
+    let cmd = builder().command("/tool/torch").build();
     let tag = conn.send_command(cmd).unwrap();
     drain_transmits(&mut conn);
 
@@ -489,7 +501,7 @@ fn reply_for_cancelled_command_is_ignored() {
 #[test]
 fn multiple_receive_chunks_split_across_sentence_boundary() {
     let mut conn = Connection::new();
-    let cmd = CommandBuilder::new().command("/test").build();
+    let cmd = builder().command("/test").build();
     let tag = conn.send_command(cmd).unwrap();
     drain_transmits(&mut conn);
 

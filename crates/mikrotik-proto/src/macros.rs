@@ -55,27 +55,65 @@ pub const fn check_mikrotik_command(cmd: &str) -> &str {
 /// [`attribute(key, None)`](crate::command::CommandBuilder::attribute), which
 /// omits the word entirely.
 ///
+/// # Tags
+///
+/// The terse form takes a tag from the process-wide counter and so needs the
+/// `std` feature. Pass a tag as a leading argument to use the macro anywhere,
+/// including `no_std`:
+///
+/// ```rust
+/// use mikrotik_proto::command;
+/// use mikrotik_proto::tag::{Counter, TagSource};
+///
+/// let tags = Counter::new();
+/// let cmd = command!(tags.next_tag(), "/interface/print", detail);
+/// assert!(!cmd.data().is_empty());
+/// ```
+///
 /// # Examples
 ///
 /// ```rust
 /// use mikrotik_proto::command;
+/// use mikrotik_proto::tag::{Counter, TagSource};
+///
+/// let tags = Counter::new();
 ///
 /// // Simple command
-/// let cmd = command!("/system/resource/print");
+/// let cmd = command!(tags.next_tag(), "/system/resource/print");
 /// assert!(!cmd.data().is_empty());
 ///
 /// // Command with a valued attribute and a flag
-/// let cmd = command!("/interface/print", user = "admin", detail);
+/// let cmd = command!(tags.next_tag(), "/interface/print", user = "admin", detail);
 /// assert!(!cmd.data().is_empty());
 /// ```
+///
+/// With the `std` feature the tag can be left out entirely:
+/// `command!("/interface/print", detail)`.
 #[macro_export]
 macro_rules! command {
-    // Case: command literal plus optional attributes (with or without `= value`)
+    // Case: command literal plus optional attributes (with or without `= value`).
+    // Listed first so the common form matches without backtracking; a leading
+    // argument that is not a literal falls through to the tagged rule below.
     ($cmd:literal $(, $key:ident $(= $value:expr)? )* $(,)?) => {{
         const VALIDATED: &str = $crate::macros::check_mikrotik_command($cmd);
 
         #[allow(unused_mut)]
         let mut builder = $crate::command::CommandBuilder::new()
+            .command(VALIDATED);
+
+        $(
+            builder = $crate::command!(@attr builder, stringify!($key) $(, $value)?);
+        )*
+
+        builder.build()
+    }};
+
+    // Case: an explicit tag, then the command literal and its attributes.
+    ($tag:expr, $cmd:literal $(, $key:ident $(= $value:expr)? )* $(,)?) => {{
+        const VALIDATED: &str = $crate::macros::check_mikrotik_command($cmd);
+
+        #[allow(unused_mut)]
+        let mut builder = $crate::command::CommandBuilder::with_tag($tag)
             .command(VALIDATED);
 
         $(
@@ -117,9 +155,16 @@ mod tests {
         words
     }
 
+    /// A distinct tag per call; the terse `command!` form needs `std`.
+    fn tag() -> crate::tag::Tag {
+        use core::sync::atomic::{AtomicU32, Ordering};
+        static NEXT: AtomicU32 = AtomicU32::new(1);
+        crate::tag::Tag::from_raw(NEXT.fetch_add(1, Ordering::Relaxed))
+    }
+
     #[test]
     fn test_command_no_attributes() {
-        let cmd = command!("/system/resource/print");
+        let cmd = command!(tag(), "/system/resource/print");
         let words = parse_words(&cmd.data);
 
         assert_eq!(words[0], "/system/resource/print");
@@ -129,7 +174,7 @@ mod tests {
 
     #[test]
     fn test_command_with_one_attribute() {
-        let cmd = command!("/interface/ethernet/print", user = "admin");
+        let cmd = command!(tag(), "/interface/ethernet/print", user = "admin");
         let words = parse_words(&cmd.data);
 
         assert_eq!(words[0], "/interface/ethernet/print");
@@ -140,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_command_with_multiple_attributes() {
-        let cmd = command!("/some/random", attribute_no_value, another = "value");
+        let cmd = command!(tag(), "/some/random", attribute_no_value, another = "value");
         let words = parse_words(&cmd.data);
 
         assert_eq!(words[0], "/some/random");

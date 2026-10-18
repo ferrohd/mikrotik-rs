@@ -8,8 +8,11 @@
 //!
 //! ```rust
 //! use mikrotik_proto::command::CommandBuilder;
+//! use mikrotik_proto::tag::{Counter, TagSource};
 //!
-//! let cmd = CommandBuilder::new()
+//! let tags = Counter::new();
+//!
+//! let cmd = CommandBuilder::with_tag(tags.next_tag())
 //!     .command("/system/resource/print")
 //!     .flag("detail")
 //!     .build();
@@ -17,6 +20,10 @@
 //! // The command has wire-format data ready to send
 //! assert!(!cmd.data().is_empty());
 //! ```
+//!
+//! With the `std` feature, [`CommandBuilder::new`] takes a tag from a
+//! process-wide counter and the explicit [`Counter`](crate::tag::Counter) is
+//! unnecessary.
 //!
 //! # Attributes and absence
 //!
@@ -65,6 +72,7 @@ pub struct CommandBuilder<State> {
     state: PhantomData<State>,
 }
 
+#[cfg(feature = "std")]
 impl Default for CommandBuilder<NoCmd> {
     fn default() -> Self {
         Self::new()
@@ -72,7 +80,13 @@ impl Default for CommandBuilder<NoCmd> {
 }
 
 impl CommandBuilder<NoCmd> {
-    /// Begin building a new [`Command`] with a randomly generated tag.
+    /// Begin building a new [`Command`], taking a tag from the process-wide
+    /// counter.
+    ///
+    /// Requires the `std` feature; see [`Tag::new`] for why. Without it, take
+    /// a tag from a [`Counter`](crate::tag::Counter) and use
+    /// [`with_tag`](Self::with_tag).
+    #[cfg(feature = "std")]
     pub fn new() -> Self {
         Self::with_tag(Tag::new())
     }
@@ -90,7 +104,11 @@ impl CommandBuilder<NoCmd> {
     /// Builds a login command with the provided username and optional password.
     #[must_use]
     pub fn login(username: &str, password: Option<&str>) -> Command {
-        Self::new()
+        // `Tag::LOGIN` rather than a fresh tag, so this works without `std`:
+        // `Handshaking` needs it and `mikrotik-embassy` is no_std. Login is
+        // the only command in flight before authentication, and it is retired
+        // before the connection is handed over, so a constant is safe.
+        Self::with_tag(Tag::LOGIN)
             .command("/login")
             .attribute("name", Some(username))
             // An absent password is an *empty* password, not an absent attribute:
@@ -306,6 +324,17 @@ mod tests {
     use alloc::string::String;
 
     const TEST_TAG: Tag = Tag::from_raw(42);
+
+    /// A builder with a distinct tag, standing in for the `std`-only
+    /// `CommandBuilder::new`. Uses an atomic directly rather than `Counter`
+    /// because the host always has compare-and-swap; the `std` gate on
+    /// `Tag::new` is about bare-metal targets, not about the test harness.
+    fn builder() -> CommandBuilder<NoCmd> {
+        use core::sync::atomic::{AtomicU32, Ordering};
+        static NEXT: AtomicU32 = AtomicU32::new(1);
+        CommandBuilder::with_tag(Tag::from_raw(NEXT.fetch_add(1, Ordering::Relaxed)))
+    }
+
     const TEST_TAG_WORD: &str = ".tag=0000000042";
 
     /// Helper to parse the RouterOS length-prefixed "words" out of the command data.
@@ -331,8 +360,8 @@ mod tests {
 
     #[test]
     fn test_command_builder_new_tags_are_distinct() {
-        let a = CommandBuilder::<NoCmd>::new().tag;
-        let b = CommandBuilder::<NoCmd>::new().tag;
+        let a = builder().tag;
+        let b = builder().tag;
         assert_ne!(a, b, "each builder must take a fresh tag");
     }
 
@@ -383,7 +412,7 @@ mod tests {
 
     #[test]
     fn test_command_no_attributes() {
-        let cmd = CommandBuilder::new().command("/system/resource/print").build();
+        let cmd = builder().command("/system/resource/print").build();
         let words = parse_words(&cmd.data);
 
         assert_eq!(words[0], "/system/resource/print");
@@ -393,10 +422,8 @@ mod tests {
 
     #[test]
     fn test_command_with_one_attribute() {
-        let cmd = CommandBuilder::new()
-            .command("/interface/ethernet/print")
-            .attribute("user", Some("admin"))
-            .build();
+        let cmd =
+            builder().command("/interface/ethernet/print").attribute("user", Some("admin")).build();
         let words = parse_words(&cmd.data);
 
         assert_eq!(words[0], "/interface/ethernet/print");
@@ -407,7 +434,7 @@ mod tests {
 
     #[test]
     fn test_command_with_multiple_attributes() {
-        let cmd = CommandBuilder::new()
+        let cmd = builder()
             .command("/some/random")
             .flag("attribute_no_value")
             .attribute("another", Some("value"))
@@ -426,7 +453,7 @@ mod tests {
         // `=comment=` tells RouterOS to set the comment to the empty string, which
         // clears it. `None` has to mean "not supplied", or threading an Option
         // straight from caller data silently wipes fields.
-        let cmd = CommandBuilder::new()
+        let cmd = builder()
             .command("/interface/set")
             .attribute("comment", None)
             .attribute("name", Some("ether1"))

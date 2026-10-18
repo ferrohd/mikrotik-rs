@@ -24,6 +24,16 @@ use tokio::net::TcpListener;
 
 use mikrotik_embassy::error::DeviceError;
 
+/// A builder with a distinct tag. `CommandBuilder::new` needs the `std`
+/// feature, which this crate deliberately does not enable on mikrotik-proto.
+fn builder() -> CommandBuilder<mikrotik_proto::command::NoCmd> {
+    use core::sync::atomic::{AtomicU32, Ordering};
+    static NEXT: AtomicU32 = AtomicU32::new(1);
+    CommandBuilder::with_tag(mikrotik_proto::tag::Tag::from_raw(
+        NEXT.fetch_add(1, Ordering::Relaxed),
+    ))
+}
+
 // ── Wire-format helpers (simulate what a router sends) ──
 
 fn encode_sentence(words: &[&[u8]]) -> Vec<u8> {
@@ -172,7 +182,7 @@ async fn login_success() {
     });
 
     // Send a command to verify the event loop is running
-    let cmd = CommandBuilder::new().command("/system/resource/print").build();
+    let cmd = builder().command("/system/resource/print").build();
     cmd_channel.sender().send(cmd).await;
 
     // Read the Done event
@@ -261,7 +271,7 @@ async fn send_command_receive_reply() {
     });
 
     // Send command
-    let cmd = CommandBuilder::new().command("/interface/print").build();
+    let cmd = builder().command("/interface/print").build();
     cmd_channel.sender().send(cmd).await;
 
     // First event: Reply
@@ -320,7 +330,7 @@ async fn trap_response() {
     });
 
     // Send command
-    let cmd = CommandBuilder::new().command("/nonexistent").build();
+    let cmd = builder().command("/nonexistent").build();
     cmd_channel.sender().send(cmd).await;
 
     // Should receive Trap event
@@ -373,7 +383,7 @@ async fn fatal_error() {
     });
 
     // Send a command to trigger the fatal response
-    let cmd = CommandBuilder::new().command("/test").build();
+    let cmd = builder().command("/test").build();
     cmd_channel.sender().send(cmd).await;
 
     // Should receive Fatal event
@@ -479,9 +489,9 @@ async fn concurrent_commands() {
     });
 
     // Send 3 commands
-    let cmd1 = CommandBuilder::new().command("/test1").build();
-    let cmd2 = CommandBuilder::new().command("/test2").build();
-    let cmd3 = CommandBuilder::new().command("/test3").build();
+    let cmd1 = builder().command("/test1").build();
+    let cmd2 = builder().command("/test2").build();
+    let cmd3 = builder().command("/test3").build();
     let tag1 = cmd1.tag;
     let tag2 = cmd2.tag;
     let tag3 = cmd3.tag;
