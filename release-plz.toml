@@ -2,13 +2,20 @@
 # Publish only when the release PR is merged, not on every commit to master.
 release_always = false
 
-# Pin the tag template. The default switches to "v{{ version }}" whenever the
-# workspace has a single publishable package, so pinning keeps tag names stable
-# regardless of how many crates are published.
+# Pin the tag template. The default switches to "v{{ version }}" whenever the workspace has a
+# single publishable package, so pinning keeps tag names stable regardless of how many crates
+# are published.
+#
+# The four `v0.9.0`-style tags this repository used before release-plz are a different scheme:
+# one tag for the whole workspace. They are left in place as history, and one baseline tag per
+# crate was created at 8a0051e — the commit v0.9.0 points at, which is where all four current
+# registry versions came from. Without those, release-plz has no "since" for the changelog and
+# would regenerate each one from 2024.
 git_tag_name = "{{ package }}-v{{ version }}"
 
-# `cargo publish` verifies by building with default features only, which would
-# leave the tokio-tls path unverified at the moment it ships.
+# `cargo publish` verifies by building with default features only, which would leave the
+# tokio-tls path and the whole embassy adapter unverified at the moment they ship — and those
+# are the two nothing else exercises.
 publish_all_features = true
 
 pr_labels = ["release"]
@@ -17,15 +24,67 @@ pr_labels = ["release"]
 # Never drop a breaking change, even when its type matches a skip rule below.
 protect_breaking_commits = true
 
-# Ordered: first match wins. Mirrors the conventional-commit prefixes actually
-# used in this repository.
+# Ordered: first match wins. This list and ci.yml's `types:` must stay in step — a type accepted
+# there but unhandled here does not fail anything, it just lands silently under "Other".
 commit_parsers = [
   { message = '^feat', group = "Added" },
   { message = '^fix', group = "Fixed" },
   { message = '^perf', group = "Performance" },
   { message = '^refactor', group = "Changed" },
+  # A revert undoes shipped behaviour, so it belongs with the other changes.
+  { message = '^revert', group = "Changed" },
   { message = '^docs', group = "Documentation" },
-  { message = '^chore\(deps\)', group = "Dependencies" },
-  { message = '^(ci|style|test|chore)', skip = true },
+  # Worth listing even though these prefixes are skipped below. renovate.json5 forces
+  # `chore(deps)` — overriding a preset that would use `fix(deps)` — so they land here.
+  { message = '^(chore|build)\(deps\)', group = "Dependencies" },
+  { message = '^(ci|style|test|chore|build)', skip = true },
   { message = '^.*', group = "Other" },
 ]
+
+# The four published crates share one version, declared once as [workspace.package] version and
+# inherited by each member. `version_group` is what makes release-plz agree: without it, it
+# computes a next version per package from that package's own commits and registry state, and
+# then has four different answers to write into a single inherited field.
+#
+# They are a facade and its adapters, cut from one tag and only useful together, so a release
+# that moved some and not others would only ever produce combinations nobody tested.
+
+[[package]]
+name = "mikrotik-proto"
+version_group = "mikrotik"
+
+[[package]]
+name = "mikrotik-tokio"
+version_group = "mikrotik"
+
+[[package]]
+name = "mikrotik-embassy"
+version_group = "mikrotik"
+
+[[package]]
+name = "mikrotik-rs"
+version_group = "mikrotik"
+
+# The examples are workspace members so that `cargo clippy --workspace --all-targets` compiles
+# them, which is the only thing keeping them from rotting. They are `publish = false` with a
+# literal 0.0.0, and nothing about them should ever appear in a release PR.
+
+[[package]]
+name = "check-update"
+release = false
+
+[[package]]
+name = "macro-example"
+release = false
+
+[[package]]
+name = "network-monitor"
+release = false
+
+[[package]]
+name = "system-resource"
+release = false
+
+[[package]]
+name = "users"
+release = false

@@ -1,79 +1,99 @@
 name: Release-plz
 
 on:
-    push:
-        branches:
-            - master
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
 
 env:
-    CARGO_TERM_COLOR: always
+  CARGO_TERM_COLOR: always
 
 jobs:
-    # Same suite the pull request checks run. The release job gates on this:
-    # release PRs are opened with the default GITHUB_TOKEN, which cannot trigger
-    # workflow runs, so this is the only thing standing between a merged release
-    # PR and crates.io.
-    checks:
-        name: Cargo
-        uses: ./.github/workflows/checks.yml
+  # Publish whatever is not on the registry yet, in dependency order, then tag and release. With
+  # `release_always = false` this only acts on a merged release pull request.
+  #
+  # No `needs: checks`, deliberately. That gate used to be here because the release PR was
+  # opened with the default GITHUB_TOKEN, which cannot trigger workflows, so the PR itself
+  # arrived with no CI and the push event was the only place left to run it. The PAT below means
+  # ci.yml runs on the release PR like any other, before the merge that reaches this job — so
+  # the gate is redundant, and dropping it stops every unrelated push to master from paying for
+  # a second full check suite.
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ github.repository_owner == 'ferrohd' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history, so release-plz can see what changed since the last release.
+          fetch-depth: 0
+          # The token goes to the release-plz step alone, not into the git config.
+          persist-credentials: false
 
-    # Publish the packages whose version is not on the registry yet, then tag
-    # and create the GitHub release. With `release_always = false` this only
-    # acts on commits coming from a release PR.
-    release-plz-release:
-        name: Release-plz release
-        runs-on: ubuntu-latest
-        needs: checks
-        if: ${{ github.repository_owner == 'ferrohd' }}
-        permissions:
-            contents: write
-            pull-requests: read
-        steps:
-            - name: 🛒 Checkout
-              uses: actions/checkout@v7
-              with:
-                  # Full history is required to release from the latest commit
-                  # of the release PR.
-                  fetch-depth: 0
-                  persist-credentials: false
+      - uses: DeterminateSystems/nix-installer-action@v23
 
-            - name: 🦀 Toolchain
-              uses: dtolnay/rust-toolchain@stable
+      # release-plz shells out to `cargo publish`, so it needs a toolchain on PATH — the pinned
+      # one, so what reaches crates.io is built with the compiler CI checked with.
+      - name: Put the pinned toolchain on PATH
+        run: nix develop .#ci --command bash -c 'command -v cargo | xargs dirname' >> "$GITHUB_PATH"
 
-            - name: 🚀 Release
-              uses: release-plz/action@v0.5.135
-              with:
-                  command: release
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+      - name: Release
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+          # Pinned to the flake's release-plz, so this and `just release-check` run the same
+          # binary — left unset, the action cargo-binstalls a different version, and a dry run
+          # predicting another tool's behaviour is worse than none. After a flake.lock bump, read
+          # `release-plz --version` in the dev shell. Nothing asserts this: release-plz is a
+          # 415 MiB closure that stays out of the `ci` shell.
+          version: "0.3.158"
+        env:
+          # A PAT, not GITHUB_TOKEN: a tag pushed by the default token does not trigger
+          # workflows, and the release PR it opens gets no CI at all.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
 
-    # Open or update the release PR carrying the version bumps and changelogs.
-    release-plz-pr:
-        name: Release-plz PR
-        runs-on: ubuntu-latest
-        if: ${{ github.repository_owner == 'ferrohd' }}
-        permissions:
-            contents: write
-            pull-requests: write
-        # Serialise runs so two pushes cannot race on the same release PR.
-        # Deliberately no `cancel-in-progress`, which would drop a pending run.
-        concurrency:
-            group: release-plz-${{ github.ref }}
-            cancel-in-progress: false
-        steps:
-            - name: 🛒 Checkout
-              uses: actions/checkout@v7
-              with:
-                  fetch-depth: 0
-                  persist-credentials: false
+  # Open or update the release pull request carrying the version bumps and changelogs.
+  release-pr:
+    name: Release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ github.repository_owner == 'ferrohd' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    # Serialise so two pushes cannot race on the same PR. No cancel-in-progress: it would drop a
+    # pending run rather than queue it.
+    concurrency:
+      group: release-plz-pr-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-            - name: 🦀 Toolchain
-              uses: dtolnay/rust-toolchain@stable
+      - uses: DeterminateSystems/nix-installer-action@v23
 
-            - name: 📝 Release PR
-              uses: release-plz/action@v0.5.135
-              with:
-                  command: release-pr
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # release-plz runs cargo-semver-checks to decide whether a change is breaking, which needs
+      # a toolchain. The flake's cargo-semver-checks is newer than the action's for the reason
+      # given in flake.nix; the action supplies its own, so the two can disagree about a
+      # rustdoc format. If this job starts failing on "unsupported rustdoc format", that is why.
+      - name: Put the pinned toolchain on PATH
+        run: nix develop .#ci --command bash -c 'command -v cargo | xargs dirname' >> "$GITHUB_PATH"
+
+      - name: Release PR
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+          # Keep in step with the `version` in the release job above, and with the flake.
+          version: "0.3.158"
+        env:
+          # The PAT is what lets ci.yml run on the release pull request it opens.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
