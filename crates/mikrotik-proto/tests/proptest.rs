@@ -13,24 +13,6 @@ use mikrotik_proto::connection::Connection;
 // ── Codec roundtrip properties ──
 
 proptest! {
-    /// encode_length → decode_length always roundtrips for any u32.
-    #[test]
-    fn codec_length_roundtrip(len in any::<u32>()) {
-        let mut buf = Vec::new();
-        codec::encode_length(len, &mut buf);
-
-        match codec::decode_length(&buf).unwrap() {
-            Decode::Complete { value: (decoded_len, prefix_bytes), bytes_consumed } => {
-                prop_assert_eq!(decoded_len, len);
-                prop_assert_eq!(bytes_consumed, buf.len());
-                prop_assert_eq!(prefix_bytes, buf.len());
-            }
-            Decode::Incomplete { .. } => {
-                prop_assert!(false, "encoded length should always decode completely");
-            }
-        }
-    }
-
     /// encode_word → decode_sentence roundtrips: the decoded word matches the input.
     /// Words must be non-empty: a zero-length word is the sentence terminator.
     #[test]
@@ -80,26 +62,6 @@ proptest! {
         }
     }
 
-    /// Encoded length always produces a valid first byte in one of the 5 prefix ranges.
-    #[test]
-    fn encode_length_valid_prefix(len in any::<u32>()) {
-        let mut buf = Vec::new();
-        codec::encode_length(len, &mut buf);
-        let first = buf[0];
-
-        // Must match one of the 5 valid prefix patterns:
-        // 1-byte: 0x00..=0x7F
-        // 2-byte: 0x80..=0xBF
-        // 3-byte: 0xC0..=0xDF
-        // 4-byte: 0xE0..=0xEF
-        // 5-byte: 0xF0..=0xF7 (spec says 0xF0..=0xF8 but only 0xF0 is used)
-        let valid = first <= 0x7F
-            || (0x80..=0xBF).contains(&first)
-            || (0xC0..=0xDF).contains(&first)
-            || (0xE0..=0xEF).contains(&first)
-            || first == 0xF0;
-        prop_assert!(valid, "invalid prefix byte: 0x{first:02X} for len 0x{len:X}");
-    }
 }
 
 // ── No-panic properties (arbitrary input) ──

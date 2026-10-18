@@ -200,7 +200,7 @@ let cmd = CommandBuilder::new()
     .command("/interface/print")
     .query_equal("type", "ether")
     .query_equal("running", "true")
-    .query_operations([QueryOperator::And].into_iter())
+    .query_operations(&[QueryOperator::And])
     .build();
 ```
 

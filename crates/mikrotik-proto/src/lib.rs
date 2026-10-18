@@ -70,6 +70,10 @@ pub mod handshake;
 pub mod macros;
 /// Response types for parsed command responses.
 pub mod response;
+// Outbound sentence assembly. Private: `CommandBuilder` is the supported way
+// to produce a command, and keeping this internal is what guarantees no word
+// can be written with a length that disagrees with its content.
+mod sentence;
 /// Command tag — a unique identifier for correlating commands with responses.
 pub mod tag;
 /// Word types: the fundamental unit of the MikroTik API protocol.
