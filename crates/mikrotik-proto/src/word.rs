@@ -4,7 +4,7 @@
 //! length-prefixed byte sequence that falls into one of four categories:
 //!
 //! - **Category** — response type identifier (`!done`, `!re`, `!trap`, `!fatal`, `!empty`)
-//! - **Tag** — command correlation tag (`.tag=<uuid>`)
+//! - **Tag** — command correlation tag (`.tag=0000000042`)
 //! - **Attribute** — key-value pair (`=key=value`)
 //! - **Message** — free-form text (used for `!fatal` reasons)
 
@@ -26,7 +26,7 @@ use crate::tag::Tag;
 /// # Variants
 ///
 /// - `Category` — response type (`!done`, `!re`, `!trap`, `!fatal`, `!empty`)
-/// - `Tag` — command correlation UUID (`.tag=<uuid>`)
+/// - `Tag` — command correlation tag (`.tag=0000000042`)
 /// - `Attribute` — key-value pair (`=key=value`)
 /// - `Message` — free-form text (typically a `!fatal` reason)
 #[derive(Debug, PartialEq)]
@@ -101,7 +101,7 @@ impl<'a> TryFrom<&'a [u8]> for Word<'a> {
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
         // Dispatch on the first byte to avoid redundant UTF-8 validation.
         // Categories are matched as raw byte slices (ASCII-only, no UTF-8 needed).
-        // Tags parse the UUID directly from ASCII bytes.
+        // Tags parse straight from the ASCII digits.
         // Only messages and unknown words pay for UTF-8 validation.
         match value.first() {
             // Category words: "!done", "!re", "!trap", "!fatal", "!empty"
@@ -113,7 +113,7 @@ impl<'a> TryFrom<&'a [u8]> for Word<'a> {
                 b"!empty" => Ok(Word::Category(WordCategory::Empty)),
                 _ => Ok(Word::Message(core::str::from_utf8(value)?)),
             },
-            // Tag words: ".tag=<uuid>" — parse UUID directly from ASCII bytes
+            // Tag words: ".tag=<digits>" — parsed without UTF-8 validation
             Some(b'.') => {
                 if value.starts_with(b".tag=") {
                     let tag = Tag::try_from(&value[5..])?;

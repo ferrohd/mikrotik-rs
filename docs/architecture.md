@@ -62,15 +62,79 @@ Dropping the default features leaves the protocol types alone, with no runtime a
 
 ### The `std` feature
 
-Off by default. It swaps `hashbrown::HashMap` for `std::collections::HashMap` and nothing else;
-the crate otherwise depends only on `alloc`.
+Off by default. It swaps `hashbrown::HashMap` for `std::collections::HashMap`, and it gates
+`Tag::new` and `CommandBuilder::new`. The crate otherwise depends only on `alloc`; its whole
+dependency list is `hashbrown` and `thiserror`.
 
-> **Known limitation.** `no_std` does not currently build for a bare-metal target. `Tag` wraps
-> `uuid::Uuid`, `uuid`'s `v4` feature pulls `getrandom`, and `getrandom` refuses to compile
-> without an OS entropy source. `mikrotik-embassy` is affected by the same chain. A host build
-> with `--no-default-features` does not show this, because the host sysroot still has `std` —
-> which is why `just targets` carries two commented-out `thumbv7em-none-eabihf` builds, ready to
-> switch on with the change that gives `Tag` a `no_std` source.
+`just targets` builds `mikrotik-proto` and `mikrotik-embassy` for `thumbv6m-none-eabi` and
+`thumbv7em-none-eabihf` on every CI run. A host build with `--no-default-features` cannot
+substitute: the host sysroot still has `std`, so it cannot fail.
+
+## Tags
+
+A tag correlates a command with its responses. The router treats it as an opaque string and
+only ever echoes it back, so the single requirement is uniqueness among the commands in flight
+on one connection.
+
+It is a `u32`, written as fixed-width zero-padded decimal — `.tag=0000000042`. Fixed width is
+not an aesthetic choice: `Tag::to_ascii` returns `[u8; Tag::ASCII_LEN]` in which every byte is
+meaningful, so there is no length to carry beside the buffer and no way to transmit padding by
+mistake. The width is derived from the representation rather than asserted against it:
+
+```rust
+pub const ASCII_LEN: usize = u32::MAX.ilog10() as usize + 1;
+```
+
+### Where the counter lives
+
+`Tag::new` and `CommandBuilder::new` take tags from a process-wide `AtomicU32` and need the
+`std` feature. Not because the counter needs an allocator, but because a shared counter must be
+`Sync`, and `AtomicU32::fetch_add` does not exist on a target without compare-and-swap.
+Cortex-M0+ is such a target, and that is the RP2040 — the most common board an Embassy user is
+likely to have.
+
+The alternatives were to depend on `critical-section` from a sans-IO crate, which is platform
+coupling of exactly the kind this layer exists to avoid, or to drop those targets silently.
+Instead, `no_std` callers own a `Counter` and pass tags to `CommandBuilder::with_tag`:
+
+```rust
+let tags = Counter::new();
+let cmd = command!(tags.next_tag(), "/interface/print", detail);
+```
+
+`Counter` holds a `Cell`, not an atomic. Synchronisation belongs to whoever owns the counter,
+which is where the concurrency model is actually known — a single Embassy task needs none.
+`TagSource` names the contract so the adapters' handles and `Counter` read the same way.
+
+`Tag::LOGIN` is 0 and counters start at 1. No reservation is strictly required, since login is
+the only command in flight before authentication and is retired before the `Connection` is
+handed over, but it keeps a packet capture unambiguous.
+
+Reusing a tag that is still in flight is rejected with `ConnectionError::DuplicateTag` rather
+than silently overwriting the in-flight entry. That is also what bounds the counter's
+wraparound after 2^32 commands.
+
+## Attributes and absence
+
+`attribute` takes an `Option`, and the two cases are genuinely different on the wire:
+
+| Call | Wire | Meaning |
+|---|---|---|
+| `.attribute("comment", None)` | *nothing* | not supplied |
+| `.flag("detail")` | `=detail=` | valueless flag |
+| `.attribute("comment", Some("hi"))` | `=comment=hi` | value supplied |
+
+`=comment=` instructs RouterOS to set the comment to the empty string, which clears it — so
+`None` has to mean "leave this alone" for `.attribute("comment", maybe_comment)` to be safe.
+
+The decoder is deliberately **not** symmetric here: it folds `=key=` back into `None`, so a
+flag written with `flag()` reads as `None` rather than `Some("")`. The `(value, value_raw)`
+pair still separates an empty value from a non-UTF-8 one. Making the decoder symmetric would
+change what every caller reads out of `ReplyResponse` for a distinction nothing needs.
+
+Query words do not share this rule, which is why they have their own `OutWord` variants rather
+than a shared `Option`: `?key` is a presence test and `?key=` asks for the empty string, and
+both are meaningful.
 
 ## mikrotik-tokio
 

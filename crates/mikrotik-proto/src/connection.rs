@@ -2,7 +2,7 @@
 //!
 //! The [`Connection`] type manages the entire protocol lifecycle without
 //! performing any I/O. It accepts raw bytes from the network, decodes them
-//! into responses, and correlates them with in-flight commands via UUID tags.
+//! into responses, and correlates them with in-flight commands by tag.
 //!
 //! # Usage pattern (mirrors `quinn-proto`)
 //!

@@ -14,13 +14,13 @@ with a type-safe, channel-based API.
 
 ## Highlights
 
-- **Sans-IO protocol core** — `#![no_std]`-compatible, runtime-agnostic protocol implementation
+- **Sans-IO protocol core** — `#![no_std]`, runtime-agnostic, and built for bare metal in CI; its only dependencies are `hashbrown` and `thiserror`
 - **Tokio adapter** — high-level async client with background actor, per-command channels, and TLS support
 - **Embassy adapter** — embedded-friendly async client, transport-agnostic over `embedded-io-async`
 - **Typestate command builder** — the compiler enforces correct command construction order
 - **Compile-time command validation** — the `command!` macro validates RouterOS command paths at compile time
 - **Zero-copy protocol parsing** — words are parsed lazily from the receive buffer with byte-level dispatch
-- **Concurrent command execution** — each command is tagged with a UUID v4 for response demultiplexing
+- **Concurrent command execution** — each command carries a tag for response demultiplexing
 - **Automatic lifecycle management** — dropping a response receiver cancels the command on the router
 - **No `unsafe` code** — `unsafe_code = "forbid"` is enforced at the workspace level
 
