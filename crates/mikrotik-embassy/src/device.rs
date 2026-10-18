@@ -133,10 +133,7 @@ where
 /// Returns [`DeviceError::ConnectionClosed`] if the transport returns 0 bytes (EOF).
 /// Returns [`DeviceError::Io`] on transport errors.
 async fn read_some<T: Read>(transport: &mut T, buf: &mut [u8]) -> Result<usize, DeviceError> {
-    let n = transport
-        .read(buf)
-        .await
-        .map_err(|e| DeviceError::Io(e.kind()))?;
+    let n = transport.read(buf).await.map_err(|e| DeviceError::Io(e.kind()))?;
     if n == 0 {
         return Err(DeviceError::ConnectionClosed);
     }
@@ -191,10 +188,7 @@ async fn flush_transmits_hs<T: Write>(
     transport: &mut T,
 ) -> Result<(), DeviceError> {
     while let Some(transmit) = hs.poll_transmit() {
-        transport
-            .write_all(&transmit.data)
-            .await
-            .map_err(|e| DeviceError::Io(e.kind()))?;
+        transport.write_all(&transmit.data).await.map_err(|e| DeviceError::Io(e.kind()))?;
     }
     Ok(())
 }
@@ -205,10 +199,7 @@ async fn flush_transmits_conn<T: Write>(
     transport: &mut T,
 ) -> Result<(), DeviceError> {
     while let Some(transmit) = conn.poll_transmit() {
-        transport
-            .write_all(&transmit.data)
-            .await
-            .map_err(|e| DeviceError::Io(e.kind()))?;
+        transport.write_all(&transmit.data).await.map_err(|e| DeviceError::Io(e.kind()))?;
     }
     Ok(())
 }

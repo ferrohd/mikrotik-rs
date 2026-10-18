@@ -194,10 +194,7 @@ impl Connection {
             let outcome = {
                 let buf = &self.recv_buf;
                 match codec::decode_sentence(buf)? {
-                    Decode::Complete {
-                        value: raw_sentence,
-                        bytes_consumed,
-                    } => {
+                    Decode::Complete { value: raw_sentence, bytes_consumed } => {
                         let result = match CommandResponse::parse(&raw_sentence) {
                             Ok(response) => Ok(response),
                             Err(e) => {
@@ -254,9 +251,7 @@ impl Connection {
         let tag = command.tag;
 
         // Queue the wire-format data for transmission
-        self.outbound.push_back(Transmit {
-            data: command.into_data(),
-        });
+        self.outbound.push_back(Transmit { data: command.into_data() });
 
         // Track as in-flight
         self.in_flight.insert(tag, CommandState { reply_count: 0 });
@@ -281,9 +276,7 @@ impl Connection {
 
         if self.in_flight.remove(&tag).is_some() {
             let cancel = CommandBuilder::cancel(tag);
-            self.outbound.push_back(Transmit {
-                data: cancel.into_data(),
-            });
+            self.outbound.push_back(Transmit { data: cancel.into_data() });
         }
 
         Ok(())
@@ -296,9 +289,7 @@ impl Connection {
         let tags: Vec<Tag> = self.in_flight.keys().copied().collect();
         for tag in tags {
             let cancel = CommandBuilder::cancel(tag);
-            self.outbound.push_back(Transmit {
-                data: cancel.into_data(),
-            });
+            self.outbound.push_back(Transmit { data: cancel.into_data() });
         }
         self.in_flight.clear();
     }
@@ -367,10 +358,7 @@ impl Connection {
                 let tag = reply.tag;
                 if let Some(cmd_state) = self.in_flight.get_mut(&tag) {
                     cmd_state.reply_count += 1;
-                    self.events.push_back(Event::Reply {
-                        tag,
-                        response: reply,
-                    });
+                    self.events.push_back(Event::Reply { tag, response: reply });
                 }
                 // Silently ignore replies for unknown tags (command may have
                 // been cancelled and a straggling reply arrived).
@@ -391,10 +379,7 @@ impl Connection {
             CommandResponse::Trap(trap) => {
                 let tag = trap.tag;
                 self.in_flight.remove(&tag);
-                self.events.push_back(Event::Trap {
-                    tag,
-                    response: trap,
-                });
+                self.events.push_back(Event::Trap { tag, response: trap });
             }
 
             CommandResponse::Fatal(reason) => {
@@ -540,10 +525,8 @@ mod tests {
         while conn.poll_transmit().is_some() {}
 
         // Two replies
-        conn.receive(&build_reply(tag, &[("name", "ether1")]))
-            .unwrap();
-        conn.receive(&build_reply(tag, &[("name", "ether2")]))
-            .unwrap();
+        conn.receive(&build_reply(tag, &[("name", "ether1")])).unwrap();
+        conn.receive(&build_reply(tag, &[("name", "ether2")])).unwrap();
         // Then done
         conn.receive(&build_done(tag)).unwrap();
 
@@ -551,10 +534,7 @@ mod tests {
         match conn.poll_event().unwrap() {
             Event::Reply { tag: t, response } => {
                 assert_eq!(t, tag);
-                assert_eq!(
-                    response.attributes.get("name"),
-                    Some(&Some(String::from("ether1")))
-                );
+                assert_eq!(response.attributes.get("name"), Some(&Some(String::from("ether1"))));
             }
             other => panic!("expected Reply, got {other:?}"),
         }
@@ -563,10 +543,7 @@ mod tests {
         match conn.poll_event().unwrap() {
             Event::Reply { tag: t, response } => {
                 assert_eq!(t, tag);
-                assert_eq!(
-                    response.attributes.get("name"),
-                    Some(&Some(String::from("ether2")))
-                );
+                assert_eq!(response.attributes.get("name"), Some(&Some(String::from("ether2"))));
             }
             other => panic!("expected Reply, got {other:?}"),
         }
@@ -657,10 +634,7 @@ mod tests {
         // Should have a cancel transmit queued
         assert!(conn.has_pending_transmit());
         let cancel_transmit = conn.poll_transmit().unwrap();
-        assert!(
-            !cancel_transmit.data.is_empty(),
-            "cancelling must enqueue a /cancel sentence"
-        );
+        assert!(!cancel_transmit.data.is_empty(), "cancelling must enqueue a /cancel sentence");
 
         // Command should no longer be in-flight
         assert_eq!(conn.in_flight_count(), 0);
@@ -719,8 +693,7 @@ mod tests {
         let unknown_tag = Tag::new();
 
         // Receive a reply for a tag we never sent
-        conn.receive(&build_reply(unknown_tag, &[("name", "test")]))
-            .unwrap();
+        conn.receive(&build_reply(unknown_tag, &[("name", "test")])).unwrap();
 
         // No event should be emitted
         assert!(conn.poll_event().is_none());

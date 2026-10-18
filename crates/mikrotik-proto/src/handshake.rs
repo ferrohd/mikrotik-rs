@@ -74,10 +74,7 @@ impl Handshaking {
         let login_cmd = CommandBuilder::login(username, password);
         let tag = conn.send_command(login_cmd)?;
 
-        Ok(Handshaking {
-            inner: conn,
-            login_tag: tag,
-        })
+        Ok(Handshaking { inner: conn, login_tag: tag })
     }
 
     /// Feed received bytes from the transport.
@@ -186,10 +183,7 @@ mod tests {
 
         // Must have pending transmit (the login command)
         let transmit = hs.poll_transmit().unwrap();
-        assert!(
-            !transmit.data.is_empty(),
-            "the handshake must send a login command"
-        );
+        assert!(!transmit.data.is_empty(), "the handshake must send a login command");
         assert!(hs.poll_transmit().is_none()); // only one command
 
         // Simulate login success

@@ -8,12 +8,8 @@ use mikrotik_rs::CommandBuilder;
 use mikrotik_rs::command;
 
 fn main() {
-    let macro_command = command!(
-        "/some/random/command",
-        attribute1 = "1",
-        attribute2,
-        attribute3 = "2"
-    );
+    let macro_command =
+        command!("/some/random/command", attribute1 = "1", attribute2, attribute3 = "2");
 
     let tag = macro_command.tag;
 

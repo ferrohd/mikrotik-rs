@@ -103,10 +103,7 @@ impl MikrotikDevice {
         username: &str,
         password: Option<&str>,
     ) -> DeviceResult<Self> {
-        Self::builder(addr)
-            .credentials(username, password)
-            .connect()
-            .await
+        Self::builder(addr).credentials(username, password).connect().await
     }
 
     /// Asynchronously sends a command to the connected `MikroTik` device.
@@ -145,12 +142,7 @@ impl MikrotikDevice {
     ) -> DeviceResult<mpsc::UnboundedReceiver<Event>> {
         let (response_tx, response_rx) = mpsc::unbounded_channel::<Event>();
 
-        self.cmd_tx
-            .send(DeviceCommand {
-                command,
-                respond_to: response_tx,
-            })
-            .await?;
+        self.cmd_tx.send(DeviceCommand { command, respond_to: response_tx }).await?;
 
         Ok(response_rx)
     }
@@ -158,9 +150,7 @@ impl MikrotikDevice {
 
 impl std::fmt::Debug for DeviceCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DeviceCommand")
-            .field("tag", &self.command.tag)
-            .finish_non_exhaustive()
+        f.debug_struct("DeviceCommand").field("tag", &self.command.tag).finish_non_exhaustive()
     }
 }
 
