@@ -246,13 +246,24 @@ impl Connection {
     ///
     /// # Errors
     ///
-    /// Returns [`ConnectionError::Closed`] if the connection is dead.
+    /// Returns [`ConnectionError::Closed`] if the connection is dead, or
+    /// [`ConnectionError::DuplicateTag`] if the command's tag is already in
+    /// flight — responses are demultiplexed by tag, so two live commands
+    /// cannot share one.
     pub fn send_command(&mut self, command: Command) -> Result<Tag, ConnectionError> {
         if self.state == State::Dead {
             return Err(ConnectionError::Closed);
         }
 
         let tag = command.tag;
+
+        // Reject rather than overwrite. `with_tag` is public, so a caller can
+        // reuse a tag by accident; silently replacing the in-flight entry
+        // would strand the first command and misroute its replies to the
+        // second. This is also what bounds the counter's eventual wraparound.
+        if self.in_flight.contains_key(&tag) {
+            return Err(ConnectionError::DuplicateTag(tag));
+        }
 
         // Queue the wire-format data for transmission
         self.outbound.push_back(Transmit { data: command.into_data() });
@@ -701,6 +712,38 @@ mod tests {
             other => panic!("expected Done for tag2, got {other:?}"),
         }
         assert_eq!(conn.in_flight_count(), 0);
+    }
+
+    #[test]
+    fn test_duplicate_tag_is_rejected() {
+        let mut conn = Connection::new();
+        let tag = Tag::from_raw(7);
+
+        let first = CommandBuilder::with_tag(tag).command("/a").build();
+        assert_eq!(conn.send_command(first).unwrap(), tag);
+
+        let second = CommandBuilder::with_tag(tag).command("/b").build();
+        assert!(matches!(
+            conn.send_command(second),
+            Err(ConnectionError::DuplicateTag(t)) if t == tag
+        ));
+
+        // The first command is untouched, and nothing extra was queued.
+        assert!(conn.is_in_flight(tag));
+        assert_eq!(conn.in_flight_count(), 1);
+    }
+
+    #[test]
+    fn test_tag_is_reusable_once_the_command_completes() {
+        let mut conn = Connection::new();
+        let tag = Tag::from_raw(7);
+
+        conn.send_command(CommandBuilder::with_tag(tag).command("/a").build()).unwrap();
+        conn.receive(&build_done(tag)).unwrap();
+        assert!(!conn.is_in_flight(tag));
+
+        conn.send_command(CommandBuilder::with_tag(tag).command("/b").build())
+            .expect("a retired tag is free again");
     }
 
     #[test]
