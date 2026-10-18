@@ -229,7 +229,16 @@ each module, and the testing strategy.
 
 ## Examples
 
-The repository includes runnable examples in [`examples/`](examples/).
+Runnable examples live in [`examples/`](examples/), each its own crate:
+
+| Example | Shows |
+|---|---|
+| [`check-update`](examples/check-update/) | A long-running command reporting progress in stages |
+| [`link-status`](examples/link-status/) | Filtering replies for one interface and reading an attribute |
+| [`macro-example`](examples/macro-example/) | `command!` and `CommandBuilder` producing identical wire data |
+| [`network-monitor`](examples/network-monitor/) | A subscription that streams until cancelled |
+| [`system-resource`](examples/system-resource/) | Polling with `interval=` |
+| [`users`](examples/users/) | A plain one-shot command |
 
 ## Contributing
 

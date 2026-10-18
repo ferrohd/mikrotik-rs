@@ -1,0 +1,4 @@
+# Review is routed here for everything. Branch protection does not require an
+# approval — this exists so GitHub requests one, and so the owner of each path
+# is recorded if that ever changes.
+*       @ferrohd
