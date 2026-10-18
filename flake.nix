@@ -36,16 +36,10 @@
 
           toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
 
-          # Platforms compiled for but never run, checked by `just targets`. This list must be
-          # complete: the override *replaces* rust-toolchain.toml's `targets` rather than
-          # extending it.
-          #
-          # The two bare-metal targets are the ones that earn their place. mikrotik-embassy is
-          # unconditionally #![no_std] and mikrotik-proto is no_std by default, but a host build
-          # with --no-default-features still has std in its sysroot, so it cannot fail — only a
-          # target without std can. thumbv7em covers Cortex-M4F/M7 (nRF52, STM32F4/H7);
-          # thumbv6m is Cortex-M0+, which has no compare-and-swap and so is what keeps an
-          # AtomicU32 from creeping back into the protocol core. That is the RP2040.
+          # Compiled for but never run, checked by `just targets`. Must be complete:
+          # this *replaces* rust-toolchain.toml's targets rather than extending them.
+          # thumbv6m is Cortex-M0+ (RP2040) — no compare-and-swap, which is what
+          # keeps an atomic from creeping back into the protocol core.
           crossTargets = [
             "thumbv6m-none-eabi"
             "thumbv7em-none-eabihf"
@@ -53,13 +47,12 @@
             "aarch64-unknown-linux-gnu"
           ];
 
-          # Derived so `devShells.msrv` is an actual compiler of that version, rather than an env
-          # var pointed at a different one. `.0` because rust-version is a two-component floor
-          # and rust-overlay keys on full releases. Keep clippy.toml's `msrv` in step.
+          # So devShells.msrv is a real compiler of that version. `.0` because
+          # rust-version is a two-component floor.
           msrv = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace.package.rust-version;
 
-          # What the check recipes need, and so what CI needs. Separate from devTools because CI
-          # enters this shell once per job and the editor tooling is where the weight is.
+          # What the check recipes need, and so what CI needs. Split from devTools
+          # because CI enters this shell once per job and the editor tooling is heavy.
           checkTools = with pkgs; [
             just
             cargo-nextest
@@ -71,11 +64,7 @@
             typos
             yq-go
             git
-          ]
-          # In `just all` and in CI, unlike the upstream template: this workspace has four
-          # crates already on the registry, so the baseline exists from day one. release-plz
-          # also shells out to it to decide version bumps.
-          ++ [ cargo-semver-checks ];
+          ] ++ [ cargo-semver-checks ];
 
           # Only useful to a human: watching, previewing a release.
           devTools = with pkgs; [
@@ -93,23 +82,21 @@
             # A superset of `ci`, so `just all` works straight from direnv.
             default = pkgs.mkShell {
               packages = [
-                # rust-src lets rust-analyzer resolve `std`. An extension here rather than in
-                # rust-toolchain.toml so CI does not download it.
+                # rust-src here rather than in rust-toolchain.toml so CI skips it.
                 (toolchain.override {
                   targets = crossTargets;
                   extensions = [ "rust-src" ];
                 })
               ]
               ++ (with pkgs; [
-                # Pinned to this toolchain, so it beats any rust-analyzer further down PATH.
                 rust-analyzer
                 mold
               ])
               ++ checkTools
               ++ devTools;
 
-              # Not set in `ci`: RUSTFLAGS is one string, so occupying it forces every caller to
-              # append rather than assign.
+              # Not set in `ci`: RUSTFLAGS is one string, so occupying it forces
+              # every caller to append rather than assign.
               RUSTFLAGS = "-C link-arg=-fuse-ld=mold";
             };
 
@@ -117,13 +104,12 @@
             ci = pkgs.mkShell {
               packages = [ (toolchain.override { targets = crossTargets; }) ] ++ checkTools;
 
-              # `nix develop` inherits any variable it does not set, so entering this from a
-              # direnv-activated `default` drags RUSTFLAGS in. mold leaks via PATH too, so
-              # without this the failure only shows on a machine with the flag but not the linker.
+              # `nix develop` inherits anything it does not set, so entering this
+              # from a direnv-activated `default` would drag RUSTFLAGS and mold in.
               shellHook = "unset RUSTFLAGS";
             };
 
-            # One recipe's worth. `minimal` suffices: checking needs neither clippy nor rustfmt.
+            # `minimal`: checking needs neither clippy nor rustfmt.
             msrv = pkgs.mkShell {
               packages = [ pkgs.rust-bin.stable."${msrv}.0".minimal pkgs.just ];
               shellHook = "unset RUSTFLAGS";

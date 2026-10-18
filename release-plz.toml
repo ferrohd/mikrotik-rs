@@ -1,53 +1,39 @@
 [workspace]
-# Publish only when the release PR is merged, not on every commit to master.
+# Publish when the release PR merges, not on every commit to master.
 release_always = false
 
-# Pin the tag template. The default switches to "v{{ version }}" whenever the workspace has a
-# single publishable package, so pinning keeps tag names stable regardless of how many crates
-# are published.
-#
-# The four `v0.9.0`-style tags this repository used before release-plz are a different scheme:
-# one tag for the whole workspace. They are left in place as history, and one baseline tag per
-# crate was created at 8a0051e — the commit v0.9.0 points at, which is where all four current
-# registry versions came from. Without those, release-plz has no "since" for the changelog and
-# would regenerate each one from 2024.
+# Pinned: the default switches to "v{{ version }}" when only one package is
+# publishable. The pre-release-plz tags were `v0.9.0`-style; one baseline tag
+# per crate was backfilled at the commit v0.9.0 points at.
 git_tag_name = "{{ package }}-v{{ version }}"
 
-# `cargo publish` verifies by building with default features only, which would leave the
-# tokio-tls path and the whole embassy adapter unverified at the moment they ship — and those
-# are the two nothing else exercises.
+# `cargo publish` verifies with default features only, leaving tokio-tls and
+# the embassy adapter unverified at the moment they ship.
 publish_all_features = true
 
 pr_labels = ["release"]
 
 [changelog]
-# Never drop a breaking change, even when its type matches a skip rule below.
 protect_breaking_commits = true
 
-# Ordered: first match wins. This list and ci.yml's `types:` must stay in step — a type accepted
-# there but unhandled here does not fail anything, it just lands silently under "Other".
+# First match wins. Keep in step with ci.yml's `types:` — a type accepted there
+# but unhandled here lands silently under "Other".
 commit_parsers = [
   { message = '^feat', group = "Added" },
   { message = '^fix', group = "Fixed" },
   { message = '^perf', group = "Performance" },
   { message = '^refactor', group = "Changed" },
-  # A revert undoes shipped behaviour, so it belongs with the other changes.
   { message = '^revert', group = "Changed" },
   { message = '^docs', group = "Documentation" },
-  # Worth listing even though these prefixes are skipped below. renovate.json5 forces
-  # `chore(deps)` — overriding a preset that would use `fix(deps)` — so they land here.
+  # Matched before the skip rule below; renovate.json5 forces this prefix.
   { message = '^(chore|build)\(deps\)', group = "Dependencies" },
   { message = '^(ci|style|test|chore|build)', skip = true },
   { message = '^.*', group = "Other" },
 ]
 
-# The four published crates share one version, declared once as [workspace.package] version and
-# inherited by each member. `version_group` is what makes release-plz agree: without it, it
-# computes a next version per package from that package's own commits and registry state, and
-# then has four different answers to write into a single inherited field.
-#
-# They are a facade and its adapters, cut from one tag and only useful together, so a release
-# that moved some and not others would only ever produce combinations nobody tested.
+# The four crates share one inherited version. Without `version_group`,
+# release-plz computes a next version per package and has four answers for one
+# field.
 
 [[package]]
 name = "mikrotik-proto"
@@ -65,16 +51,10 @@ version_group = "mikrotik"
 name = "mikrotik-rs"
 version_group = "mikrotik"
 
-# The examples are workspace members so that `cargo clippy --workspace --all-targets` compiles
-# them, which is the only thing keeping them from rotting. They are `publish = false` with a
-# literal 0.0.0, and nothing about them should ever appear in a release PR.
-#
-# Both keys are required, and the pairing is not obvious. `release = false` is the one that
-# matters: it drops the package from processing entirely, so no tag, no changelog, no bump.
-# But release-plz validates the whole config against every manifest before it looks at that,
-# and refuses to start if a package says `publish = false` in Cargo.toml while the config
-# leaves `publish` at its default of true. So `publish = false` gets past validation and
-# `release = false` does the work.
+# The examples are members only so --all-targets compiles them. Both keys are
+# needed: `release = false` does the work, but release-plz validates the config
+# against every manifest first and rejects a `publish = false` crate whose
+# config leaves `publish` at its default.
 
 [[package]]
 name = "check-update"

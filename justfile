@@ -1,24 +1,16 @@
-# Every check CI runs, and a few commands that only help a human.
+# Every check CI runs, plus a few that only help a human.
 #
-#   just              list the recipes
-#   just all          the whole check suite, as CI runs it
-#
-# CI runs these same recipes, one per job, so the two cannot drift:
+# CI runs these same recipes one per job, so the two cannot drift:
 #
 #   nix develop .#ci   --command just <recipe>
 #   nix develop .#msrv --command just msrv
 #
-# Everything passes --locked, or cargo may resolve a different version than the lockfile — which
-# makes `msrv` meaningless, since a dependency raising its own minimum would fail for an
-# unrelated reason. Recipes carry [doc] because `just --list` shows only a comment's last line.
+# Everything passes --locked, or `msrv` would be meaningless.
 
-# The four published crates, named explicitly.
-#
-# `--workspace` also selects the five `publish = false` crates under examples/, each of which
-# depends on mikrotik-rs with default features. Cargo unifies features across the whole
-# selection, so `--workspace --no-default-features` silently has the examples switch the facade's
-# defaults back on and checks nothing at all — it passes, which is worse than failing. Every
-# recipe that varies features therefore names the libraries instead.
+# Named explicitly because `--workspace` also selects the examples, which depend on the
+# facade with default features. Cargo unifies features across the selection, so
+# `--workspace --no-default-features` would have them switch the defaults back on and
+# assert nothing.
 libs := "-p mikrotik-proto -p mikrotik-tokio -p mikrotik-embassy -p mikrotik-rs"
 
 # The subset that is meant to build without `std`. mikrotik-tokio is absent because it
@@ -34,57 +26,43 @@ default:
 fmt:
     cargo fmt --all --check
 
-# [workspace.lints] already denies clippy::all, missing_docs and unsafe_code; `-D warnings`
-# escalates the `pedantic = warn` tier. After `--` so it applies here and not to dependencies.
+# `-D warnings` escalates the pedantic tier. After `--`, so it does not apply to dependencies.
 [doc('clippy, with all features and with none')]
 clippy:
     cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
     cargo clippy {{ libs }} --all-targets --no-default-features --locked -- -D warnings
 
-# --cfg docsrs matches docs.rs, which the member manifests opt into.
+# --cfg docsrs matches docs.rs, which the manifests opt into.
 [doc('rustdoc, warnings denied, as docs.rs builds it')]
 doc:
     RUSTDOCFLAGS="-D warnings --cfg docsrs" cargo doc --workspace --all-features --no-deps --locked
 
-# nextest for the per-test timeout in .config/nextest.toml: `cargo test` runs a binary's tests in
-# one process and cannot notice one that hangs, so a blocked test stalls the job until the
-# workflow timeout kills it. Both adapter suites drive a real socket or pipe, which is the shape
-# that hangs. nextest skips doctests, hence the second line.
+# nextest for the per-test timeout; it skips doctests, hence the second line.
 [doc('tests and doctests; FEATURES passes through to cargo')]
 test *FEATURES:
     cargo nextest run --workspace --locked --profile ci {{ FEATURES }}
     cargo test --doc --workspace --locked {{ FEATURES }}
 
-# Scoped to the crates that can actually build without `std`.
-#
-# mikrotik-tokio is excluded deliberately, not by oversight: it depends on
-# mikrotik-proto with `features = ["std"]`, and a dependency edge is not something
-# `--no-default-features` can switch off. Including it unified `std` back on and made
-# this recipe assert nothing — it passed while testing the opposite of its name.
+# mikrotik-tokio is excluded deliberately: it depends on mikrotik-proto with
+# `features = ["std"]`, and a dependency edge is not something --no-default-features can
+# switch off. Including it unified `std` back on and made this recipe assert nothing.
 [doc('tests with no default features, where --workspace would be a no-op')]
 test-minimal:
     cargo nextest run {{ nostd_libs }} --locked --profile ci --no-default-features
     cargo test --doc {{ nostd_libs }} --locked --no-default-features
 
-# Self-maintaining: a new feature extends the sweep without editing this file. --ignore-private
-# drops the examples, which have no features of their own. The powerset is exponential, so it
-# targets one crate — the facade, whose five features are where the combinations actually live.
+# A new feature extends the sweep without editing this file. The powerset is exponential,
+# so it targets the facade, where the combinations live.
 [doc('every feature alone, then the facade powerset')]
 features:
     cargo hack clippy --each-feature --workspace --ignore-private --all-targets --locked -- -D warnings
     cargo hack clippy --feature-powerset -p mikrotik-rs --all-targets --locked -- -D warnings
 
-# `build`, not `check`, for the bare-metal targets: this is where the no_std claim is actually
-# tested, and only codegen fails on a missing lang item or an accidental std path. A host build
-# with --no-default-features keeps std in the sysroot and so cannot fail.
+# `build` for bare metal: only codegen fails on a missing lang item, and a host build with
+# --no-default-features keeps std in the sysroot so it cannot fail. thumbv6m has no
+# compare-and-swap, which is what stops an atomic reappearing in the protocol core.
 #
-# thumbv6m has no compare-and-swap, which is what stops an AtomicU32 reappearing in the
-# protocol core — that target is the RP2040, and losing it would mean losing the most common
-# board an Embassy user has.
-#
-# `check` is enough for the two hosted targets: linking them needs their SDK, and checking
-# already catches what they are for — a dependency gating an API behind #[cfg] and a call site
-# that ignores it. The list is `crossTargets` in flake.nix.
+# `check` is enough for the hosted targets; linking them needs their SDK.
 [doc('bare-metal builds, and cross-checks for the hosted platforms')]
 targets:
     cargo build -p mikrotik-proto --target thumbv6m-none-eabi --locked
@@ -100,8 +78,7 @@ msrv:
     rustc --version
     cargo check --workspace --all-features --all-targets --locked
 
-# Property tests need far more than the default 256 cases to be worth running, and at that size
-# they fight nextest's timeout — hence plain `cargo test` and a separate job.
+# More cases than nextest's timeout tolerates, hence plain `cargo test`.
 [doc('the extended property test runs')]
 proptest:
     PROPTEST_CASES=8192 cargo test -p mikrotik-proto --all-features --test proptest --locked
@@ -110,17 +87,12 @@ proptest:
 publish:
     #!/usr/bin/env bash
     set -euo pipefail
-    # Catches publishing traps on the pull request that introduces them, rather than halfway
-    # through a release when some crates are already on the registry and cannot be taken back.
+    # Catches publishing traps on the PR that introduces them, not halfway through a
+    # release when some crates are already on the registry.
     #
-    # crates/mikrotik-rs/README.md is a byte-for-byte copy of the repository README, so that
-    # the facade's crates.io page and the GitHub landing page say the same thing.
-    #
-    # A symlink was the obvious way to avoid the copy, and cargo does dereference one when
-    # packaging — but release-plz copies each package into a temp directory to work out which
-    # files changed, the relative target escapes what it copies, and the facade's manifest came
-    # back unreadable. A real file and this assertion instead. Before the dirty-tree guard
-    # below, because editing the README is exactly when the two drift.
+    # The facade's README is a copy, not a symlink: release-plz diffs each package in a
+    # temp directory and the relative target escapes it. Checked before the dirty-tree
+    # guard, because editing the README is when the two drift.
     echo "checking that the facade readme matches the repository readme"
     if ! diff -q README.md crates/mikrotik-rs/README.md >/dev/null; then
         echo "::error::crates/mikrotik-rs/README.md has drifted from README.md"
@@ -128,20 +100,16 @@ publish:
         exit 1
     fi
 
-    # `cargo package` refuses to describe a package with uncommitted changes — rightly, since
-    # the answer would not be reproducible. Only bites a developer running `all` mid-change.
+    # `cargo package` refuses on a dirty tree, which only bites a developer mid-change.
     if [[ -z ${GITHUB_ACTIONS-} && -n $(git status --porcelain) ]]; then
         echo "skipping the packaging checks: the working tree is dirty."
         echo "commit or stash, or run this on a clean checkout as CI does."
         exit 0
     fi
 
-    # Only the bottom of the graph can be packaged for real: `cargo package` resolves against
-    # the registry, and nothing above mikrotik-proto can resolve until the release that
-    # publishes it lands. `--list` does the manifest rewrite without resolving.
-    #
-    # The examples are filtered out by `.publish == null`, which cargo metadata uses for
-    # "publishable"; `publish = false` reports an empty list. Packaging one fails outright.
+    # Only the bottom of the graph packages for real: `cargo package` resolves against the
+    # registry, and nothing above mikrotik-proto can until it is published. `--list` does
+    # the manifest rewrite without resolving. `.publish == null` filters out the examples.
     root=mikrotik-proto
     cargo package -p "$root" --locked
     for crate in $(cargo metadata --no-deps --format-version 1 --locked |
@@ -161,18 +129,15 @@ publish:
 deny:
     cargo deny check advisories bans licenses sources
 
-# An unused dependency is still resolved, locked, audited and counted against the
-# duplicate-version policy. cargo-machete scans source, so macro-only uses are false positives:
-# record them as [package.metadata.cargo-machete] ignored = [...] rather than dropping the check.
+# cargo-machete scans source, so a macro-only use is a false positive: record it as
+# [package.metadata.cargo-machete] ignored rather than dropping the check.
 [doc('dependencies that nothing actually uses')]
 unused:
     cargo machete
 
-# Unlike a project that has never released, this one has four crates on the registry, so the
-# baseline exists and breakage is caught on the pull request rather than in the release PR once
-# it is already on master. Worth the job here in particular: mikrotik-rs re-exports the adapters
-# wholesale, so a change to a type in -proto is a facade break without touching the facade.
-# release-plz runs this itself at release time regardless — it is how it decides to bump a major.
+# Catches breakage on the PR rather than in the release PR. Worth it here because the
+# facade re-exports the adapters wholesale: a change to a type in -proto breaks it
+# without the facade being touched.
 [doc('API breaking changes against the last published version')]
 semver:
     cargo semver-checks --workspace --all-features
@@ -223,20 +188,15 @@ update:
     cargo update
     nix flake update
 
-# Not from the flake, and not in `all`: renovate.json5 is read by the Mend-hosted app, which runs
-# a version ahead of nixpkgs, so validating against a pinned older copy misleads. Nothing carries
-# its 269 MiB closure otherwise.
-#
-# No filename argument — naming the file validates it as renovate's *global* config schema, which
-# is a different and more permissive thing. With no arguments it discovers and validates the file
-# as a repository config.
+# Not from the flake and not in `all`: the hosted app runs ahead of nixpkgs, so validating
+# against a pinned copy misleads. No filename argument — naming the file would validate it
+# as renovate's *global* schema, which is a different thing.
 [doc('validate renovate.json5 against the renovate schema')]
 renovate:
     nix shell nixpkgs#renovate -c renovate-config-validator
 
-# No `release-preview`: only `release` takes --dry-run, and with release_always = false it answers
-# "not from a release PR" rather than naming the next version. The real preview is the release
-# pull request release-plz opens on every push to master.
+# No `release-preview`: with release_always = false, --dry-run answers "not from a release
+# PR" rather than naming the next version. The release PR itself is the preview.
 [doc('what would be published, as a dry run (needs GITHUB_TOKEN)')]
 release-check:
     release-plz release --dry-run --forge github \
