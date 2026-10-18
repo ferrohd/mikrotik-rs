@@ -16,12 +16,13 @@ This crate provides an embedded-friendly async adapter built on top of the sans-
 use embassy_net::tcp::TcpSocket;
 use embassy_sync::channel::Channel;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use mikrotik_proto::command::{Command, CommandBuilder};
+use mikrotik_proto::command::Command;
 use mikrotik_proto::connection::Event;
 
 static CMD: Channel<CriticalSectionRawMutex, Command, 4> = Channel::new();
 static EVT: Channel<CriticalSectionRawMutex, Event, 8> = Channel::new();
 
+// The connection task: owns the socket, drives the protocol.
 #[embassy_executor::task]
 async fn mikrotik_task(stack: embassy_net::Stack<'static>) {
     let mut rx_buf = [0; 4096];
@@ -34,6 +35,23 @@ async fn mikrotik_task(stack: embassy_net::Stack<'static>) {
         CMD.receiver(), EVT.sender(),
     ).await.unwrap();
 }
+
+// Any other task talks to it through a `Client`.
+#[embassy_executor::task]
+async fn poller() {
+    let client = mikrotik_embassy::Client::new(CMD.sender());
+
+    let cmd = client.build().command("/system/resource/print").build();
+    let tag = cmd.tag;
+    client.send(cmd).await;
+
+    loop {
+        let event = EVT.receive().await;
+        if event.tag() == Some(tag) {
+            // ...
+        }
+    }
+}
 ```
 
 ## How it works
@@ -42,6 +60,7 @@ async fn mikrotik_task(stack: embassy_net::Stack<'static>) {
 
 - **Transport-agnostic** — generic over `embedded_io_async::Read + Write`. Connect your socket/TLS/UART first, then hand it to `run()`.
 - **Single event channel** — all response events go to one `Sender<Event>`. The consumer filters by `Tag` to correlate responses with commands.
+- **`Client` on the producer side** — the command channel is one-way, so a command must carry its tag before it is sent. `Client` pairs the `Sender` with the counter that supplies them, and is the counterpart to the tokio adapter's device handle.
 - **No heap for the adapter** — the 2048-byte read buffer lives on the stack. (The underlying `mikrotik-proto` crate does use `alloc` for protocol processing.)
 - **Backpressure via `try_send`** — if the event channel is full, events are dropped rather than blocking the network loop.
 

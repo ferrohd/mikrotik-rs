@@ -524,3 +524,74 @@ async fn concurrent_commands() {
     mock.await.unwrap();
     run_handle.abort();
 }
+
+#[tokio::test]
+async fn client_handle_tags_and_sends() {
+    // The consumer has to know a command's tag before it enters the one-way
+    // channel. `Client` is what supplies it; this checks the tag it hands out
+    // is the one that comes back on the event channel.
+    let (listener, addr) = mock_listener().await;
+
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut mock = MockStream::new(stream);
+
+        let words = mock.read_sentence().await;
+        let login_tag = extract_tag(&words);
+        mock.write_all(&encode_done(&login_tag)).await;
+
+        let words = mock.read_sentence().await;
+        let tag = extract_tag(&words);
+        let mut response = encode_reply(&tag, &[("name", "ether1")]);
+        response.extend_from_slice(&encode_done(&tag));
+        mock.write_all(&response).await;
+    });
+
+    let (cmd_channel, evt_channel) = leaked_channels();
+
+    let stream = tokio::net::TcpStream::connect(&addr).await.unwrap();
+    let mut transport = FromTokio::new(stream);
+
+    tokio::spawn(async move {
+        mikrotik_embassy::run(
+            &mut transport,
+            "admin",
+            Some("pass"),
+            cmd_channel.receiver(),
+            evt_channel.sender(),
+        )
+        .await
+    });
+
+    let client = mikrotik_embassy::Client::new(cmd_channel.sender());
+
+    let cmd = client.build().command("/interface/print").flag("detail").build();
+    let tag = cmd.tag;
+    client.send(cmd).await;
+
+    let reply = evt_channel.receiver().receive().await;
+    assert!(matches!(reply, Event::Reply { tag: t, .. } if t == tag));
+
+    let done = evt_channel.receiver().receive().await;
+    assert!(matches!(done, Event::Done { tag: t } if t == tag));
+}
+
+#[tokio::test]
+async fn client_hands_out_distinct_tags() {
+    let (cmd_channel, _evt) = leaked_channels();
+    let client = mikrotik_embassy::Client::new(cmd_channel.sender());
+
+    let a = client.build().command("/a").build();
+    let b = client.build().command("/b").build();
+    assert_ne!(a.tag, b.tag);
+
+    // try_send hands the command back rather than dropping it when the
+    // channel is full, so the caller can retry without rebuilding it.
+    for _ in 0..4 {
+        client.try_send(client.build().command("/fill").build()).expect("channel has room");
+    }
+    let overflow = client.build().command("/overflow").build();
+    let tag = overflow.tag;
+    let returned = client.try_send(overflow).expect_err("channel should be full");
+    assert_eq!(returned.tag, tag, "a rejected command must come back intact");
+}

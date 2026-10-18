@@ -34,18 +34,25 @@
 //! All events are delivered to a single output channel. The consumer filters
 //! by [`Tag`](mikrotik_proto::tag::Tag) to correlate responses with commands.
 //!
+//! Because the command channel is one-way, a command must carry its tag before
+//! it is sent — there is no reply path to learn one afterwards. [`Client`]
+//! pairs the channel's [`Sender`](embassy_sync::channel::Sender) with the
+//! counter that supplies those tags, so the producer side reads the same way
+//! the tokio adapter's device handle does.
+//!
 //! # Example — Plain TCP
 //!
 //! ```rust,ignore
 //! use embassy_net::tcp::TcpSocket;
 //! use embassy_sync::channel::Channel;
 //! use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-//! use mikrotik_proto::command::{Command, CommandBuilder};
+//! use mikrotik_proto::command::Command;
 //! use mikrotik_proto::connection::Event;
 //!
 //! static CMD: Channel<CriticalSectionRawMutex, Command, 4> = Channel::new();
 //! static EVT: Channel<CriticalSectionRawMutex, Event, 8> = Channel::new();
 //!
+//! // The connection task: owns the socket, drives the protocol.
 //! #[embassy_executor::task]
 //! async fn mikrotik_task(stack: embassy_net::Stack<'static>) {
 //!     let mut rx_buf = [0; 4096];
@@ -57,6 +64,23 @@
 //!         &mut socket, "admin", Some("password"),
 //!         CMD.receiver(), EVT.sender(),
 //!     ).await.unwrap();
+//! }
+//!
+//! // Any other task talks to it through a `Client`.
+//! #[embassy_executor::task]
+//! async fn poller() {
+//!     let client = mikrotik_embassy::Client::new(CMD.sender());
+//!
+//!     let cmd = client.build().command("/system/resource/print").build();
+//!     let tag = cmd.tag;
+//!     client.send(cmd).await;
+//!
+//!     loop {
+//!         let event = EVT.receive().await;
+//!         if event.tag() == Some(tag) {
+//!             // ...
+//!         }
+//!     }
 //! }
 //! ```
 //!
@@ -93,7 +117,9 @@ extern crate alloc;
 /// Error types for the Embassy adapter.
 pub mod error;
 
+mod client;
 mod device;
+pub use client::Client;
 pub use device::run;
 
 /// Re-export the protocol crate for convenience.
