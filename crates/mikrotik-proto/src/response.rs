@@ -33,7 +33,7 @@ pub enum CommandResponse {
     Trap(TrapResponse),
     /// Represents a fatal error response (affects all in-flight commands).
     Fatal(FatalResponse),
-    /// Represents an empty response (introduced in `RouterOS` 7.18).
+    /// Represents an empty response (introduced in RouterOS 7.18).
     /// Commands which do not have any data to reply with return this response.
     Empty(EmptyResponse),
 }
@@ -197,7 +197,7 @@ impl Display for DoneResponse {
     }
 }
 
-/// Represents an empty response (`RouterOS` 7.18+).
+/// Represents an empty response (RouterOS 7.18+).
 ///
 /// Commands which do not have any data to reply with return this response.
 #[derive(Debug, Clone)]

@@ -13,7 +13,11 @@ version = "0.9.1"
 edition = "2024"
 # The one place the MSRV is declared; flake.nix reads it to build devShells.msrv, so this value
 # *is* the compiler `just msrv` runs. Keep clippy.toml's `msrv` in step.
-rust-version = "1.85"
+#
+# 1.88 is measured, not chosen: mikrotik-tokio uses let-chains, which 1.87 rejects, and
+# heapless 0.9 (via embassy-sync) wants core::ffi::FromBytesWithNulError's variants, which
+# landed in the same release. The edition 2024 floor of 1.85 would be a claim nothing supports.
+rust-version = "1.88"
 authors = ["Alessandro Ferrara"]
 keywords = ["mikrotik", "router", "api", "async", "tokio"]
 license = "AGPL-3.0-only"

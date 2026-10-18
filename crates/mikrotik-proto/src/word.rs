@@ -18,9 +18,9 @@ use thiserror::Error;
 use crate::error::WordType;
 use crate::tag::Tag;
 
-/// Represents a word in a `MikroTik` API sentence.
+/// Represents a word in a MikroTik API sentence.
 ///
-/// Words are the fundamental unit of the `MikroTik` wire protocol.
+/// Words are the fundamental unit of the MikroTik wire protocol.
 /// This type borrows from the underlying byte buffer for zero-copy parsing.
 ///
 /// # Variants
@@ -144,7 +144,7 @@ pub enum WordCategory {
     Trap,
     /// Represents a `!fatal` response — a fatal connection error.
     Fatal,
-    /// Represents a `!empty` response (`RouterOS` 7.18+) — no data to reply with.
+    /// Represents a `!empty` response (RouterOS 7.18+) — no data to reply with.
     Empty,
 }
 
@@ -175,7 +175,7 @@ impl Display for WordCategory {
     }
 }
 
-/// Represents a key-value attribute pair in a `MikroTik` API sentence.
+/// Represents a key-value attribute pair in a MikroTik API sentence.
 ///
 /// Attributes are encoded as `=key=value` on the wire. The key is always
 /// valid UTF-8, but the value may contain arbitrary binary data.

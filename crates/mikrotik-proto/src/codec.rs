@@ -102,7 +102,7 @@ impl<'a> RawSentence<'a> {
     }
 }
 
-/// Decode a variable-length integer from the `MikroTik` wire format.
+/// Decode a variable-length integer from the MikroTik wire format.
 ///
 /// Returns the decoded length and the number of prefix bytes consumed,
 /// or `Incomplete` if the buffer doesn't contain enough bytes.
@@ -254,7 +254,7 @@ pub fn encode_length(len: u32, dst: &mut Vec<u8>) {
 /// # Panics
 ///
 /// Panics if `word.len()` exceeds `u32::MAX` (4 GiB). This is not reachable
-/// in practice since `MikroTik` API words are limited to a few kilobytes.
+/// in practice since MikroTik API words are limited to a few kilobytes.
 pub fn encode_word(word: &[u8], dst: &mut Vec<u8>) {
     let len: u32 = word.len().try_into().expect("word length exceeds u32::MAX");
     encode_length(len, dst);

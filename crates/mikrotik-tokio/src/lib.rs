@@ -1,6 +1,6 @@
 //! # mikrotik-tokio
 //!
-//! Tokio-based async client for `MikroTik` `RouterOS` API.
+//! Tokio-based async client for MikroTik RouterOS API.
 //!
 //! This crate provides a high-level async interface built on top of the
 //! sans-IO [`mikrotik_proto`] crate. It drives the protocol state machine
@@ -24,7 +24,7 @@ extern crate alloc;
 
 /// Typestate builder for constructing device connections.
 pub mod builder;
-/// Async device client for connecting to `MikroTik` routers.
+/// Async device client for connecting to MikroTik routers.
 mod device;
 /// Tokio-specific error types.
 pub mod error;

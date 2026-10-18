@@ -1,6 +1,6 @@
 //! Command tag — a unique identifier for correlating commands with responses.
 //!
-//! Each command sent to a `MikroTik` router is assigned a [`Tag`] that the
+//! Each command sent to a MikroTik router is assigned a [`Tag`] that the
 //! router echoes back in all response sentences (`.tag=<value>`). This allows
 //! multiplexing multiple in-flight commands over a single connection.
 //!
