@@ -146,6 +146,13 @@ pub enum ConnectionError {
     /// The connection has been fatally shut down and cannot accept new operations.
     #[error("connection is closed")]
     Closed,
+    /// A command was sent with a tag that is already in flight.
+    ///
+    /// Tags demultiplex responses, so two live commands sharing one would have
+    /// their replies interleaved into whichever arrived last. Rejecting the
+    /// send turns that into an error at the call site instead.
+    #[error("tag {0} is already in flight")]
+    DuplicateTag(crate::tag::Tag),
 }
 
 // ── Login handshake errors ──
