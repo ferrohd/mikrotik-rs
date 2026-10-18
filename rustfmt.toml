@@ -2,5 +2,5 @@ edition = "2024"
 style_edition = "2024"
 max_width = 100
 
-# Keep short struct literals, matches and calls on one line; tabular data reads better as a table.
+# Keep short literals, matches and calls on one line.
 use_small_heuristics = "Max"

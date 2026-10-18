@@ -11,15 +11,11 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Publish whatever is not on the registry yet, in dependency order, then tag and release. With
-  # `release_always = false` this only acts on a merged release pull request.
+  # Publishes whatever is not on the registry yet, then tags. With
+  # `release_always = false` this only acts on a merged release PR.
   #
-  # No `needs: checks`, deliberately. That gate used to be here because the release PR was
-  # opened with the default GITHUB_TOKEN, which cannot trigger workflows, so the PR itself
-  # arrived with no CI and the push event was the only place left to run it. The PAT below means
-  # ci.yml runs on the release PR like any other, before the merge that reaches this job — so
-  # the gate is redundant, and dropping it stops every unrelated push to master from paying for
-  # a second full check suite.
+  # No `needs: checks`: the PAT means the release PR is checked like any other PR before
+  # the merge that reaches this job, so gating here would just run the suite twice.
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -37,8 +33,7 @@ jobs:
 
       - uses: DeterminateSystems/nix-installer-action@v23
 
-      # release-plz shells out to `cargo publish`, so it needs a toolchain on PATH — the pinned
-      # one, so what reaches crates.io is built with the compiler CI checked with.
+      # So what reaches crates.io is built with the compiler CI checked with.
       - name: Put the pinned toolchain on PATH
         run: nix develop .#ci --command bash -c 'command -v cargo | xargs dirname' >> "$GITHUB_PATH"
 
@@ -46,11 +41,8 @@ jobs:
         uses: release-plz/action@v0.5
         with:
           command: release
-          # Pinned to the flake's release-plz, so this and `just release-check` run the same
-          # binary — left unset, the action cargo-binstalls a different version, and a dry run
-          # predicting another tool's behaviour is worse than none. After a flake.lock bump, read
-          # `release-plz --version` in the dev shell. Nothing asserts this: release-plz is a
-          # 415 MiB closure that stays out of the `ci` shell.
+          # Pinned to the flake's release-plz so this and `just release-check` run the same
+          # binary. After a flake.lock bump, read `release-plz --version` in the dev shell.
           version: "0.3.158"
         env:
           # A PAT, not GITHUB_TOKEN: a tag pushed by the default token does not trigger
@@ -80,10 +72,8 @@ jobs:
 
       - uses: DeterminateSystems/nix-installer-action@v23
 
-      # release-plz runs cargo-semver-checks to decide whether a change is breaking, which needs
-      # a toolchain. The flake's cargo-semver-checks is newer than the action's for the reason
-      # given in flake.nix; the action supplies its own, so the two can disagree about a
-      # rustdoc format. If this job starts failing on "unsupported rustdoc format", that is why.
+      # The action supplies its own cargo-semver-checks, which can disagree with the flake's
+      # about a rustdoc format. That is what an "unsupported rustdoc format" failure means.
       - name: Put the pinned toolchain on PATH
         run: nix develop .#ci --command bash -c 'command -v cargo | xargs dirname' >> "$GITHUB_PATH"
 

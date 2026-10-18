@@ -1,32 +1,22 @@
 # Supply-chain policy, checked by `cargo deny check`.
 
 [graph]
-# No `targets` on purpose: with none set, cargo-deny walks every target, which is what surfaces
-# the Windows- and macOS-only crates tokio and its mio dependency pull in.
-#
-# `all-features` because the default is to walk the default feature set, and `tokio-tls` is not
-# in it. Without this, rustls and its whole graph — which is where the interesting licences and
-# the advisories worth knowing about are — go unchecked, while release-plz publishes them with
-# `publish_all_features = true`.
+# No `targets`: with none set every target is walked, which is what surfaces the
+# Windows- and macOS-only crates tokio pulls in. `all-features` because
+# tokio-tls is not a default, so rustls would otherwise go unchecked.
 all-features = true
 
 [advisories]
-# A yanked dependency cannot be reproduced, so it fails rather than warns.
+# A yanked dependency cannot be reproduced.
 yanked = "deny"
 unmaintained = "all"
 ignore = []
 
 [licenses]
-# Enumerated rather than guessed. Two things to know when extending it:
-#
-#   Omitting one side of an `OR` is how you record which side you take — "MIT OR GPL-3.0-only"
-#   stays green on the MIT entry alone.
-#   File-level weak copyleft (MPL-2.0, EPL-2.0) may ship inside an (A)GPL work; MPL-2.0 §3.3
-#   permits exactly that. Not the same decision as admitting GPL, so name the crate that forced it.
-#
-# This list matters more here than in a permissively licensed project: the AGPL text ships with
-# every crate, and CONTRIBUTING.md's CLA reserves the right to relicense commercially. A
-# dependency that cannot be sublicensed would poison that second path silently.
+# Enumerated, not guessed. Omitting one side of an `OR` records which side we
+# take. This matters more than usual here: the CLA reserves the right to
+# relicense commercially, and a dependency that cannot be sublicensed would
+# quietly poison that.
 allow = [
   "AGPL-3.0-only",                  # this workspace
   "Apache-2.0",
@@ -41,16 +31,13 @@ allow = [
 confidence-threshold = 0.93
 
 [bans]
-# Two versions of a crate means two sets of its types, which do not interconvert — a bug class
-# that only appears when a value crosses between them. This will fail the first time a dependency
-# drags in an older major: bump the parent, or record it below with a reason.
+# Two versions means two sets of types that do not interconvert. On a failure,
+# bump the parent or record it in `skip` with a reason.
 multiple-versions = "deny"
 skip = []
 
-# A version-less dependency is a wildcard to cargo-deny, normally an accident worth catching.
-# The exception is a cyclic dev-dependency, which *must* be declared by path alone or neither
-# crate can be published first. There is no cycle in this workspace today; the exemption stays
-# on so adding one does not also mean rewriting this file.
+# allow-wildcard-paths exempts a cyclic dev-dependency, which must be declared
+# by path alone or neither crate can be published first. None today.
 wildcards = "deny"
 allow-wildcard-paths = true
 

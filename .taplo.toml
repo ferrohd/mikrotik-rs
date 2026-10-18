@@ -1,9 +1,7 @@
-# TOML formatting, checked by `just toml`.
-#
-# An explicit `include` rather than `**/*.toml` plus `exclude`, because taplo 0.10's `exclude`
-# does nothing: it still walks into .direnv/flake-inputs and finds the whole of nixpkgs.
+# An explicit `include`: taplo 0.10's `exclude` does not stop it walking into
+# .direnv and formatting the whole of nixpkgs.
 include = ["Cargo.toml", "crates/*/Cargo.toml", "examples/*/Cargo.toml", "*.toml", ".config/*.toml"]
 
 [formatting]
-# Match rustfmt.toml. taplo's default of 80 explodes every `features = [...]` onto its own lines.
+# Match rustfmt.toml; taplo's default of 80 explodes every feature list.
 column_width = 100

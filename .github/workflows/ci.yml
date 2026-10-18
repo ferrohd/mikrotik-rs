@@ -9,18 +9,13 @@ on:
 permissions:
   contents: read
 
-# Supersede on a pull request, never on master: master runs populate the cache pull requests
-# restore from, and cancelling one leaves the branch status ambiguous.
+# Never on master: those runs populate the cache pull requests restore from.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Every job is the same four steps against a different justfile recipe, which is also what you
-# run locally: `nix develop .#ci --command just <recipe>`. Every tool comes from flake.lock, so
-# no `with: toolchain:` or install-action can drift from local.
-#
-# All Linux. Platforms we support but cannot test are reached by `cargo check --target` in the
-# `targets` job.
+# Every job is the same four steps against a different justfile recipe, which is what you
+# run locally. Every tool comes from flake.lock, so nothing here can drift from it.
 
 jobs:
   checks:
@@ -36,20 +31,14 @@ jobs:
           - { name: doc, recipe: doc }
           - { name: "test (all features)", recipe: test, args: --all-features }
           - { name: "test (default features)", recipe: test }
-          # Not `test --no-default-features`: the examples are workspace members that depend on
-          # the facade with default features, and cargo unifies features across a --workspace
-          # selection, so that form silently re-enables what it is meant to switch off.
+          # Not `test --no-default-features`: see the recipe.
           - { name: "test (no default features)", recipe: test-minimal }
           - { name: feature combinations, recipe: features }
-          # Cross-checks for the platforms we support but never run.
           - { name: other targets, recipe: targets }
           - { name: extended property tests, recipe: proptest }
           - { name: publish preflight, recipe: publish }
           - { name: supply chain, recipe: deny }
           - { name: unused dependencies, recipe: unused }
-          # Four crates are already on the registry, so the baseline exists. Worth the job in
-          # particular because the facade re-exports the adapters wholesale: a change to a type
-          # in mikrotik-proto is a mikrotik-rs break without touching mikrotik-rs.
           - { name: semver, recipe: semver }
           - { name: toml formatting, recipe: toml }
           - { name: spelling, recipe: typos }
@@ -61,8 +50,7 @@ jobs:
 
       - uses: DeterminateSystems/nix-installer-action@v23
 
-      # rust-cache shells out to rustc for its cache key, and the toolchain only exists inside
-      # the dev shell.
+      # rust-cache shells out to rustc for its key, and the toolchain is only in the shell.
       - name: Put the pinned toolchain on PATH
         run: nix develop .#ci --command bash -c 'command -v cargo | xargs dirname' >> "$GITHUB_PATH"
 
@@ -74,9 +62,7 @@ jobs:
 
       - run: nix develop .#ci --command just ${{ matrix.recipe }} ${{ matrix.args }}
 
-  # Separate because it is the one job not on the pinned stable: the shell provides a compiler
-  # matching Cargo.toml's rust-version. No rustup shim, so there is no RUSTUP_TOOLCHAIN override
-  # for rust-toolchain.toml's channel to silently win against.
+  # The one job not on the pinned stable: this shell has a compiler matching rust-version.
   msrv:
     name: minimum supported Rust version
     runs-on: ubuntu-latest
@@ -102,9 +88,8 @@ jobs:
     permissions:
       pull-requests: read
     steps:
-      # Squash merge makes the PR title the commit message, and release-plz derives the changelog
-      # from these prefixes. Keep this list and release-plz.toml's commit_parsers in step: a type
-      # accepted here but unparsed there files those commits under "Other", silently.
+      # Keep in step with release-plz.toml's commit_parsers: a type accepted here but
+      # unparsed there files those commits under "Other", silently.
       - uses: amannn/action-semantic-pull-request@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

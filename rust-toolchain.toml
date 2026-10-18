@@ -1,11 +1,5 @@
+# The single source of truth for the channel; flake.nix derives every shell
+# from it. Cross targets live in flake.nix, because its `targets` override
+# replaces this list rather than extending it.
 [toolchain]
-# The single source of truth for the channel: editor, all three dev shells and CI derive from
-# here via flake.nix. Set "nightly" to switch; the shells are channel-agnostic.
 channel = "stable"
-
-# No `components`: the rustup `default` profile already has rustc, cargo, rustfmt and clippy.
-# rust-src and rust-analyzer belong to devShells.default alone, so CI does not download them.
-#
-# No `targets` either — cross targets are `crossTargets` in flake.nix, because the `targets`
-# override replaces this list rather than extending it. Add one here only if you need it outside
-# the dev shell, e.g. building firmware by hand.
