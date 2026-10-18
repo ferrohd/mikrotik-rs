@@ -1,10 +1,5 @@
-//! Command builder with typestate pattern and compile-time validation.
-//!
-//! Commands are built using the [`CommandBuilder`] which uses the typestate
-//! pattern to enforce at compile time that a command word is set before
-//! attributes can be added.
-//!
-//! # Examples
+//! Command builder: a typestate that requires a command word before any
+//! attribute, enforced at compile time.
 //!
 //! ```rust
 //! use mikrotik_proto::command::CommandBuilder;
@@ -17,18 +12,12 @@
 //!     .flag("detail")
 //!     .build();
 //!
-//! // The command has wire-format data ready to send
 //! assert!(!cmd.data().is_empty());
 //! ```
 //!
-//! With the `std` feature, [`CommandBuilder::new`] takes a tag from a
-//! process-wide counter and the explicit [`Counter`](crate::tag::Counter) is
-//! unnecessary.
+//! With `std`, [`CommandBuilder::new`] takes the tag for you.
 //!
 //! # Attributes and absence
-//!
-//! [`CommandBuilder::attribute`] takes an [`Option`], and `None` means *this
-//! attribute was not supplied* — the word is left out of the sentence entirely:
 //!
 //! | Call | Wire |
 //! |---|---|
@@ -36,11 +25,8 @@
 //! | `.flag("detail")` | `=detail=` |
 //! | `.attribute("comment", Some("hi"))` | `=comment=hi` |
 //!
-//! This matters because `=comment=` tells RouterOS to set the comment to the
-//! empty string, which clears it. Threading an `Option` straight from your own
-//! data is therefore safe: a `None` leaves the field alone rather than wiping
-//! it. Use [`CommandBuilder::flag`] for valueless flags such as `detail` or
-//! `once`, which are `=key=` on the wire.
+//! `=comment=` sets the comment to the empty string, which clears it, so
+//! `None` must mean "not supplied" for `.attribute(k, maybe_value)` to be safe.
 
 use alloc::vec::Vec;
 use core::marker::PhantomData;
@@ -80,12 +66,10 @@ impl Default for CommandBuilder<NoCmd> {
 }
 
 impl CommandBuilder<NoCmd> {
-    /// Begin building a new [`Command`], taking a tag from the process-wide
-    /// counter.
+    /// Begins a command, taking a tag from the process-wide counter.
     ///
-    /// Requires the `std` feature; see [`Tag::new`] for why. Without it, take
-    /// a tag from a [`Counter`](crate::tag::Counter) and use
-    /// [`with_tag`](Self::with_tag).
+    /// Requires `std`; see [`Tag::new`]. Otherwise use
+    /// [`with_tag`](Self::with_tag) with a [`Counter`](crate::tag::Counter).
     #[cfg(feature = "std")]
     pub fn new() -> Self {
         Self::with_tag(Tag::new())
@@ -104,16 +88,12 @@ impl CommandBuilder<NoCmd> {
     /// Builds a login command with the provided username and optional password.
     #[must_use]
     pub fn login(username: &str, password: Option<&str>) -> Command {
-        // `Tag::LOGIN` rather than a fresh tag, so this works without `std`:
-        // `Handshaking` needs it and `mikrotik-embassy` is no_std. Login is
-        // the only command in flight before authentication, and it is retired
-        // before the connection is handed over, so a constant is safe.
+        // Not `Self::new()`: that needs `std`, and the embassy adapter is no_std.
         Self::with_tag(Tag::LOGIN)
             .command("/login")
             .attribute("name", Some(username))
-            // An absent password is an *empty* password, not an absent attribute:
-            // RouterOS requires the `=password=` word, so this must not become
-            // `attribute("password", password)` — `None` would omit it entirely.
+            // Not `attribute("password", password)`: `None` would omit the word,
+            // and RouterOS requires it. An absent password is an empty one.
             .attribute("password", Some(password.unwrap_or("")))
             .build()
     }
@@ -144,12 +124,8 @@ impl CommandBuilder<Cmd> {
     /// # Arguments
     ///
     /// * `key` — The attribute's key.
-    /// * `value` — The attribute's value. `None` means the attribute was not
-    ///   supplied and **no word is written at all**. For a valueless flag such
-    ///   as `detail`, use [`flag`](Self::flag), which writes `=detail=`.
-    ///
-    /// Passing `Some("")` is equivalent to [`flag`](Self::flag): RouterOS reads
-    /// `=key=` as "set this property to the empty string".
+    /// * `value` — `None` writes no word at all. For a valueless flag, use
+    ///   [`flag`](Self::flag). `Some("")` is equivalent to it.
     ///
     /// # Panics
     ///
@@ -158,10 +134,7 @@ impl CommandBuilder<Cmd> {
         self.attribute_raw(key, value.map(str::as_bytes))
     }
 
-    /// Adds an attribute with a raw byte value to the command being built.
-    ///
-    /// Use this method when your attribute values might contain non-UTF-8 or binary data.
-    /// `None` omits the word, exactly as in [`attribute`](Self::attribute).
+    /// Adds an attribute whose value may be binary. `None` omits the word.
     ///
     /// # Panics
     ///
@@ -173,11 +146,7 @@ impl CommandBuilder<Cmd> {
         self
     }
 
-    /// Adds a valueless flag, such as `detail` or `once`.
-    ///
-    /// Writes `=key=` — an attribute with an empty value, which is how RouterOS
-    /// spells a flag. This is the counterpart to
-    /// [`attribute(key, None)`](Self::attribute), which writes nothing.
+    /// Adds a valueless flag such as `detail`, written `=key=`.
     ///
     /// # Panics
     ///
@@ -186,7 +155,7 @@ impl CommandBuilder<Cmd> {
         self.attribute_raw(key, Some(&[]))
     }
 
-    /// Adds an attribute with a Tag value (used internally for cancel tags).
+    /// Adds a tag-valued attribute, for `/cancel`.
     fn attribute_tag(self, key: &str, value: Tag) -> Self {
         self.attribute_raw(key, Some(&value.to_ascii()))
     }
@@ -305,7 +274,7 @@ pub enum QueryOperator {
 }
 
 impl QueryOperator {
-    /// The operator's byte as it appears after `?#` on the wire.
+    /// The operator's byte, as it appears after `?#`.
     #[inline]
     pub(crate) fn code(self) -> u8 {
         match self {
@@ -325,10 +294,7 @@ mod tests {
 
     const TEST_TAG: Tag = Tag::from_raw(42);
 
-    /// A builder with a distinct tag, standing in for the `std`-only
-    /// `CommandBuilder::new`. Uses an atomic directly rather than `Counter`
-    /// because the host always has compare-and-swap; the `std` gate on
-    /// `Tag::new` is about bare-metal targets, not about the test harness.
+    /// Stands in for the `std`-only `CommandBuilder::new`.
     fn builder() -> CommandBuilder<NoCmd> {
         use core::sync::atomic::{AtomicU32, Ordering};
         static NEXT: AtomicU32 = AtomicU32::new(1);

@@ -1,77 +1,41 @@
-//! Command tag — a unique identifier for correlating commands with responses.
+//! Command tags, which correlate a command with its responses.
 //!
-//! Each command sent to a MikroTik router carries a [`Tag`] that the router
-//! echoes back in every response sentence (`.tag=<value>`). That is what lets
-//! several commands share one connection.
-//!
-//! A tag is a `u32`, written on the wire as fixed-width zero-padded decimal:
-//!
-//! ```text
-//! .tag=0000000042
-//! ```
-//!
-//! RouterOS treats the value as an opaque string and only ever echoes it, so
-//! the only requirement is uniqueness among the commands in flight on one
-//! connection. A counter satisfies that without needing entropy, which is what
-//! makes this crate buildable for a bare-metal target.
+//! The router echoes the tag in every response sentence, so it only has to be
+//! unique among the commands in flight on one connection. On the wire it is
+//! fixed-width zero-padded decimal: `.tag=0000000042`.
 
 use core::fmt;
 
 use thiserror::Error;
 
-/// A unique tag identifying a command for response correlation.
-///
-/// Create one with [`Tag::from_raw`], or take them in sequence from a
-/// [`Counter`]. [`CommandBuilder`] does the latter for
-/// you where a global counter is available.
-///
-/// [`CommandBuilder`]: crate::command::CommandBuilder
+/// Identifies a command, so its responses can be told apart from another's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Tag(u32);
 
 impl Tag {
-    /// The tag used for the login command.
-    ///
-    /// Login is the only command that can be in flight before authentication
-    /// completes, and it is retired before the [`Connection`] is handed over,
-    /// so no reservation is needed to keep this clear of ordinary tags.
-    /// Counters start at 1 anyway, which keeps packet captures unambiguous.
-    ///
-    /// [`Connection`]: crate::connection::Connection
+    /// The login command's tag. [`Counter`] starts at 1 to stay clear of it.
     pub const LOGIN: Tag = Tag::from_raw(0);
 
-    /// Width of the decimal wire form.
-    ///
-    /// Derived from the representation rather than asserted against it, so
-    /// widening `Tag` cannot leave the encoder's buffer behind.
+    /// Width of the wire form, derived so it cannot fall behind the type.
     pub const ASCII_LEN: usize = u32::MAX.ilog10() as usize + 1;
 
-    /// Wrap a raw value.
+    /// Wraps a raw value.
     #[must_use]
     pub const fn from_raw(value: u32) -> Self {
         Self(value)
     }
 
-    /// The underlying value.
+    /// The raw value.
     #[must_use]
     pub const fn to_raw(self) -> u32 {
         self.0
     }
 
-    /// Take the next tag from a process-wide counter.
+    /// Takes the next tag from a process-wide counter.
     ///
-    /// Convenient, and sufficient for any number of connections in one
-    /// process, since a tag only has to be unique among those in flight.
-    ///
-    /// Requires the `std` feature. A shared counter has to be `Sync`, which
-    /// means an atomic, and `AtomicU32::fetch_add` does not exist on a target
-    /// without compare-and-swap — Cortex-M0+ among them. Rather than drag a
-    /// `critical-section` dependency into a sans-IO crate to paper over that,
-    /// `no_std` callers own a [`Counter`] and pass tags to
-    /// [`CommandBuilder::with_tag`], which is both portable and explicit about
-    /// where the state lives.
-    ///
-    /// [`CommandBuilder::with_tag`]: crate::command::CommandBuilder::with_tag
+    /// Requires `std`: a shared counter needs an atomic, and a target without
+    /// compare-and-swap has none. Elsewhere, use [`Counter`] with
+    /// [`CommandBuilder::with_tag`](crate::command::CommandBuilder::with_tag).
     #[cfg(feature = "std")]
     #[must_use]
     pub fn new() -> Self {
@@ -82,11 +46,7 @@ impl Tag {
         Tag::from_raw(NEXT.fetch_add(1, Ordering::Relaxed))
     }
 
-    /// The tag as fixed-width zero-padded decimal ASCII.
-    ///
-    /// Fixed width on purpose: every byte of the result is meaningful, so
-    /// there is no length to carry alongside it and no way for a caller to
-    /// transmit the padding by mistake.
+    /// The wire form: fixed-width zero-padded decimal.
     ///
     /// ```
     /// use mikrotik_proto::tag::Tag;
@@ -107,25 +67,22 @@ impl Tag {
     }
 }
 
-/// Reasons a `.tag=` value could not be read.
+/// Why a `.tag=` value could not be read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 pub enum TagParseError {
-    /// The value was empty.
+    /// No digits.
     #[error("tag is empty")]
     Empty,
-    /// The value contained a byte that is not an ASCII digit.
+    /// Not an ASCII digit.
     #[error("tag contains a non-digit byte")]
     NotADigit,
-    /// The value was a number too large for a tag.
+    /// Larger than [`u32::MAX`].
     #[error("tag exceeds u32::MAX")]
     Overflow,
 }
 
-/// Parse a tag from the ASCII digits of a `.tag=` value.
-///
-/// Takes bytes rather than `&str` because this is the wire-parsing hot path
-/// and the value is ASCII by construction, so UTF-8 validation would be
-/// wasted work.
+/// Parses the digits of a `.tag=` value. Takes bytes: the wire value is ASCII,
+/// so UTF-8 validation would be wasted.
 impl TryFrom<&[u8]> for Tag {
     type Error = TagParseError;
 
@@ -165,32 +122,25 @@ impl core::str::FromStr for Tag {
     }
 }
 
-/// Renders the wire form, so a log line can be grepped for in a packet
-/// capture. `Debug` gives the bare number for when that is what you want.
+/// Renders the wire form, so a log line matches a packet capture. `Debug`
+/// gives the bare number.
 impl fmt::Display for Tag {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:0width$}", self.0, width = Self::ASCII_LEN)
     }
 }
 
-/// A source of command tags unique within one connection.
-///
-/// Implemented by [`Counter`] and by the device handles in the adapter crates,
-/// so the same call reads the same way wherever the tags come from.
+/// A source of tags unique within one connection.
 pub trait TagSource {
-    /// Take the next tag.
+    /// Takes the next tag.
     fn next_tag(&self) -> Tag;
 }
 
 /// A monotonic tag counter.
 ///
-/// Uses a [`Cell`](core::cell::Cell) rather than an atomic deliberately: a
-/// Cortex-M0+ target such as the RP2040 has no compare-and-swap, so
-/// `AtomicU32::fetch_add` would not compile there. Synchronisation is left to
-/// whoever owns the counter, which is where the concurrency model is actually
-/// known — a single Embassy task needs none at all.
-///
-/// Starts at 1, leaving 0 to [`Tag::LOGIN`] so a packet capture is unambiguous.
+/// Holds a `Cell`, not an atomic: a target without compare-and-swap cannot
+/// have one. Synchronisation is the owner's business — a single task needs
+/// none.
 ///
 /// ```
 /// use mikrotik_proto::tag::{Counter, TagSource};
@@ -202,7 +152,7 @@ pub trait TagSource {
 pub struct Counter(core::cell::Cell<u32>);
 
 impl Counter {
-    /// A counter starting at 1.
+    /// A counter starting at 1, clear of [`Tag::LOGIN`].
     #[must_use]
     pub const fn new() -> Self {
         Self(core::cell::Cell::new(1))
@@ -217,10 +167,8 @@ impl Default for Counter {
 
 impl TagSource for Counter {
     fn next_tag(&self) -> Tag {
-        // Wrapping is unreachable in practice and harmless if reached: a tag
-        // only has to be distinct from those currently in flight, and
-        // `Connection::send_command` rejects a duplicate rather than
-        // misrouting its responses.
+        // Wrapping is unreachable in practice, and `Connection::send_command`
+        // rejects a duplicate rather than misrouting if it ever is reached.
         let value = self.0.get();
         self.0.set(value.wrapping_add(1));
         Tag::from_raw(value)
@@ -234,8 +182,6 @@ mod tests {
 
     #[test]
     fn display_matches_the_encoder() {
-        // Two renderings of the same thing: `to_ascii` for the wire, `Display`
-        // for everywhere else. They must not drift.
         for value in [0, 1, 42, 999, u32::MAX] {
             let tag = Tag::from_raw(value);
             assert_eq!(format!("{tag}").as_bytes(), &tag.to_ascii());

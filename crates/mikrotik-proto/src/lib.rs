@@ -1,56 +1,21 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 //! # mikrotik-proto
 //!
-//! Sans-IO protocol implementation for the MikroTik RouterOS API.
+//! Sans-IO implementation of the MikroTik RouterOS API: wire codec, command
+//! builder, response parsing, connection multiplexing and the login handshake.
 //!
-//! This crate provides a runtime-agnostic, `no_std`-compatible implementation
-//! of the MikroTik RouterOS API wire protocol. It handles:
-//!
-//! - **Wire-format encoding/decoding** — variable-length prefix codec for words and sentences
-//! - **Command building** — typestate builder pattern with compile-time validation
-//! - **Response parsing** — zero-copy sentence parsing into typed responses
-//! - **Connection state machine** — multiplexed command/response correlation
-//! - **Login handshake** — typestate-enforced authentication flow
-//!
-//! This crate performs **no I/O**. It accepts byte slices as input and produces
-//! byte buffers and events as output. A runtime adapter (e.g., `mikrotik-tokio`)
-//! is responsible for actual network communication.
+//! This crate performs no I/O. It takes byte slices in and produces byte
+//! buffers and events out; a runtime adapter such as `mikrotik-tokio` or
+//! `mikrotik-embassy` does the networking.
 //!
 //! # Feature flags
 //!
 //! | Feature | Default | Description |
 //! |---------|---------|-------------|
-//! | `std`   | no      | Uses `std::collections::HashMap` in public types. When disabled (default), falls back to `hashbrown::HashMap` for `no_std` compatibility. |
-//!
-//! # Architecture
-//!
-//! ```text
-//! ┌─────────────────────────────────────────────────────┐
-//! │  mikrotik-proto (this crate)                        │
-//! │                                                     │
-//! │  codec (RawSentence) ──▶ response                    │
-//! │                           ▲                         │
-//! │  command ─────────────────┘                         │
-//! │                                                     │
-//! │  connection (state machine, multiplexing)            │
-//! │  handshake  (typestate login flow)                   │
-//! └─────────────────────────────────────────────────────┘
-//!          ▲ receive(&[u8])    │ poll_transmit()
-//!          │                  │ poll_event()
-//!          │                  ▼
-//! ┌─────────────────────────────────────────────────────┐
-//! │  Runtime adapter (e.g., mikrotik-tokio)             │
-//! │  Thin async glue: TcpStream ↔ Connection            │
-//! └─────────────────────────────────────────────────────┘
-//! ```
+//! | `std`   | no      | `std::collections::HashMap` in public types instead of `hashbrown`'s, and a process-wide tag counter |
 
 extern crate alloc;
 
-// Re-export the appropriate HashMap type based on feature flags.
-//
-// When the `std` feature is enabled (default), public types use
-// `std::collections::HashMap`. When disabled (for `no_std` environments),
-// they fall back to `hashbrown::HashMap`.
 #[cfg(not(feature = "std"))]
 pub use hashbrown::HashMap;
 #[cfg(feature = "std")]
@@ -70,16 +35,14 @@ pub mod handshake;
 pub mod macros;
 /// Response types for parsed command responses.
 pub mod response;
-// Outbound sentence assembly. Private: `CommandBuilder` is the supported way
-// to produce a command, and keeping this internal is what guarantees no word
-// can be written with a length that disagrees with its content.
+// Private: keeping it so is what guarantees no word can be written with a
+// length that disagrees with its content.
 mod sentence;
-/// Command tag — a unique identifier for correlating commands with responses.
+/// Command tags, correlating commands with their responses.
 pub mod tag;
 /// Word types: the fundamental unit of the MikroTik API protocol.
 pub mod word;
 
-// Re-export key types at crate root for convenience
 pub use command::{Command, CommandBuilder};
 pub use connection::{Connection, Event, State, Transmit};
 pub use handshake::{Authenticated, Handshaking, LoginProgress};
