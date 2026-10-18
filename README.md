@@ -1,10 +1,11 @@
 # mikrotik-rs
 
-![docs.rs](https://img.shields.io/docsrs/mikrotik-rs)
-![Crates.io](https://img.shields.io/crates/v/mikrotik-rs)
-![Crates.io License](https://img.shields.io/crates/l/mikrotik-rs)
-![Crates.io Total Downloads](https://img.shields.io/crates/d/mikrotik-rs)
-![GitHub Repo stars](https://img.shields.io/github/stars/ferrohd/mikrotik-rs)
+[![CI](https://github.com/ferrohd/mikrotik-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/ferrohd/mikrotik-rs/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/mikrotik-rs)](https://crates.io/crates/mikrotik-rs)
+[![docs.rs](https://img.shields.io/docsrs/mikrotik-rs)](https://docs.rs/mikrotik-rs)
+[![MSRV](https://img.shields.io/crates/msrv/mikrotik-rs)](https://github.com/ferrohd/mikrotik-rs/blob/master/Cargo.toml)
+[![Downloads](https://img.shields.io/crates/d/mikrotik-rs)](https://crates.io/crates/mikrotik-rs)
+[![License](https://img.shields.io/crates/l/mikrotik-rs)](LICENSE)
 
 A Rust client for the [MikroTik RouterOS API](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API).
 
@@ -70,17 +71,17 @@ each one stream responses independently.
 
 ```toml
 # Plaintext (default)
-mikrotik-rs = "0.7"
+mikrotik-rs = "0.9"
 
 # TLS for API-SSL (port 8729) — bring your own crypto provider
-mikrotik-rs = { version = "0.7", features = ["tokio-tls"] }
+mikrotik-rs = { version = "0.9", features = ["tokio-tls"] }
 rustls = { version = "0.23", features = ["ring"] }  # or "aws-lc-rs"
 
 # Embassy embedded adapter (no_std)
-mikrotik-rs = { version = "0.7", default-features = false, features = ["embassy"] }
+mikrotik-rs = { version = "0.9", default-features = false, features = ["embassy"] }
 
 # Protocol types only (no runtime)
-mikrotik-rs = { version = "0.7", default-features = false }
+mikrotik-rs = { version = "0.9", default-features = false }
 ```
 
 ## Usage
@@ -223,18 +224,8 @@ The library is split into focused crates:
 | [`mikrotik-embassy`](crates/mikrotik-embassy/) | Embassy embedded async adapter — transport-agnostic over `embedded-io-async` |
 | [`mikrotik-rs`](crates/mikrotik-rs/) | Convenience re-exports from all crates |
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                        mikrotik-rs                              │
-│                    (re-exports from all)                        │
-├──────────────────────────┬──────────────────────────────────────┤
-│      mikrotik-tokio      │         mikrotik-embassy             │
-│   (Tokio async adapter)  │   (Embassy embedded adapter)         │
-├──────────────────────────┴──────────────────────────────────────┤
-│                       mikrotik-proto                            │
-│           Sans-IO protocol core (#![no_std])                    │
-└─────────────────────────────────────────────────────────────────┘
-```
+See [docs/architecture.md](docs/architecture.md) for how the pieces fit together, what lives in
+each module, and the testing strategy.
 
 ## Examples
 

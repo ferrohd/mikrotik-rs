@@ -1,5 +1,9 @@
 # mikrotik-embassy
 
+[![Crates.io](https://img.shields.io/crates/v/mikrotik-embassy)](https://crates.io/crates/mikrotik-embassy)
+[![docs.rs](https://img.shields.io/docsrs/mikrotik-embassy)](https://docs.rs/mikrotik-embassy)
+[![License](https://img.shields.io/crates/l/mikrotik-embassy)](https://github.com/ferrohd/mikrotik-rs/blob/master/LICENSE)
+
 Embassy async embedded client for the [MikroTik RouterOS API](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API).
 
 This crate provides an embedded-friendly async adapter built on top of the sans-IO [`mikrotik-proto`](https://crates.io/crates/mikrotik-proto) crate. It is **transport-agnostic**: works with any type implementing [`embedded_io_async::Read`](https://docs.rs/embedded-io-async) + [`Write`](https://docs.rs/embedded-io-async): plain TCP, TLS, UART, or anything else.

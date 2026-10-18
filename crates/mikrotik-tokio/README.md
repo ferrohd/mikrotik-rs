@@ -1,5 +1,9 @@
 # mikrotik-tokio
 
+[![Crates.io](https://img.shields.io/crates/v/mikrotik-tokio)](https://crates.io/crates/mikrotik-tokio)
+[![docs.rs](https://img.shields.io/docsrs/mikrotik-tokio)](https://docs.rs/mikrotik-tokio)
+[![License](https://img.shields.io/crates/l/mikrotik-tokio)](https://github.com/ferrohd/mikrotik-rs/blob/master/LICENSE)
+
 Tokio-based async client for the [MikroTik RouterOS API](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API).
 
 This crate provides a high-level async interface built on top of the sans-IO [`mikrotik-proto`](https://crates.io/crates/mikrotik-proto) crate. It drives the protocol state machine using Tokio's async runtime.
