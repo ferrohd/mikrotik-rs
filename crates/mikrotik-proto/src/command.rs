@@ -170,9 +170,7 @@ impl CommandBuilder<Cmd> {
 
     /// Adds an attribute with a Tag value (used internally for cancel tags).
     fn attribute_tag(self, key: &str, value: Tag) -> Self {
-        let mut buf = [0u8; 36];
-        let ascii = value.encode_lower(&mut buf);
-        self.attribute_raw(key, Some(ascii.as_bytes()))
+        self.attribute_raw(key, Some(&value.to_ascii()))
     }
 
     /// Adds a query to check if a property is present.
@@ -303,17 +301,12 @@ impl QueryOperator {
 
 #[cfg(test)]
 mod tests {
-    use uuid::Uuid;
-
     use super::*;
     use crate::codec;
     use alloc::string::String;
 
-    const TEST_TAG: Tag = Tag::from_uuid(Uuid::from_bytes([
-        0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7,
-        0xd8,
-    ]));
-    const TEST_TAG_WORD: &str = ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8";
+    const TEST_TAG: Tag = Tag::from_raw(42);
+    const TEST_TAG_WORD: &str = ".tag=0000000042";
 
     /// Helper to parse the RouterOS length-prefixed "words" out of the command data.
     fn parse_words(data: &[u8]) -> Vec<String> {
@@ -385,7 +378,7 @@ mod tests {
         let command = CommandBuilder::<NoCmd>::cancel(TEST_TAG);
         let s = core::str::from_utf8(&command.data).unwrap();
         assert!(s.contains("/cancel"));
-        assert!(s.contains("tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"));
+        assert!(s.contains("tag=0000000042"));
     }
 
     #[test]

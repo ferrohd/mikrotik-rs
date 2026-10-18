@@ -59,10 +59,7 @@ impl Sentence {
     pub(crate) fn word(&mut self, word: OutWord<'_>) {
         match word {
             OutWord::Command(path) => self.parts(&[path.as_bytes()]),
-            OutWord::Tag(tag) => {
-                let mut buf = [0u8; 36];
-                self.parts(&[b".tag=", tag.encode_lower(&mut buf).as_bytes()]);
-            }
+            OutWord::Tag(tag) => self.parts(&[b".tag=", &tag.to_ascii()]),
             OutWord::Attribute { key, value } => {
                 self.parts(&[b"=", key.as_bytes(), b"=", value]);
             }
