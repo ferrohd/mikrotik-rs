@@ -9,11 +9,15 @@
 //! ```rust
 //! use mikrotik_proto::connection::{Connection, Event};
 //! use mikrotik_proto::command::CommandBuilder;
+//! use mikrotik_proto::tag::{Counter, TagSource};
 //!
+//! let tags = Counter::new();
 //! let mut conn = Connection::new();
 //!
 //! // Send a command
-//! let cmd = CommandBuilder::new().command("/system/resource/print").build();
+//! let cmd = CommandBuilder::with_tag(tags.next_tag())
+//!     .command("/system/resource/print")
+//!     .build();
 //! let tag = conn.send_command(cmd).unwrap();
 //!
 //! // In your event loop you would:
@@ -417,6 +421,18 @@ impl Default for Connection {
 
 #[cfg(test)]
 mod tests {
+    use crate::command::NoCmd;
+
+    /// A builder with a distinct tag, standing in for the `std`-only
+    /// `CommandBuilder::new`. Uses an atomic directly rather than `Counter`
+    /// because the host always has compare-and-swap; the `std` gate on
+    /// `Tag::new` is about bare-metal targets, not about the test harness.
+    fn builder() -> CommandBuilder<NoCmd> {
+        use core::sync::atomic::{AtomicU32, Ordering};
+        static NEXT: AtomicU32 = AtomicU32::new(1);
+        CommandBuilder::with_tag(Tag::from_raw(NEXT.fetch_add(1, Ordering::Relaxed)))
+    }
+
     use super::*;
     use crate::codec;
     use alloc::format;
@@ -466,7 +482,7 @@ mod tests {
     #[test]
     fn test_send_command_queues_transmit() {
         let mut conn = Connection::new();
-        let cmd = CommandBuilder::new().command("/test").build();
+        let cmd = builder().command("/test").build();
         let expected_data = cmd.data().to_vec();
         let tag = conn.send_command(cmd).unwrap();
 
@@ -482,7 +498,7 @@ mod tests {
     #[test]
     fn test_done_response_completes_command() {
         let mut conn = Connection::new();
-        let cmd = CommandBuilder::new().command("/test").build();
+        let cmd = builder().command("/test").build();
         let tag = conn.send_command(cmd).unwrap();
 
         // Drain transmit
@@ -503,7 +519,7 @@ mod tests {
     #[test]
     fn test_empty_response_completes_command() {
         let mut conn = Connection::new();
-        let cmd = CommandBuilder::new().command("/test").build();
+        let cmd = builder().command("/test").build();
         let tag = conn.send_command(cmd).unwrap();
         while conn.poll_transmit().is_some() {}
 
@@ -520,7 +536,7 @@ mod tests {
     #[test]
     fn test_streaming_replies_then_done() {
         let mut conn = Connection::new();
-        let cmd = CommandBuilder::new().command("/interface/print").build();
+        let cmd = builder().command("/interface/print").build();
         let tag = conn.send_command(cmd).unwrap();
         while conn.poll_transmit().is_some() {}
 
@@ -561,7 +577,7 @@ mod tests {
     #[test]
     fn test_trap_response_terminates_command() {
         let mut conn = Connection::new();
-        let cmd = CommandBuilder::new().command("/test").build();
+        let cmd = builder().command("/test").build();
         let tag = conn.send_command(cmd).unwrap();
         while conn.poll_transmit().is_some() {}
 
@@ -580,8 +596,8 @@ mod tests {
     #[test]
     fn test_fatal_kills_all_commands() {
         let mut conn = Connection::new();
-        let cmd1 = CommandBuilder::new().command("/test1").build();
-        let cmd2 = CommandBuilder::new().command("/test2").build();
+        let cmd1 = builder().command("/test1").build();
+        let cmd2 = builder().command("/test2").build();
         conn.send_command(cmd1).unwrap();
         conn.send_command(cmd2).unwrap();
         while conn.poll_transmit().is_some() {}
@@ -597,7 +613,7 @@ mod tests {
         assert_eq!(conn.in_flight_count(), 0);
 
         // Further operations should fail
-        let cmd3 = CommandBuilder::new().command("/test3").build();
+        let cmd3 = builder().command("/test3").build();
         assert!(conn.send_command(cmd3).is_err());
         assert!(conn.receive(&[]).is_err());
     }
@@ -605,7 +621,7 @@ mod tests {
     #[test]
     fn test_partial_receive() {
         let mut conn = Connection::new();
-        let cmd = CommandBuilder::new().command("/test").build();
+        let cmd = builder().command("/test").build();
         let tag = conn.send_command(cmd).unwrap();
         while conn.poll_transmit().is_some() {}
 
@@ -625,7 +641,7 @@ mod tests {
     #[test]
     fn test_cancel_command() {
         let mut conn = Connection::new();
-        let cmd = CommandBuilder::new().command("/test").build();
+        let cmd = builder().command("/test").build();
         let tag = conn.send_command(cmd).unwrap();
         while conn.poll_transmit().is_some() {}
 
@@ -643,8 +659,8 @@ mod tests {
     #[test]
     fn test_cancel_all() {
         let mut conn = Connection::new();
-        let cmd1 = CommandBuilder::new().command("/test1").build();
-        let cmd2 = CommandBuilder::new().command("/test2").build();
+        let cmd1 = builder().command("/test1").build();
+        let cmd2 = builder().command("/test2").build();
         conn.send_command(cmd1).unwrap();
         conn.send_command(cmd2).unwrap();
         while conn.poll_transmit().is_some() {}
@@ -663,8 +679,8 @@ mod tests {
     #[test]
     fn test_multiple_sentences_in_single_receive() {
         let mut conn = Connection::new();
-        let cmd1 = CommandBuilder::new().command("/test1").build();
-        let cmd2 = CommandBuilder::new().command("/test2").build();
+        let cmd1 = builder().command("/test1").build();
+        let cmd2 = builder().command("/test2").build();
         let tag1 = conn.send_command(cmd1).unwrap();
         let tag2 = conn.send_command(cmd2).unwrap();
         while conn.poll_transmit().is_some() {}
@@ -690,7 +706,7 @@ mod tests {
     #[test]
     fn test_reply_for_unknown_tag_is_ignored() {
         let mut conn = Connection::new();
-        let unknown_tag = Tag::new();
+        let unknown_tag = Tag::from_raw(9_999);
 
         // Receive a reply for a tag we never sent
         conn.receive(&build_reply(unknown_tag, &[("name", "test")])).unwrap();

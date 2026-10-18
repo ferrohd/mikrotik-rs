@@ -62,6 +62,17 @@ impl Tag {
     ///
     /// Convenient, and sufficient for any number of connections in one
     /// process, since a tag only has to be unique among those in flight.
+    ///
+    /// Requires the `std` feature. A shared counter has to be `Sync`, which
+    /// means an atomic, and `AtomicU32::fetch_add` does not exist on a target
+    /// without compare-and-swap — Cortex-M0+ among them. Rather than drag a
+    /// `critical-section` dependency into a sans-IO crate to paper over that,
+    /// `no_std` callers own a [`Counter`] and pass tags to
+    /// [`CommandBuilder::with_tag`], which is both portable and explicit about
+    /// where the state lives.
+    ///
+    /// [`CommandBuilder::with_tag`]: crate::command::CommandBuilder::with_tag
+    #[cfg(feature = "std")]
     #[must_use]
     pub fn new() -> Self {
         use core::sync::atomic::{AtomicU32, Ordering};
@@ -139,6 +150,7 @@ impl TryFrom<&[u8]> for Tag {
     }
 }
 
+#[cfg(feature = "std")]
 impl Default for Tag {
     fn default() -> Self {
         Self::new()

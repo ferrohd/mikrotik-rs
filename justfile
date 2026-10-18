@@ -21,6 +21,10 @@
 # recipe that varies features therefore names the libraries instead.
 libs := "-p mikrotik-proto -p mikrotik-tokio -p mikrotik-embassy -p mikrotik-rs"
 
+# The subset that is meant to build without `std`. mikrotik-tokio is absent because it
+# requires it; see `test-minimal`.
+nostd_libs := "-p mikrotik-proto -p mikrotik-embassy -p mikrotik-rs"
+
 default:
     @just --list --unsorted
 
@@ -51,11 +55,16 @@ test *FEATURES:
     cargo nextest run --workspace --locked --profile ci {{ FEATURES }}
     cargo test --doc --workspace --locked {{ FEATURES }}
 
-# As `test`, but scoped to the libraries so the examples cannot re-enable the facade's defaults.
+# Scoped to the crates that can actually build without `std`.
+#
+# mikrotik-tokio is excluded deliberately, not by oversight: it depends on
+# mikrotik-proto with `features = ["std"]`, and a dependency edge is not something
+# `--no-default-features` can switch off. Including it unified `std` back on and made
+# this recipe assert nothing — it passed while testing the opposite of its name.
 [doc('tests with no default features, where --workspace would be a no-op')]
 test-minimal:
-    cargo nextest run {{ libs }} --locked --profile ci --no-default-features
-    cargo test --doc {{ libs }} --locked --no-default-features
+    cargo nextest run {{ nostd_libs }} --locked --profile ci --no-default-features
+    cargo test --doc {{ nostd_libs }} --locked --no-default-features
 
 # Self-maintaining: a new feature extends the sweep without editing this file. --ignore-private
 # drops the examples, which have no features of their own. The powerset is exponential, so it
