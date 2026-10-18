@@ -15,12 +15,8 @@
 //! | `0x200000 ..= 0xFFFFFFF` | 4        | `[0xE0 \| (len >> 24), (len >> 16), ...]`   |
 //! | `>= 0x10000000`       | 5           | `[0xF0, (len >> 24), (len >> 16), ...]`     |
 //!
-//! # Design
-//!
-//! This codec is **stateless** and performs **no I/O**. Functions operate on
-//! byte slices and return either a result with bytes consumed or an
-//! `Incomplete` status indicating more data is needed. This follows the
-//! `httparse::Status` pattern.
+//! Stateless: functions take byte slices and return either a value with the
+//! bytes consumed, or `Incomplete`, after the `httparse::Status` pattern.
 
 use alloc::vec::Vec;
 use core::num::NonZeroUsize;
@@ -102,15 +98,12 @@ impl<'a> RawSentence<'a> {
     }
 }
 
-/// Decode a variable-length integer from the MikroTik wire format.
-///
-/// Returns the decoded length and the number of prefix bytes consumed,
-/// or `Incomplete` if the buffer doesn't contain enough bytes.
+/// Decodes a length prefix, returning it and the bytes consumed.
 ///
 /// # Errors
 ///
-/// Returns [`DecodeError::InvalidLengthPrefix`] if the first byte has
-/// an unrecognized prefix pattern (i.e., bits `0xF8` are all set).
+/// [`DecodeError::InvalidLengthPrefix`] if the first byte has no recognised
+/// prefix pattern.
 pub fn decode_length(data: &[u8]) -> Result<Decode<(u32, usize)>, DecodeError> {
     if data.is_empty() {
         return Ok(Decode::Incomplete { needed: NonZeroUsize::new(1) });
@@ -158,16 +151,9 @@ pub fn decode_length(data: &[u8]) -> Result<Decode<(u32, usize)>, DecodeError> {
     }
 }
 
-/// Attempt to decode one complete sentence from the input buffer.
+/// Decodes one complete sentence, if the buffer holds one.
 ///
-/// A sentence is a sequence of length-prefixed words terminated by a
-/// zero-length word (a single `0x00` byte).
-///
-/// # Returns
-///
-/// - `Ok(Decode::Complete { value, bytes_consumed })` — a full sentence was decoded.
-///   The caller should advance the buffer by `bytes_consumed`.
-/// - `Ok(Decode::Incomplete { needed })` — more data is needed to complete the sentence.
+/// On `Complete`, advance the buffer by `bytes_consumed`.
 ///
 /// # Errors
 ///
@@ -211,14 +197,10 @@ pub fn decode_sentence(src: &[u8]) -> Result<Decode<RawSentence<'_>>, DecodeErro
     }
 }
 
-/// Encode a variable-length prefix into the destination buffer.
+/// Appends a length prefix (1-5 bytes) to `dst`.
 ///
-/// Appends the encoded length prefix (1-5 bytes) to `dst`.
-///
-/// Crate-private on purpose: this is the only primitive that can state a length
-/// independently of the bytes that follow it, which is exactly how a sentence
-/// becomes malformed. Callers outside the crate get [`encode_word`], which
-/// derives the length from its content and cannot disagree with it.
+/// Crate-private: the only primitive that can state a length independently of
+/// the bytes after it. [`encode_word`] derives it instead.
 pub(crate) fn encode_length(len: u32, dst: &mut Vec<u8>) {
     match len {
         0x00..=0x7F => {
@@ -252,14 +234,11 @@ pub(crate) fn encode_length(len: u32, dst: &mut Vec<u8>) {
     }
 }
 
-/// Encode a word (length prefix + content bytes) into the destination buffer.
-///
-/// Appends the length-prefixed word to `dst`.
+/// Appends a length-prefixed word to `dst`.
 ///
 /// # Panics
 ///
-/// Panics if `word.len()` exceeds `u32::MAX` (4 GiB). This is not reachable
-/// in practice since MikroTik API words are limited to a few kilobytes.
+/// If `word.len()` exceeds `u32::MAX`.
 pub fn encode_word(word: &[u8], dst: &mut Vec<u8>) {
     let len: u32 = word.len().try_into().expect("word length exceeds u32::MAX");
     encode_length(len, dst);

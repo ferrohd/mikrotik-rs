@@ -1,8 +1,7 @@
 //! Typestate-enforced login handshake.
 //!
-//! The MikroTik RouterOS API requires a `/login` command to be sent and
-//! acknowledged before any other commands can be issued. This module
-//! enforces this requirement at compile time using the typestate pattern:
+//! RouterOS requires `/login` to be acknowledged before any other command.
+//! The typestate enforces that at compile time:
 //!
 //! ```text
 //! Handshaking ──[login success]──▶ Authenticated
@@ -13,9 +12,8 @@
 //!     │                                │ ...
 //! ```
 //!
-//! You cannot call `send_command` on a `Handshaking` — the method doesn't
-//! exist. The only way to get an `Authenticated` connection is by successfully
-//! completing the login handshake.
+//! `Handshaking` has no `send_command`, and the only way to an `Authenticated`
+//! is through a successful login.
 
 use crate::command::CommandBuilder;
 use crate::connection::{Connection, Event, State, Transmit};
@@ -60,15 +58,12 @@ impl core::fmt::Debug for LoginProgress {
 }
 
 impl Handshaking {
-    /// Create a new connection and initiate the login sequence.
-    ///
-    /// The login command is immediately queued for transmission.
-    /// Call [`poll_transmit()`](Self::poll_transmit) to get the bytes to send.
+    /// Opens a connection and queues the login command, ready for
+    /// [`poll_transmit`](Self::poll_transmit).
     ///
     /// # Errors
     ///
-    /// Returns [`ConnectionError`] if the internal connection could not
-    /// accept the login command.
+    /// [`ConnectionError`] if the connection would not accept it.
     pub fn new(username: &str, password: Option<&str>) -> Result<Self, ConnectionError> {
         let mut conn = Connection::new();
         let login_cmd = CommandBuilder::login(username, password);
@@ -91,16 +86,12 @@ impl Handshaking {
         self.inner.poll_transmit()
     }
 
-    /// Check if authentication has completed.
-    ///
-    /// **Consumes `self`** — returns either `Pending(self)` to continue
-    /// waiting or `Complete(Authenticated)` on success.
+    /// Checks whether authentication finished, consuming `self`.
     ///
     /// # Errors
     ///
-    /// Returns [`LoginError`] if:
-    /// - The router rejected the credentials (`LoginError::Authentication`)
-    /// - A fatal error occurred (`LoginError::Fatal`)
+    /// [`LoginError::Authentication`] if the credentials were rejected, or
+    /// [`LoginError::Fatal`].
     pub fn advance(mut self) -> Result<LoginProgress, LoginError> {
         while let Some(event) = self.inner.poll_event() {
             match event {

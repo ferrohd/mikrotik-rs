@@ -18,17 +18,7 @@ use thiserror::Error;
 use crate::error::WordType;
 use crate::tag::Tag;
 
-/// Represents a word in a MikroTik API sentence.
-///
-/// Words are the fundamental unit of the MikroTik wire protocol.
-/// This type borrows from the underlying byte buffer for zero-copy parsing.
-///
-/// # Variants
-///
-/// - `Category` — response type (`!done`, `!re`, `!trap`, `!fatal`, `!empty`)
-/// - `Tag` — command correlation tag (`.tag=0000000042`)
-/// - `Attribute` — key-value pair (`=key=value`)
-/// - `Message` — free-form text (typically a `!fatal` reason)
+/// One word of a sentence, borrowing from the receive buffer.
 #[derive(Debug, PartialEq)]
 pub enum Word<'a> {
     /// A category word, such as `!done`, `!re`, `!trap`, `!fatal`, or `!empty`.

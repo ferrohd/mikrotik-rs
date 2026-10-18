@@ -1,14 +1,7 @@
 //! Outbound sentence assembly.
 //!
-//! A sentence is a sequence of length-prefixed words followed by a zero-length
-//! terminator. The length prefix has to agree with the bytes that follow it, and
-//! the only way to guarantee that is to never state the length at all:
-//! [`Sentence::parts`] sums it from the content it is about to write.
-//!
-//! [`OutWord`] is the other half. Every word this crate can emit is a variant,
-//! and [`Sentence::word`] is the single place any of their byte layouts is
-//! written. Adding a word kind makes the compiler point at the one match that
-//! has to handle it, and no builder method ever touches a raw byte.
+//! A word's length prefix must agree with the bytes after it, so the length is
+//! never written by a caller: [`Sentence::parts`] sums it from the content.
 
 use alloc::vec::Vec;
 
@@ -18,51 +11,42 @@ use crate::tag::Tag;
 
 /// A word of an outbound sentence, described rather than encoded.
 ///
-/// Note that attributes and queries are deliberately *not* unified behind a
-/// shared `Option<&str>` value. For an attribute, "no value" means the word is
-/// omitted entirely; for a query, `?key` is a presence test and `?key=` asks
-/// for the empty string. Giving them separate variants makes those two
-/// readings structurally distinct rather than a convention to remember.
+/// Attributes and queries stay separate because they read `None` differently:
+/// an attribute without a value is omitted, while `?key` is a presence test
+/// and `?key=` asks for the empty string.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum OutWord<'a> {
-    /// The command path, written bare: `/interface/print`.
+    /// `/interface/print`
     Command(&'a str),
-    /// The correlation tag: `.tag=0000000042`.
+    /// `.tag=0000000042`
     Tag(Tag),
-    /// An attribute: `=key=value`. An empty value is a flag, `=key=`.
+    /// `=key=value`; an empty value is a flag
     Attribute { key: &'a str, value: &'a [u8] },
-    /// Query: the property has a value, `?key`.
+    /// `?key`
     Present(&'a str),
-    /// Query: the property has no value, `?-key`.
+    /// `?-key`
     Absent(&'a str),
-    /// Query: the property equals a value, `?key=value`.
+    /// `?key=value`
     Equal { key: &'a str, value: &'a str },
-    /// Query: the property is greater than a value, `?>key=value`.
+    /// `?>key=value`
     Greater { key: &'a str, value: &'a str },
-    /// Query: the property is less than a value, `?<key=value`.
+    /// `?<key=value`
     Less { key: &'a str, value: &'a str },
-    /// Query: stack operations, `?#` followed by operator codes.
+    /// `?#` followed by operator codes
     Operations(&'a [QueryOperator]),
 }
 
-/// An outbound sentence under construction.
-///
-/// Wraps the buffer so that nothing outside this module can push a raw byte
-/// into it, and so the terminator is written exactly once, by [`finish`].
-///
-/// [`finish`]: Sentence::finish
+/// An outbound sentence under construction. Wraps the buffer so no caller can
+/// push a raw byte or forget the terminator.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Sentence(Vec<u8>);
 
 impl Sentence {
-    /// Append one word.
     pub(crate) fn word(&mut self, word: OutWord<'_>) {
         match word {
-            OutWord::Command(path) => self.parts(&[path.as_bytes()]),
+            OutWord::Command(p) => self.parts(&[p.as_bytes()]),
             OutWord::Tag(tag) => self.parts(&[b".tag=", &tag.to_ascii()]),
-            OutWord::Attribute { key, value } => {
-                self.parts(&[b"=", key.as_bytes(), b"=", value]);
-            }
+            OutWord::Attribute { key, value } => self.parts(&[b"=", key.as_bytes(), b"=", value]),
             OutWord::Present(name) => self.parts(&[b"?", name.as_bytes()]),
             OutWord::Absent(name) => self.parts(&[b"?-", name.as_bytes()]),
             OutWord::Equal { key, value } => {
@@ -74,9 +58,8 @@ impl Sentence {
             OutWord::Less { key, value } => {
                 self.parts(&[b"?<", key.as_bytes(), b"=", value.as_bytes()]);
             }
-            // The only arm needing a scratch buffer: an operator's wire byte
-            // cannot be projected out of `&[QueryOperator]` without one, and
-            // `unsafe_code = "forbid"` rules out reinterpreting the slice.
+            // Needs a scratch buffer: an operator's byte cannot be projected
+            // out of the slice without one, and `unsafe_code` is forbidden.
             OutWord::Operations(ops) => {
                 let codes: Vec<u8> = ops.iter().copied().map(QueryOperator::code).collect();
                 self.parts(&[b"?#", &codes]);
@@ -84,12 +67,9 @@ impl Sentence {
         }
     }
 
-    /// Write one word, taking its length from the content rather than a caller.
-    ///
     /// # Panics
     ///
-    /// Panics if the parts total more than [`u32::MAX`] bytes, which the wire
-    /// format cannot represent.
+    /// If the parts total more than [`u32::MAX`] bytes.
     fn parts(&mut self, parts: &[&[u8]]) {
         let len: usize = parts.iter().map(|part| part.len()).sum();
         let len = u32::try_from(len).expect("word length exceeds u32::MAX");
@@ -99,7 +79,6 @@ impl Sentence {
         }
     }
 
-    /// Terminate the sentence and return the wire bytes.
     pub(crate) fn finish(mut self) -> Vec<u8> {
         codec::encode_terminator(&mut self.0);
         self.0

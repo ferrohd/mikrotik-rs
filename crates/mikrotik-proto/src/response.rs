@@ -53,15 +53,12 @@ impl CommandResponse {
         }
     }
 
-    /// Parse a [`CommandResponse`] from a [`RawSentence`].
-    ///
-    /// This is the primary entry point for converting decoded wire-format
-    /// sentences into typed response values.
+    /// Parses a decoded sentence into a typed response.
     ///
     /// # Errors
     ///
-    /// Returns [`ProtocolError`] if the sentence structure is invalid,
-    /// contains unexpected word types, or is missing required fields.
+    /// [`ProtocolError`] if the sentence is malformed, has unexpected words or
+    /// is missing a required field.
     pub fn parse(raw: &RawSentence<'_>) -> Result<Self, ProtocolError> {
         let mut words = raw.typed_words();
 

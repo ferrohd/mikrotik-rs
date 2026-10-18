@@ -4,7 +4,6 @@
 //! performing any I/O. It accepts raw bytes from the network, decodes them
 //! into responses, and correlates them with in-flight commands by tag.
 //!
-//! # Usage pattern (mirrors `quinn-proto`)
 //!
 //! ```rust
 //! use mikrotik_proto::connection::{Connection, Event};
@@ -27,17 +26,13 @@
 //!     assert!(!transmit.data.is_empty());
 //! }
 //!
-//! // 2. Feed incoming bytes from the transport
-//! //    conn.receive(&incoming_bytes).unwrap();
-//!
-//! // 3. Process application events
+//! // 2. Feed bytes back in with conn.receive(..), then:
 //! while let Some(event) = conn.poll_event() {
 //!     match event {
-//!         Event::Reply { tag, response } => { /* handle streaming reply */ }
-//!         Event::Done { tag } => { /* command completed */ }
-//!         Event::Trap { tag, response } => { /* handle error */ }
-//!         Event::Fatal { reason } => { /* connection dead */ }
-//!         Event::Empty { tag } => { /* empty response */ }
+//!         Event::Reply { tag, response } => {}
+//!         Event::Done { tag } | Event::Empty { tag } => {}
+//!         Event::Trap { tag, response } => {}
+//!         Event::Fatal { reason } => {}
 //!     }
 //! }
 //! ```
@@ -126,18 +121,13 @@ struct CommandState {
     reply_count: usize,
 }
 
-/// The sans-IO connection state machine for the MikroTik API protocol.
+/// The sans-IO connection state machine: framing, demultiplexing by tag,
+/// command lifecycle and outbound buffering.
 ///
-/// This type manages:
-/// - **Framing:** accumulating incoming bytes into complete sentences.
-/// - **Demultiplexing:** routing responses to their originating commands via tags.
-/// - **Command lifecycle:** tracking in-flight commands and their completion.
-/// - **Outbound buffering:** queuing encoded commands for transmission.
-///
-/// It does **not** perform any I/O. The caller is responsible for:
-/// - Reading bytes from the network and feeding them via [`receive()`](Connection::receive).
-/// - Draining outbound bytes via [`poll_transmit()`](Connection::poll_transmit) and sending them.
-/// - Polling for application events via [`poll_event()`](Connection::poll_event).
+/// Performs no I/O. The caller moves bytes with
+/// [`receive`](Connection::receive) and
+/// [`poll_transmit`](Connection::poll_transmit), and reads results with
+/// [`poll_event`](Connection::poll_event).
 #[derive(Debug)]
 pub struct Connection {
     /// Current connection state.
@@ -170,17 +160,13 @@ impl Connection {
 
     // ── Category B: Handle incoming data ──
 
-    /// Feed received bytes into the connection.
-    ///
-    /// The connection buffers these bytes internally and attempts to decode
-    /// complete sentences. Successfully decoded sentences are processed
-    /// immediately, producing [`Event`]s retrievable via [`poll_event()`](Self::poll_event).
+    /// Feeds received bytes in, decoding any complete sentences into
+    /// [`Event`]s for [`poll_event`](Self::poll_event).
     ///
     /// # Errors
     ///
-    /// Returns [`ConnectionError::Decode`] if the data contains a malformed
-    /// length prefix that cannot be recovered from.
-    /// Returns [`ConnectionError::Closed`] if the connection has been fatally shut down.
+    /// [`ConnectionError::Decode`] on an unrecoverable length prefix, or
+    /// [`ConnectionError::Closed`] if the connection is dead.
     pub fn receive(&mut self, data: &[u8]) -> Result<(), ConnectionError> {
         if self.state == State::Dead {
             return Err(ConnectionError::Closed);
@@ -236,20 +222,15 @@ impl Connection {
 
     // ── Category C: Application commands ──
 
-    /// Submit a command to be sent to the remote device.
-    ///
-    /// The command's wire-format bytes are queued internally and will be
-    /// available via [`poll_transmit()`](Self::poll_transmit). The command's tag
-    /// is registered for response correlation.
-    ///
-    /// Returns the command's tag for later reference.
+    /// Queues a command for [`poll_transmit`](Self::poll_transmit) and
+    /// registers its tag, which is returned.
     ///
     /// # Errors
     ///
-    /// Returns [`ConnectionError::Closed`] if the connection is dead, or
-    /// [`ConnectionError::DuplicateTag`] if the command's tag is already in
-    /// flight — responses are demultiplexed by tag, so two live commands
-    /// cannot share one.
+    /// [`ConnectionError::Closed`] if the connection is dead, or
+    /// [`ConnectionError::DuplicateTag`] if the tag is already in flight —
+    /// responses are demultiplexed by tag, so two live commands cannot share
+    /// one.
     pub fn send_command(&mut self, command: Command) -> Result<Tag, ConnectionError> {
         if self.state == State::Dead {
             return Err(ConnectionError::Closed);
@@ -274,12 +255,8 @@ impl Connection {
         Ok(tag)
     }
 
-    /// Cancel an in-flight command.
-    ///
-    /// Sends a `/cancel` command for the given tag to the router and removes
-    /// the command from the in-flight set.
-    ///
-    /// If the tag is not currently in-flight, this is a no-op.
+    /// Sends `/cancel` for a tag and drops it from the in-flight set. A no-op
+    /// if it is not in flight.
     ///
     /// # Errors
     ///
