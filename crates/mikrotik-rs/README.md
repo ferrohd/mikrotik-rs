@@ -224,8 +224,7 @@ The library is split into focused crates:
 | [`mikrotik-embassy`](crates/mikrotik-embassy/) | Embassy embedded async adapter — transport-agnostic over `embedded-io-async` |
 | [`mikrotik-rs`](crates/mikrotik-rs/) | Convenience re-exports from all crates |
 
-See [docs/architecture.md](docs/architecture.md) for how the pieces fit together, what lives in
-each module, and the testing strategy.
+See [docs/architecture.md](docs/architecture.md) for how the pieces fit together.
 
 ## Examples
 
