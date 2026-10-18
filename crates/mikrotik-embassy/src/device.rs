@@ -1,4 +1,4 @@
-//! Core event loop for driving the `MikroTik` connection over any
+//! Core event loop for driving the MikroTik connection over any
 //! [`embedded_io_async`] transport.
 
 use embedded_io::Error;
@@ -14,7 +14,7 @@ use mikrotik_proto::handshake::{Handshaking, LoginProgress};
 
 use crate::error::DeviceError;
 
-/// Run the `MikroTik` device connection loop over an already-connected transport.
+/// Run the MikroTik device connection loop over an already-connected transport.
 ///
 /// This function performs login authentication and enters an event loop that
 /// processes commands from `cmd_rx` and delivers response events to `evt_tx`.

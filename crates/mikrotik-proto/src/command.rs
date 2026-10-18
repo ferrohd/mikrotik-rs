@@ -47,7 +47,7 @@ pub struct NoCmd;
 #[derive(Clone)]
 pub struct Cmd;
 
-/// Builds `MikroTik` router commands using a fluent typestate API.
+/// Builds MikroTik router commands using a fluent typestate API.
 ///
 /// The type parameter ensures that only commands with a command word set
 /// can have attributes added or be built.
@@ -80,7 +80,7 @@ impl CommandBuilder<NoCmd> {
     ///
     /// # Arguments
     ///
-    /// * `tag` — A [`Tag`] that identifies the command for `RouterOS` correlation.
+    /// * `tag` — A [`Tag`] that identifies the command for RouterOS correlation.
     ///   **Must be unique** within a connection.
     pub fn with_tag(tag: Tag) -> Self {
         Self { tag, buf: Vec::new(), state: PhantomData }
@@ -107,7 +107,7 @@ impl CommandBuilder<NoCmd> {
     ///
     /// # Arguments
     ///
-    /// * `command` — The `MikroTik` command path (e.g., `/system/resource/print`).
+    /// * `command` — The MikroTik command path (e.g., `/system/resource/print`).
     pub fn command(self, command: &str) -> CommandBuilder<Cmd> {
         let Self { tag, mut buf, .. } = self;
 
@@ -261,7 +261,7 @@ impl CommandBuilder<Cmd> {
 
     /// Adds query operations (combination operators for the query stack).
     ///
-    /// See [`MikroTik` API Queries](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API#API-Queries).
+    /// See [MikroTik API Queries](https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API#API-Queries).
     ///
     /// # Panics
     ///
@@ -317,7 +317,7 @@ impl Command {
     }
 }
 
-/// Represents a query operator for `MikroTik` API query expressions.
+/// Represents a query operator for MikroTik API query expressions.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum QueryOperator {
     /// Represents the `!` (NOT) operator.
@@ -355,7 +355,7 @@ mod tests {
     ]));
     const TEST_TAG_WORD: &str = ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8";
 
-    /// Helper to parse the `RouterOS` length-prefixed "words" out of the command data.
+    /// Helper to parse the RouterOS length-prefixed "words" out of the command data.
     fn parse_words(data: &[u8]) -> Vec<String> {
         let mut words = Vec::new();
         let mut i = 0;

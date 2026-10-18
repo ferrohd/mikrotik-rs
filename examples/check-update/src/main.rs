@@ -1,4 +1,4 @@
-//! Trigger a `RouterOS` package update and stream the installer's progress.
+//! Trigger a RouterOS package update and stream the installer's progress.
 //!
 //! `/system/package/update/install` is a long-running command: the router keeps the tag open
 //! and reports each stage as a separate `!re` sentence, so the receiver is drained in a loop

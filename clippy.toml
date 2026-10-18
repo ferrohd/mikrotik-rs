@@ -1,0 +1,9 @@
+# Must match Cargo.toml's rust-version. Clippy uses it to suppress advice that suggests APIs
+# newer than the MSRV, which would be unfixable.
+msrv = "1.88"
+
+# Identifiers doc_markdown would otherwise want backticked. These are product and protocol names
+# that appear in nearly every doc comment in the workspace; backticking them renders a vendor
+# name as a code span, which is wrong, and the alternative was writing `MikroTik` `RouterOS`
+# by hand forever. ".." keeps clippy's own defaults.
+doc-valid-idents = ["MikroTik", "RouterOS", "WinBox", "MikroTik's", ".."]

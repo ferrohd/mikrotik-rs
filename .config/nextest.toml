@@ -1,0 +1,22 @@
+# CI runs `cargo nextest run --profile ci`.
+#
+# nextest exists here for one reason: `cargo test` runs a binary's tests in one process with no
+# per-test timeout, so a test blocked on a dead file descriptor hangs the whole run. Both
+# adapter test suites drive a loopback TCP listener or an in-memory pipe against the protocol
+# state machine, which is exactly the shape that can block forever on a half-closed peer.
+
+# On `default` so a bare `cargo nextest run` is protected too — custom profiles inherit from it
+# unless they set `inherits`, and it is the one profile that cannot itself inherit.
+#
+# Two minutes. Raise `period` rather than `terminate-after` for a legitimately slow suite;
+# deliberately slow tests belong in their own job under plain `cargo test`.
+[profile.default]
+slow-timeout = { period = "30s", terminate-after = 4 }
+
+[profile.ci]
+# Report every failure in one run. A platform-specific problem usually hits several tests at
+# once, and the pattern is the diagnosis. Left off `default`: interactively you want the first
+# failure immediately.
+#
+# No retries, deliberately — a flaky result is a bug, not something to paper over.
+fail-fast = false

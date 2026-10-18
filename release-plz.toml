@@ -20,12 +20,12 @@ protect_breaking_commits = true
 # Ordered: first match wins. Mirrors the conventional-commit prefixes actually
 # used in this repository.
 commit_parsers = [
-    { message = '^feat', group = "Added" },
-    { message = '^fix', group = "Fixed" },
-    { message = '^perf', group = "Performance" },
-    { message = '^refactor', group = "Changed" },
-    { message = '^docs', group = "Documentation" },
-    { message = '^chore\(deps\)', group = "Dependencies" },
-    { message = '^(ci|style|test|chore)', skip = true },
-    { message = '^.*', group = "Other" },
+  { message = '^feat', group = "Added" },
+  { message = '^fix', group = "Fixed" },
+  { message = '^perf', group = "Performance" },
+  { message = '^refactor', group = "Changed" },
+  { message = '^docs', group = "Documentation" },
+  { message = '^chore\(deps\)', group = "Dependencies" },
+  { message = '^(ci|style|test|chore)', skip = true },
+  { message = '^.*', group = "Other" },
 ]

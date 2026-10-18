@@ -1,4 +1,4 @@
-//! Async device client for connecting to `MikroTik` routers.
+//! Async device client for connecting to MikroTik routers.
 //!
 //! The [`MikrotikDevice`] struct provides an asynchronous interface built on
 //! top of the sans-IO [`mikrotik_proto`] crate. It drives the protocol state
@@ -23,10 +23,10 @@ struct DeviceCommand {
     respond_to: mpsc::UnboundedSender<Event>,
 }
 
-/// A client for interacting with `MikroTik` devices.
+/// A client for interacting with MikroTik devices.
 ///
 /// The `MikrotikDevice` struct provides an asynchronous interface for connecting
-/// to a `MikroTik` device and sending commands. It encapsulates the communication
+/// to a MikroTik device and sending commands. It encapsulates the communication
 /// through a background actor task that drives the sans-IO [`Connection`] state
 /// machine.
 ///
@@ -75,7 +75,7 @@ const _: () = {
 };
 
 impl MikrotikDevice {
-    /// Create a builder for establishing a connection to a `MikroTik` device.
+    /// Create a builder for establishing a connection to a MikroTik device.
     ///
     /// The builder supports plaintext TCP and, with the `tokio-tls` feature enabled,
     /// TLS connections (for API-SSL on port 8729).
@@ -106,7 +106,7 @@ impl MikrotikDevice {
         Self::builder(addr).credentials(username, password).connect().await
     }
 
-    /// Asynchronously sends a command to the connected `MikroTik` device.
+    /// Asynchronously sends a command to the connected MikroTik device.
     ///
     /// Returns a receiver that will yield [`Event`]s for this command. The
     /// receiver produces:
