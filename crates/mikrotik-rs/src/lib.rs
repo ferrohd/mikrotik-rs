@@ -1,67 +1,29 @@
 //! # mikrotik-rs
 //!
-//! `mikrotik-rs` is a Rust library for interfacing with MikroTik routers via
-//! the RouterOS API protocol. It allows sending commands and receiving responses
-//! in parallel through channels.
+//! A client for the MikroTik RouterOS API: send commands, stream responses,
+//! run many at once over one connection.
 //!
-//! This crate re-exports types from:
-//! - `mikrotik-proto` — sans-IO protocol implementation (always available)
-//! - `mikrotik-tokio` — Tokio-based async client (requires the `tokio` feature)
-//! - `mikrotik-embassy` — Embassy embedded async client (requires the `embassy` feature)
+//! This crate is re-exports. The work is split across `mikrotik-proto` (the
+//! sans-IO core, always present), `mikrotik-tokio` and `mikrotik-embassy`.
 //!
 //! ## Feature flags
 //!
 //! | Feature     | Default | Description |
 //! |-------------|---------|-------------|
-//! | `std`       | **yes** | Uses `std::collections::HashMap` in public response types. Disable for `no_std` (falls back to `hashbrown::HashMap`). |
-//! | `tokio`     | **yes** | Enables the Tokio async adapter and [`MikrotikDevice`] client |
-//! | `embassy`   | no      | Enables the Embassy embedded async adapter and `run` function |
-//! | `tokio-tls` | no      | Enables TLS support via `tokio-rustls` (bring your own crypto provider) |
+//! | `std`       | **yes** | `std::collections::HashMap` in response types; disable for `no_std` |
+//! | `tokio`     | **yes** | The Tokio adapter and [`MikrotikDevice`] |
+//! | `embassy`   | no      | The Embassy adapter |
+//! | `tokio-tls` | no      | TLS via `tokio-rustls` (bring your own crypto provider) |
 //!
-//! To use only the protocol types without pulling in any runtime:
-//!
-//! ```toml
-//! [dependencies]
-//! mikrotik-rs = { version = "0.7", default-features = false }
-//! ```
-//!
-//! To use the Embassy adapter instead of Tokio:
+//! TLS needs a crypto provider alongside it:
 //!
 //! ```toml
-//! [dependencies]
-//! mikrotik-rs = { version = "0.7", default-features = false, features = ["embassy"] }
-//! ```
-//!
-//! To enable TLS (e.g., for API-SSL on port 8729):
-//!
-//! ```toml
-//! [dependencies]
-//! mikrotik-rs = { version = "0.7", features = ["tokio-tls"] }
+//! mikrotik-rs = { version = "0.10", features = ["tokio-tls"] }
 //! rustls = { version = "0.23", features = ["ring"] }  # or "aws-lc-rs"
 //! ```
-//!
-//! ## Architecture
-//!
-//! The library is split into multiple crates:
-//!
-//! - **`mikrotik-proto`** — `#![no_std]`-compatible, runtime-agnostic protocol core.
-//!   Handles wire-format encoding/decoding, command building, response parsing,
-//!   and the connection state machine. Performs no I/O.
-//!
-//! - **`mikrotik-tokio`** — Thin async adapter that drives `mikrotik-proto` using
-//!   Tokio's async runtime. Provides the high-level [`MikrotikDevice`] client.
-//!
-//! - **`mikrotik-embassy`** — Embedded async adapter that drives `mikrotik-proto`
-//!   using Embassy's networking stack. Provides a `run` function that the user
-//!   spawns as an Embassy task.
-//!
-//! - **`mikrotik-rs`** (this crate) — Convenience re-exports from all crates.
 
-// Gated on `tokio` because `MikrotikDevice` is: with `--no-default-features` the example does
-// not compile, and `[lib] doctest = false` does not save it — cargo honours that flag only
-// until something passes `--doc` explicitly, which `just test-minimal` does. Gating is also
-// the honest answer for the reader, who should not be shown an API their feature set lacks.
-// docs.rs builds with all features, so this is always present there.
+// Gated because `MikrotikDevice` is. `[lib] doctest = false` does not save it:
+// cargo honours that only until something passes `--doc`, as `test-minimal` does.
 #![cfg_attr(
     feature = "tokio",
     doc = r#"
@@ -88,12 +50,9 @@ while let Some(event) = rx.recv().await {
 #[cfg(target_pointer_width = "16")]
 compile_error!("This library supports 32-bit architectures or higher.");
 
-// ── Protocol crate (always available) ──
-
-/// Re-export of the sans-IO protocol crate.
+/// The sans-IO protocol crate.
 pub use mikrotik_proto as proto;
 
-// Re-export key protocol types at crate root
 pub use mikrotik_proto::HashMap;
 pub use mikrotik_proto::command::{Command, CommandBuilder, QueryOperator};
 pub use mikrotik_proto::connection::{Connection, Event, State, Transmit};
@@ -105,7 +64,6 @@ pub use mikrotik_proto::response::{
 };
 pub use mikrotik_proto::tag::Tag;
 
-/// Re-export the `command!` macro from `mikrotik_proto`.
 pub use mikrotik_proto::command;
 
 // ── Tokio adapter (behind "tokio" feature) ──
@@ -125,8 +83,6 @@ pub use mikrotik_tokio::error::{ActorError, DeviceError, DeviceResult};
 
 // ── Embassy adapter (behind "embassy" feature) ──
 
-/// Re-export of the Embassy embedded async adapter crate.
-///
-/// Only available when the `embassy` feature is enabled.
+/// The Embassy adapter.
 #[cfg(feature = "embassy")]
 pub use mikrotik_embassy as embassy_client;

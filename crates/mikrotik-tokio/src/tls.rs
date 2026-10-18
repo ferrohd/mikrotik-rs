@@ -11,13 +11,9 @@ use rustls::crypto::CryptoProvider;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{ClientConfig, DigitallySignedStruct, Error, SignatureScheme};
 
-/// A TLS certificate verifier that accepts **any** server certificate.
-///
-/// This is appropriate for MikroTik routers which generate self-signed
-/// certificates for their API-SSL service (port 8729).
-///
-/// **Important:** TLS handshake signatures are still verified to prevent
-/// downgrade attacks — only the certificate chain validation is skipped.
+/// Accepts **any** server certificate, for the self-signed ones MikroTik
+/// generates for API-SSL. Only chain validation is skipped; handshake
+/// signatures are still verified.
 #[derive(Debug)]
 pub(crate) struct NoVerifier(Arc<CryptoProvider>);
 
@@ -66,15 +62,14 @@ impl ServerCertVerifier for NoVerifier {
     }
 }
 
-/// Build a [`ClientConfig`] that accepts any server certificate.
+/// A [`ClientConfig`] accepting any server certificate.
 ///
-/// Uses the default [`CryptoProvider`], which the application must install
-/// by depending on `rustls` with a crypto backend feature (`ring` or
-/// `aws-lc-rs`). See [`CryptoProvider::install_default`] for details.
+/// Uses the default [`CryptoProvider`], which the application installs by
+/// depending on `rustls` with `ring` or `aws-lc-rs`.
 ///
 /// # Panics
 ///
-/// Panics if no crypto provider has been installed.
+/// If no crypto provider has been installed.
 pub(crate) fn insecure_client_config() -> Arc<ClientConfig> {
     let provider = CryptoProvider::get_default().cloned().expect(
         "no rustls CryptoProvider installed — add `rustls` with `ring` or `aws-lc-rs` feature to your dependencies",
