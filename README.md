@@ -97,7 +97,7 @@ use mikrotik_rs::CommandBuilder;
 let cmd = CommandBuilder::new()
     .command("/interface/ethernet/monitor")
     .attribute("numbers", Some("0,1"))
-    .attribute("once", None)
+    .flag("once")
     .build();
 ```
 

@@ -16,7 +16,7 @@ fn main() {
     let builder_command = CommandBuilder::with_tag(tag)
         .command("/some/random/command")
         .attribute("attribute1", Some("1"))
-        .attribute("attribute2", None)
+        .flag("attribute2")
         .attribute("attribute3", Some("2"))
         .build();
 

@@ -49,6 +49,12 @@ pub const fn check_mikrotik_command(cmd: &str) -> &str {
 
 /// Macro that enforces MikroTik command syntax **at compile time**.
 ///
+/// An attribute written without a value is a flag: `detail` below expands to
+/// [`CommandBuilder::flag`](crate::command::CommandBuilder::flag) and reaches
+/// the wire as `=detail=`. This is deliberately *not*
+/// [`attribute(key, None)`](crate::command::CommandBuilder::attribute), which
+/// omits the word entirely.
+///
 /// # Examples
 ///
 /// ```rust
@@ -58,8 +64,8 @@ pub const fn check_mikrotik_command(cmd: &str) -> &str {
 /// let cmd = command!("/system/resource/print");
 /// assert!(!cmd.data().is_empty());
 ///
-/// // Command with attributes
-/// let cmd = command!("/interface/print", user="admin", detail);
+/// // Command with a valued attribute and a flag
+/// let cmd = command!("/interface/print", user = "admin", detail);
 /// assert!(!cmd.data().is_empty());
 /// ```
 #[macro_export]
@@ -73,18 +79,17 @@ macro_rules! command {
             .command(VALIDATED);
 
         $(
-            builder = builder.attribute(
-                stringify!($key),
-                command!(@opt $($value)?)
-            );
+            builder = $crate::command!(@attr builder, stringify!($key) $(, $value)?);
         )*
 
         builder.build()
     }};
 
-    // Internal rule: expands to `Some($value)` if given, otherwise `None`
-    (@opt $value:expr) => { Some($value) };
-    (@opt) => { None };
+    // Internal rules: pick the method, not the value. A key with a value is an
+    // attribute; a bare key is a flag. Routing a bare key through
+    // `attribute(key, None)` would omit the word and silently drop the flag.
+    (@attr $builder:expr, $key:expr, $value:expr) => { $builder.attribute($key, Some($value)) };
+    (@attr $builder:expr, $key:expr) => { $builder.flag($key) };
 }
 
 #[cfg(test)]

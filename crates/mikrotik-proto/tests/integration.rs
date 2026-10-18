@@ -70,7 +70,7 @@ fn drain_events(conn: &mut Connection) -> Vec<Event> {
 #[test]
 fn full_command_lifecycle() {
     // Build a command using the builder
-    let cmd = CommandBuilder::new().command("/interface/print").attribute("detail", None).build();
+    let cmd = CommandBuilder::new().command("/interface/print").flag("detail").build();
     let tag = cmd.tag;
 
     // Send it through the connection

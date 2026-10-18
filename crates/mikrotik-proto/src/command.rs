@@ -11,12 +11,29 @@
 //!
 //! let cmd = CommandBuilder::new()
 //!     .command("/system/resource/print")
-//!     .attribute("detail", None)
+//!     .flag("detail")
 //!     .build();
 //!
 //! // The command has wire-format data ready to send
 //! assert!(!cmd.data().is_empty());
 //! ```
+//!
+//! # Attributes and absence
+//!
+//! [`CommandBuilder::attribute`] takes an [`Option`], and `None` means *this
+//! attribute was not supplied* — the word is left out of the sentence entirely:
+//!
+//! | Call | Wire |
+//! |---|---|
+//! | `.attribute("comment", None)` | *nothing* |
+//! | `.flag("detail")` | `=detail=` |
+//! | `.attribute("comment", Some("hi"))` | `=comment=hi` |
+//!
+//! This matters because `=comment=` tells RouterOS to set the comment to the
+//! empty string, which clears it. Threading an `Option` straight from your own
+//! data is therefore safe: a `None` leaves the field alone rather than wiping
+//! it. Use [`CommandBuilder::flag`] for valueless flags such as `detail` or
+//! `once`, which are `=key=` on the wire.
 
 use alloc::vec::Vec;
 use core::marker::PhantomData;
@@ -92,7 +109,10 @@ impl CommandBuilder<NoCmd> {
         Self::new()
             .command("/login")
             .attribute("name", Some(username))
-            .attribute("password", password)
+            // An absent password is an *empty* password, not an absent attribute:
+            // RouterOS requires the `=password=` word, so this must not become
+            // `attribute("password", password)` — `None` would omit it entirely.
+            .attribute("password", Some(password.unwrap_or("")))
             .build()
     }
 
@@ -131,31 +151,24 @@ impl CommandBuilder<Cmd> {
     /// # Arguments
     ///
     /// * `key` — The attribute's key.
-    /// * `value` — The attribute's value. If `None`, the attribute is treated
-    ///   as a flag (e.g., `=key=`).
+    /// * `value` — The attribute's value. `None` means the attribute was not
+    ///   supplied and **no word is written at all**. For a valueless flag such
+    ///   as `detail`, use [`flag`](Self::flag), which writes `=detail=`.
+    ///
+    /// Passing `Some("")` is equivalent to [`flag`](Self::flag): RouterOS reads
+    /// `=key=` as "set this property to the empty string".
     ///
     /// # Panics
     ///
     /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
     pub fn attribute(self, key: &str, value: Option<&str>) -> Self {
-        let Self { tag, mut buf, .. } = self;
-
-        // Build the attribute word directly: "=" + key + "=" + value
-        // Avoid format!() allocation
-        let value_bytes = value.unwrap_or("");
-        let word_len = 1 + key.len() + 1 + value_bytes.len();
-        encode_word_len(word_len, &mut buf);
-        buf.push(b'=');
-        buf.extend_from_slice(key.as_bytes());
-        buf.push(b'=');
-        buf.extend_from_slice(value_bytes.as_bytes());
-
-        CommandBuilder { tag, buf, state: PhantomData }
+        self.attribute_raw(key, value.map(str::as_bytes))
     }
 
     /// Adds an attribute with a raw byte value to the command being built.
     ///
     /// Use this method when your attribute values might contain non-UTF-8 or binary data.
+    /// `None` omits the word, exactly as in [`attribute`](Self::attribute).
     ///
     /// # Panics
     ///
@@ -163,15 +176,29 @@ impl CommandBuilder<Cmd> {
     pub fn attribute_raw(self, key: &str, value: Option<&[u8]>) -> Self {
         let Self { tag, mut buf, .. } = self;
 
-        let value_bytes = value.unwrap_or(&[]);
-        let word_len = 1 + key.len() + 1 + value_bytes.len();
-        encode_word_len(word_len, &mut buf);
-        buf.push(b'=');
-        buf.extend_from_slice(key.as_bytes());
-        buf.push(b'=');
-        buf.extend_from_slice(value_bytes);
+        if let Some(value) = value {
+            let word_len = 1 + key.len() + 1 + value.len();
+            encode_word_len(word_len, &mut buf);
+            buf.push(b'=');
+            buf.extend_from_slice(key.as_bytes());
+            buf.push(b'=');
+            buf.extend_from_slice(value);
+        }
 
         CommandBuilder { tag, buf, state: PhantomData }
+    }
+
+    /// Adds a valueless flag, such as `detail` or `once`.
+    ///
+    /// Writes `=key=` — an attribute with an empty value, which is how RouterOS
+    /// spells a flag. This is the counterpart to
+    /// [`attribute(key, None)`](Self::attribute), which writes nothing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded word exceeds [`u32::MAX`] bytes.
+    pub fn flag(self, key: &str) -> Self {
+        self.attribute_raw(key, Some(&[]))
     }
 
     /// Adds an attribute with a Tag value (used internally for cancel tags).
@@ -458,7 +485,7 @@ mod tests {
     fn test_command_with_multiple_attributes() {
         let cmd = CommandBuilder::new()
             .command("/some/random")
-            .attribute("attribute_no_value", None)
+            .flag("attribute_no_value")
             .attribute("another", Some("value"))
             .build();
         let words = parse_words(&cmd.data);
@@ -471,12 +498,47 @@ mod tests {
     }
 
     #[test]
+    fn test_attribute_none_writes_no_word() {
+        // `=comment=` tells RouterOS to set the comment to the empty string, which
+        // clears it. `None` has to mean "not supplied", or threading an Option
+        // straight from caller data silently wipes fields.
+        let cmd = CommandBuilder::new()
+            .command("/interface/set")
+            .attribute("comment", None)
+            .attribute("name", Some("ether1"))
+            .build();
+        let words = parse_words(&cmd.data);
+
+        assert_eq!(words[0], "/interface/set");
+        assert!(words[1].starts_with(".tag="));
+        assert_eq!(words[2], "=name=ether1");
+        assert_eq!(words.len(), 3, "the None attribute must not appear at all");
+    }
+
+    #[test]
+    fn test_flag_and_empty_value_agree() {
+        let flagged = CommandBuilder::with_tag(TEST_TAG).command("/x").flag("detail").build();
+        let empty =
+            CommandBuilder::with_tag(TEST_TAG).command("/x").attribute("detail", Some("")).build();
+
+        assert_eq!(flagged.data, empty.data);
+        assert_eq!(parse_words(&flagged.data)[2], "=detail=");
+    }
+
+    #[test]
+    fn test_attribute_raw_none_writes_no_word() {
+        let cmd =
+            CommandBuilder::with_tag(TEST_TAG).command("/x").attribute_raw("blob", None).build();
+        assert_eq!(parse_words(&cmd.data).len(), 2);
+    }
+
+    #[test]
     fn test_encode_decode_roundtrip() {
         // Build a command, then decode its wire format and verify the words
         let cmd = CommandBuilder::with_tag(TEST_TAG)
             .command("/interface/print")
             .attribute("name", Some("ether1"))
-            .attribute("disabled", None)
+            .flag("disabled")
             .build();
 
         // Decode the sentence
