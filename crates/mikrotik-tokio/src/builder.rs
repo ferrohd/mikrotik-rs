@@ -1,33 +1,11 @@
-//! Typestate builder for constructing [`MikrotikDevice`] connections.
+//! Typestate builder for [`MikrotikDevice`] connections. The transport state
+//! carries its own configuration, so TLS settings only exist when the
+//! `tokio-tls` feature does.
 //!
-//! The builder enforces at compile time that TLS configuration is only
-//! possible when the `tokio-tls` feature is enabled. The transport state type
-//! carries its own configuration data — no runtime enums or phantom markers.
-//!
-//! # Examples
-//!
-//! **Plaintext TCP:**
-//! ```rust,ignore
-//! let device = MikrotikDevice::builder("192.168.88.1:8728")
-//!     .credentials("admin", Some("password"))
-//!     .connect()
-//!     .await?;
-//! ```
-//!
-//! **TLS (accept any certificate):**
 //! ```rust,ignore
 //! let device = MikrotikDevice::builder("192.168.88.1:8729")
 //!     .credentials("admin", Some("password"))
-//!     .tls_insecure()
-//!     .connect()
-//!     .await?;
-//! ```
-//!
-//! **TLS (custom `ClientConfig`):**
-//! ```rust,ignore
-//! let device = MikrotikDevice::builder("192.168.88.1:8729")
-//!     .credentials("admin", Some("password"))
-//!     .tls_config(my_config, server_name)
+//!     .tls_insecure()           // or .tls_config(config, server_name)
 //!     .connect()
 //!     .await?;
 //! ```
@@ -51,13 +29,8 @@ pub struct Tls {
     server_name: rustls::pki_types::ServerName<'static>,
 }
 
-/// A typestate builder for establishing connections to MikroTik devices.
-///
-/// The `Transport` type parameter carries transport-specific configuration:
-/// - [`Plaintext`] — no additional config needed
-/// - `Tls` — carries the `ClientConfig` and server name (requires `tokio-tls` feature)
-///
-/// Use [`MikrotikDevice::builder()`] to create an instance.
+/// A typestate builder, where `Transport` carries that transport's own
+/// configuration. Start from [`MikrotikDevice::builder()`].
 #[must_use]
 pub struct DeviceBuilder<A, Transport> {
     addr: A,
@@ -86,25 +59,19 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Plaintext> {
         self
     }
 
-    /// Connect over plaintext TCP.
-    ///
-    /// Establishes a TCP connection, performs the RouterOS login handshake,
-    /// and spawns a background actor task.
+    /// Connects over plaintext TCP, logs in and spawns the actor.
     ///
     /// # Errors
     ///
-    /// Returns [`DeviceError`](crate::error::DeviceError) if the TCP connection,
-    /// login handshake, or actor spawn fails.
+    /// [`DeviceError`](crate::error::DeviceError) if any of those fail.
     pub async fn connect(self) -> DeviceResult<MikrotikDevice> {
         let stream = tokio::net::TcpStream::connect(self.addr).await?;
         stream.set_nodelay(true)?;
         crate::device::handshake_and_spawn(stream, &self.username, self.password.as_deref()).await
     }
 
-    /// Enable TLS with **no certificate verification**.
-    ///
-    /// Suitable for MikroTik routers which use self-signed certificates.
-    /// TLS handshake signatures are still verified to prevent downgrade attacks.
+    /// Enables TLS with **no certificate verification**, for the self-signed
+    /// certificates MikroTik ships. Handshake signatures are still verified.
     ///
     /// # Panics
     ///
@@ -146,15 +113,11 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Plaintext> {
 
 #[cfg(feature = "tokio-tls")]
 impl<A: ToSocketAddrs> DeviceBuilder<A, Tls> {
-    /// Connect over TLS.
-    ///
-    /// Establishes a TCP connection, performs the TLS handshake, then the
-    /// RouterOS login handshake, and spawns a background actor task.
+    /// Connects over TLS, logs in and spawns the actor.
     ///
     /// # Errors
     ///
-    /// Returns [`DeviceError`](crate::error::DeviceError) if the TCP connection,
-    /// TLS handshake, login, or actor spawn fails.
+    /// [`DeviceError`](crate::error::DeviceError) if any of those fail.
     pub async fn connect(self) -> DeviceResult<MikrotikDevice> {
         let tcp_stream = tokio::net::TcpStream::connect(self.addr).await?;
         tcp_stream.set_nodelay(true)?;

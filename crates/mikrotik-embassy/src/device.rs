@@ -14,87 +14,20 @@ use mikrotik_proto::handshake::{Handshaking, LoginProgress};
 
 use crate::error::DeviceError;
 
-/// Run the MikroTik device connection loop over an already-connected transport.
+/// Logs in, then runs the event loop: commands from `cmd_rx` out to the
+/// transport, responses back to `evt_tx`. Spawn it as a task; see the crate
+/// docs for an example.
 ///
-/// This function performs login authentication and enters an event loop that
-/// processes commands from `cmd_rx` and delivers response events to `evt_tx`.
+/// `transport` must already be connected — TCP, TLS, UART, anything
+/// implementing [`Read`] + [`Write`].
 ///
-/// # Transport
-///
-/// The `transport` parameter is generic over [`embedded_io_async::Read`] +
-/// [`embedded_io_async::Write`]. It must be **already connected** before
-/// calling this function. This works with any transport:
-///
-/// - **Plain TCP**: `embassy_net::tcp::TcpSocket` (after `socket.connect(endpoint).await?`)
-/// - **TLS**: `embedded_tls::TlsConnection` (after `tls.open(context).await?`)
-/// - **Any other**: UART, pipes, mocks — anything implementing `Read + Write`
-///
-/// # Design
-///
-/// This is a **free async function** — the caller spawns it as an Embassy task.
-/// All response events are delivered to a **single output channel**. The consumer
-/// matches on [`Event`]'s tag field to correlate responses with commands.
-///
-/// # Backpressure
-///
-/// Events are delivered via [`Sender::try_send`]. If the event channel is full,
-/// events are dropped to avoid blocking the network loop. Size your event
-/// channel capacity accordingly.
+/// Events are delivered with [`Sender::try_send`] and **dropped if the channel
+/// is full**, so the network loop never stalls. Size `EVT_N` accordingly.
 ///
 /// # Errors
 ///
-/// Returns [`DeviceError`] if:
-/// - Transport I/O fails ([`DeviceError::Io`])
-/// - Login authentication fails ([`DeviceError::Login`])
-/// - Protocol error occurs ([`DeviceError::Connection`])
-/// - Remote device closes the connection ([`DeviceError::ConnectionClosed`])
-///
-/// # Example — Plain TCP
-///
-/// ```rust,ignore
-/// use embassy_net::tcp::TcpSocket;
-/// use embassy_sync::channel::Channel;
-/// use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-/// use mikrotik_proto::command::Command;
-/// use mikrotik_proto::connection::Event;
-///
-/// static CMD: Channel<CriticalSectionRawMutex, Command, 4> = Channel::new();
-/// static EVT: Channel<CriticalSectionRawMutex, Event, 8> = Channel::new();
-///
-/// #[embassy_executor::task]
-/// async fn mikrotik_task(stack: embassy_net::Stack<'static>) {
-///     let mut rx_buf = [0; 4096];
-///     let mut tx_buf = [0; 4096];
-///     let mut socket = TcpSocket::new(stack, &mut rx_buf, &mut tx_buf);
-///     socket.connect(endpoint).await.unwrap();
-///
-///     mikrotik_embassy::run(
-///         &mut socket, "admin", Some("password"),
-///         CMD.receiver(), EVT.sender(),
-///     ).await.unwrap();
-/// }
-/// ```
-///
-/// # Example — TLS (with `embedded-tls`)
-///
-/// ```rust,ignore
-/// // Connect TCP first
-/// let mut socket = TcpSocket::new(stack, &mut rx_buf, &mut tx_buf);
-/// socket.connect(endpoint).await.unwrap();
-///
-/// // Wrap in TLS — no certificate verification (MikroTik self-signed certs)
-/// let mut tls = TlsConnection::new(socket, &mut tls_read_buf, &mut tls_write_buf);
-/// tls.open(TlsContext::new(
-///     &TlsConfig::new(),
-///     UnsecureProvider::new::<Aes128GcmSha256>(rng),
-/// )).await.unwrap();
-///
-/// // run() doesn't care — it's just Read + Write
-/// mikrotik_embassy::run(
-///     &mut tls, "admin", Some("password"),
-///     CMD.receiver(), EVT.sender(),
-/// ).await.unwrap();
-/// ```
+/// [`DeviceError`] on transport I/O, a failed login, a protocol error, or the
+/// remote closing the connection.
 pub async fn run<T, M, const CMD_N: usize, const EVT_N: usize>(
     transport: &mut T,
     username: &str,

@@ -8,51 +8,15 @@ use mikrotik_proto::tag::{Counter, Tag, TagSource};
 
 /// A handle for submitting commands to a running [`run`](crate::run) task.
 ///
-/// [`run`](crate::run) takes a one-way `Receiver<Command>`, so a command has to carry its
-/// tag before it enters the channel — there is no reply path to learn one
-/// afterwards. `Client` pairs the sender with the counter that supplies them,
-/// which is the whole of what every consumer would otherwise write by hand.
+/// The command channel is one-way, so a command must carry its tag before it
+/// enters it — there is no reply path to learn one afterwards. `Client` pairs
+/// the sender with the counter that supplies them. See the crate docs for an
+/// example.
 ///
-/// # Example
-///
-/// ```rust,ignore
-/// use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-/// use embassy_sync::channel::Channel;
-/// use mikrotik_embassy::Client;
-/// use mikrotik_proto::command::Command;
-/// use mikrotik_proto::connection::Event;
-///
-/// static CMD: Channel<CriticalSectionRawMutex, Command, 4> = Channel::new();
-/// static EVT: Channel<CriticalSectionRawMutex, Event, 8> = Channel::new();
-///
-/// #[embassy_executor::task]
-/// async fn poller() {
-///     let client = Client::new(CMD.sender());
-///
-///     // Build, remember the tag, send.
-///     let cmd = client.build().command("/system/resource/print").build();
-///     let tag = cmd.tag;
-///     client.send(cmd).await;
-///
-///     // Events arrive on one channel for every command, so filter by tag.
-///     loop {
-///         let event = EVT.receive().await;
-///         if event.tag() == Some(tag) {
-///             // ...
-///         }
-///     }
-/// }
-/// ```
-///
-/// # Sharing
-///
-/// `Client` is deliberately **not** `Sync`: its counter is a
-/// [`Counter`](mikrotik_proto::tag::Counter), which is a `Cell`, because a
-/// Cortex-M0+ has no compare-and-swap. One `Client` per task, or wrap it in a
-/// mutex of your choosing. The underlying [`Sender`] is `Copy`, so several
-/// tasks can hold their own `Client` over the same channel — each gets tags
-/// from its own counter, so give them disjoint starting points with
-/// [`Client::with_tags`] if you do.
+/// Not `Sync`: its [`Counter`] is a `Cell`, because a target without
+/// compare-and-swap cannot have an atomic. The [`Sender`] is `Copy`, so one
+/// `Client` per task works — give them disjoint counters with
+/// [`with_tags`](Client::with_tags).
 pub struct Client<'ch, M: RawMutex, const N: usize> {
     tx: Sender<'ch, M, Command, N>,
     tags: Counter,
@@ -65,40 +29,36 @@ impl<'ch, M: RawMutex, const N: usize> Client<'ch, M, N> {
         Self { tx, tags: Counter::new() }
     }
 
-    /// As [`new`](Self::new), with a caller-supplied tag counter.
-    ///
-    /// Use this when more than one `Client` feeds the same [`run`](crate::run)
-    /// task, so their tags cannot collide.
+    /// As [`new`](Self::new), with a caller-supplied counter, so two clients
+    /// feeding one task cannot collide.
     #[must_use]
     pub const fn with_tags(tx: Sender<'ch, M, Command, N>, tags: Counter) -> Self {
         Self { tx, tags }
     }
 
-    /// Begin a command, taking the next tag.
-    ///
-    /// Equivalent to `CommandBuilder::with_tag(client.next_tag())`, and the
-    /// counterpart to the `std`-only `CommandBuilder::new`.
+    /// Begins a command with the next tag; the counterpart to the `std`-only
+    /// `CommandBuilder::new`.
     pub fn build(&self) -> CommandBuilder<NoCmd> {
         CommandBuilder::with_tag(self.next_tag())
     }
 
-    /// Submit a command, waiting for room in the channel.
+    /// Submits a command, waiting for room.
     pub async fn send(&self, command: Command) {
         self.tx.send(command).await;
     }
 
-    /// Submit a command, returning it if the channel is full.
+    /// Submits a command without waiting.
     ///
     /// # Errors
     ///
-    /// Returns the command unsent when the channel has no free slot.
+    /// Returns the command unsent if the channel is full.
     pub fn try_send(&self, command: Command) -> Result<(), Command> {
         self.tx.try_send(command).map_err(|err| match err {
             embassy_sync::channel::TrySendError::Full(command) => command,
         })
     }
 
-    /// Take the next tag without building a command.
+    /// Takes the next tag without building a command.
     #[must_use]
     pub fn next_tag(&self) -> Tag {
         self.tags.next_tag()

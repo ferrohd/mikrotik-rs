@@ -23,43 +23,14 @@ struct DeviceCommand {
     respond_to: mpsc::UnboundedSender<Event>,
 }
 
-/// A client for interacting with MikroTik devices.
+/// An async client for a MikroTik device, backed by a task that drives the
+/// sans-IO [`Connection`]. Cheap to clone and share across tasks.
 ///
-/// The `MikrotikDevice` struct provides an asynchronous interface for connecting
-/// to a MikroTik device and sending commands. It encapsulates the communication
-/// through a background actor task that drives the sans-IO [`Connection`] state
-/// machine.
+/// [`connect`](Self::connect) for plaintext TCP, or
+/// [`builder`](Self::builder) for TLS and the rest.
 ///
-/// Can be cheaply cloned to share the same connection across multiple tasks.
-///
-/// # Connection
-///
-/// Use [`builder()`](Self::builder) for full control over the connection, including
-/// optional TLS support (requires the `tokio-tls` feature flag):
-///
-/// ```rust,ignore
-/// // Plaintext TCP
-/// let device = MikrotikDevice::builder("192.168.88.1:8728")
-///     .credentials("admin", Some("password"))
-///     .connect()
-///     .await?;
-///
-/// // TLS (accept self-signed certs — typical for MikroTik)
-/// let device = MikrotikDevice::builder("192.168.88.1:8729")
-///     .credentials("admin", Some("password"))
-///     .tls_insecure()
-///     .connect()
-///     .await?;
-/// ```
-///
-/// Or use [`connect()`](Self::connect) as a shorthand for plaintext TCP.
-///
-/// # Cancellation
-///
-/// In-flight commands are automatically cancelled on the router when the
-/// response receiver returned by [`send_command`](Self::send_command)
-/// is dropped. This follows Rust's RAII pattern — just drop the receiver to
-/// stop a long-running command like `/tool/torch` or `/interface/monitor-traffic`.
+/// Dropping the receiver from [`send_command`](Self::send_command) cancels
+/// that command on the router — the way to stop a `/tool/torch`.
 #[derive(Clone, Debug)]
 pub struct MikrotikDevice {
     cmd_tx: mpsc::Sender<DeviceCommand>,
@@ -87,14 +58,6 @@ impl MikrotikDevice {
 
     /// Shorthand for a plaintext TCP connection.
     ///
-    /// Equivalent to:
-    /// ```rust,ignore
-    /// MikrotikDevice::builder(addr)
-    ///     .credentials(username, password)
-    ///     .connect()
-    ///     .await
-    /// ```
-    ///
     /// # Errors
     ///
     /// Returns [`DeviceError`] if the TCP connection or login handshake fails.
@@ -106,31 +69,12 @@ impl MikrotikDevice {
         Self::builder(addr).credentials(username, password).connect().await
     }
 
-    /// Asynchronously sends a command to the connected MikroTik device.
+    /// Sends a command, returning a receiver of its [`Event`]s.
     ///
-    /// Returns a receiver that will yield [`Event`]s for this command. The
-    /// receiver produces:
-    /// - [`Event::Reply`] — for each data row (streaming commands may produce many)
-    /// - [`Event::Done`] / [`Event::Empty`] — when the command completes
-    /// - [`Event::Trap`] — if the command encounters an error
-    /// - [`Event::Fatal`] — if a fatal connection error occurs
-    ///
-    /// # Buffering
-    ///
-    /// The returned channel is **unbounded**, so no event is ever dropped, even
-    /// if the consumer falls behind. A slow consumer never causes the actor to
-    /// stall either, which would block every other command multiplexed over the
-    /// same connection.
-    ///
-    /// The trade-off is memory: a high-rate streaming command (`/tool/torch`,
-    /// `/interface/monitor-traffic`) whose receiver is never polled will queue
-    /// events indefinitely. Drain the receiver, or drop it to stop the command.
-    ///
-    /// # Cancellation
-    ///
-    /// **Dropping the receiver** automatically sends a `/cancel` to the router
-    /// for this command. This is the idiomatic way to stop a long-running
-    /// command — just drop the receiver.
+    /// The channel is unbounded: a slow consumer must not stall the actor,
+    /// which would block every other command on the connection. The cost is
+    /// memory, so drain a high-rate stream or drop it. Dropping the receiver
+    /// sends `/cancel` for the command.
     ///
     /// # Errors
     ///
