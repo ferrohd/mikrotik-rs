@@ -1,0 +1,38 @@
+name: Audit
+
+# A new advisory against a dependency we already ship is not caused by a commit, so nothing in
+# ci.yml would notice it. Same policy as the `deny` job there, on a timer.
+on:
+  schedule:
+    # Off the hour on purpose: the top of the hour is heavily contended and delays runs.
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+  # And whenever the graph or the policy changes, so a bad bump is caught on its own PR.
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - Cargo.lock
+      - deny.toml
+      - .github/workflows/audit.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  advisories:
+    name: advisories
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/nix-installer-action@v23
+      # Advisories only: licences, bans and sources are properties of the committed manifests, so
+      # they cannot change on their own and ci.yml covers them. cargo-deny from the flake, not
+      # from an action resolving its own version.
+      - run: nix develop .#ci --command cargo deny check advisories
