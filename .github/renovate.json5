@@ -1,0 +1,88 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Runs as the Mend-hosted GitHub App: it reads this file from the default branch. No workflow
+  // and no secret. `just renovate` validates it.
+
+  extends: ["config:recommended", ":rebaseStalePrs"],
+
+  // config:recommended pulls in :semanticPrefixFixDepsChoreOthers, which commits dependency
+  // updates as `fix(deps):`. release-plz.toml tries `^fix` before `^(chore|build)\(deps\)`, so
+  // every bump would land under "Fixed" — and ci.yml's title check accepts `fix`, so nothing
+  // would fail and nothing would say so. Dropped, and the prefix set explicitly below.
+  ignorePresets: [":semanticPrefixFixDepsChoreOthers"],
+
+  // `auto` autodetects from history — not something to leave to chance when release-plz's
+  // parsers key on the exact prefix.
+  semanticCommits: "enabled",
+  semanticCommitType: "chore",
+  semanticCommitScope: "deps",
+
+  labels: ["dependencies"],
+  assignees: ["ferrohd"],
+  dependencyDashboard: true,
+  timezone: "Europe/Rome",
+
+  // Monday 00:00–04:59. Cron rather than the natural-language form, which the docs now steer
+  // away from. The leading `*` is required: renovate has no minute granularity.
+  schedule: ["* 0-4 * * 1"],
+  prConcurrentLimit: 5,
+
+  // Disabled by default. Enabled because flake.lock now pins the toolchain and every check
+  // tool, so a flake input is as much a dependency as a crate.
+  nix: { enabled: true },
+
+  // lockFileMaintenance (a scheduled `cargo update`) is left off: `just update` does it on
+  // demand, and with multiple-versions = "deny" in deny.toml a blind refresh reliably raises a
+  // red PR about a transitive duplicate nobody asked for.
+
+  // Ordered least to most important — later rules win.
+  packageRules: [
+    {
+      description: "Automerge everything that is not a major version bump",
+      // The check suite is the gate. It is thorough enough to be worth trusting for a patch or
+      // a minor, and a major is worth reading a changelog for.
+      matchUpdateTypes: ["minor", "patch", "pin", "digest"],
+      automerge: true,
+    },
+
+    {
+      description: "One pull request for all cargo updates, manifest and lockfile together",
+      matchManagers: ["cargo"],
+      groupName: "cargo dependencies",
+      groupSlug: "cargo",
+      // The cargo default is `update-lockfile`, which leaves [workspace.dependencies] untouched
+      // and turns the declared minimum into a claim nothing tests. `bump` moves both.
+      rangeStrategy: "bump",
+      // Majors ride along: deny.toml sets multiple-versions = "deny", so a half-applied update
+      // is exactly what leaves two versions in the graph. The group therefore contains majors
+      // and is not automerged.
+      separateMajorMinor: false,
+      automerge: false,
+    },
+
+    {
+      description: "One pull request for all flake inputs",
+      matchManagers: ["nix"],
+      groupName: "flake inputs",
+      groupSlug: "flake",
+      prBodyNotes: [
+        "A `nixpkgs` bump can move `release-plz`. The `version` pins in `.github/workflows/release-plz.yml` exist so that CI and `just release-check` run the same binary — read `release-plz --version` in the dev shell and update both if it changed.",
+      ],
+    },
+
+    {
+      description: "Never automerge a toolchain or action major",
+      matchManagers: ["nix", "github-actions"],
+      matchUpdateTypes: ["major"],
+      automerge: false,
+    },
+  ],
+
+  vulnerabilityAlerts: {
+    semanticCommitType: "fix",
+    minimumReleaseAge: "1 day",
+    internalChecksFilter: "strict",
+    addLabels: ["security"],
+  },
+}
