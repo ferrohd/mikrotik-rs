@@ -51,7 +51,7 @@ pub struct Tls {
     server_name: rustls::pki_types::ServerName<'static>,
 }
 
-/// A typestate builder for establishing connections to `MikroTik` devices.
+/// A typestate builder for establishing connections to MikroTik devices.
 ///
 /// The `Transport` type parameter carries transport-specific configuration:
 /// - [`Plaintext`] — no additional config needed
@@ -88,7 +88,7 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Plaintext> {
 
     /// Connect over plaintext TCP.
     ///
-    /// Establishes a TCP connection, performs the `RouterOS` login handshake,
+    /// Establishes a TCP connection, performs the RouterOS login handshake,
     /// and spawns a background actor task.
     ///
     /// # Errors
@@ -103,7 +103,7 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Plaintext> {
 
     /// Enable TLS with **no certificate verification**.
     ///
-    /// Suitable for `MikroTik` routers which use self-signed certificates.
+    /// Suitable for MikroTik routers which use self-signed certificates.
     /// TLS handshake signatures are still verified to prevent downgrade attacks.
     ///
     /// # Panics
@@ -149,7 +149,7 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Tls> {
     /// Connect over TLS.
     ///
     /// Establishes a TCP connection, performs the TLS handshake, then the
-    /// `RouterOS` login handshake, and spawns a background actor task.
+    /// RouterOS login handshake, and spawns a background actor task.
     ///
     /// # Errors
     ///

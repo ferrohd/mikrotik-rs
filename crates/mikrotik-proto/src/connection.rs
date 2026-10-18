@@ -71,7 +71,7 @@ pub enum Event {
         tag: Tag,
     },
 
-    /// An empty response was received (`RouterOS` 7.18+).
+    /// An empty response was received (RouterOS 7.18+).
     /// The command completed with no data.
     Empty {
         /// The command tag that completed.
@@ -122,7 +122,7 @@ struct CommandState {
     reply_count: usize,
 }
 
-/// The sans-IO connection state machine for the `MikroTik` API protocol.
+/// The sans-IO connection state machine for the MikroTik API protocol.
 ///
 /// This type manages:
 /// - **Framing:** accumulating incoming bytes into complete sentences.

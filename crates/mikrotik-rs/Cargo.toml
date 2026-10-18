@@ -11,9 +11,9 @@ categories.workspace = true
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-# A symlink to the repository README, so GitHub and crates.io show the same text and there is
-# one copy to keep current. Cargo dereferences it into a real file when packaging — `just
-# publish` asserts that, since a dangling readme on the registry is invisible until it ships.
+# A byte-for-byte copy of the repository README, so the crates.io page and the GitHub landing
+# page say the same thing. `just publish` fails if the two drift. It is a copy rather than a
+# symlink because release-plz cannot follow one out of the package directory — see that recipe.
 readme = "README.md"
 publish = true
 

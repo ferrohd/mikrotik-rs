@@ -1,7 +1,7 @@
 //! Integration tests for the Embassy async adapter.
 //!
 //! These tests use a mock router — a local TCP listener that speaks the
-//! `MikroTik` wire protocol. The client side wraps a tokio `TcpStream` with
+//! MikroTik wire protocol. The client side wraps a tokio `TcpStream` with
 //! `embedded_io_adapters::FromTokio` to get `embedded_io_async::Read + Write`,
 //! which is what `mikrotik_embassy::run()` expects.
 //!

@@ -1,10 +1,10 @@
-//! Error types for the Embassy `MikroTik` adapter.
+//! Error types for the Embassy MikroTik adapter.
 
 use core::fmt;
 
 use mikrotik_proto::error::{ConnectionError, LoginError};
 
-/// Error type for the Embassy `MikroTik` adapter.
+/// Error type for the Embassy MikroTik adapter.
 ///
 /// This error is transport-agnostic: I/O errors from any transport
 /// (`TcpSocket`, `TlsConnection`, UART, etc.) are mapped to

@@ -1,7 +1,7 @@
-//! # `MikroTik`-rs
+//! # mikrotik-rs
 //!
-//! `mikrotik-rs` is a Rust library for interfacing with `MikroTik` routers via
-//! the `RouterOS` API protocol. It allows sending commands and receiving responses
+//! `mikrotik-rs` is a Rust library for interfacing with MikroTik routers via
+//! the RouterOS API protocol. It allows sending commands and receiving responses
 //! in parallel through channels.
 //!
 //! This crate re-exports types from:
@@ -56,24 +56,34 @@
 //!   spawns as an Embassy task.
 //!
 //! - **`mikrotik-rs`** (this crate) — Convenience re-exports from all crates.
-//!
-//! ## Examples
-//!
-//! ```rust,no_run
-//! use mikrotik_rs::{MikrotikDevice, CommandBuilder};
-//!
-//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let device = MikrotikDevice::connect("192.168.88.1:8728", "admin", Some("password")).await?;
-//!
-//! let cmd = CommandBuilder::new().command("/interface/print").build();
-//! let mut rx = device.send_command(cmd).await?;
-//!
-//! while let Some(event) = rx.recv().await {
-//!     println!("{event:?}");
-//! }
-//! # Ok(())
-//! # }
-//! ```
+
+// Gated on `tokio` because `MikrotikDevice` is: with `--no-default-features` the example does
+// not compile, and `[lib] doctest = false` does not save it — cargo honours that flag only
+// until something passes `--doc` explicitly, which `just test-minimal` does. Gating is also
+// the honest answer for the reader, who should not be shown an API their feature set lacks.
+// docs.rs builds with all features, so this is always present there.
+#![cfg_attr(
+    feature = "tokio",
+    doc = r#"
+## Examples
+
+```rust,no_run
+use mikrotik_rs::{MikrotikDevice, CommandBuilder};
+
+# async fn example() -> Result<(), Box<dyn std::error::Error>> {
+let device = MikrotikDevice::connect("192.168.88.1:8728", "admin", Some("password")).await?;
+
+let cmd = CommandBuilder::new().command("/interface/print").build();
+let mut rx = device.send_command(cmd).await?;
+
+while let Some(event) = rx.recv().await {
+    println!("{event:?}");
+}
+# Ok(())
+# }
+```
+"#
+)]
 
 #[cfg(target_pointer_width = "16")]
 compile_error!("This library supports 32-bit architectures or higher.");

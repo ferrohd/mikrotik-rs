@@ -1,0 +1,42 @@
+# Watch-mode jobs for `just watch`.
+#
+# These mirror the justfile recipes rather than bacon's defaults, which run a bare `cargo check`.
+# Checking is a weaker gate than CI's, so a default bacon run goes green on code `just clippy`
+# rejects — which is the thing a watch loop exists to prevent.
+#
+# `extraneous_args = false` stops bacon appending its own --all-features on top of these.
+
+default_job = "clippy"
+
+[jobs.clippy]
+command = [
+  "cargo",
+  "clippy",
+  "--workspace",
+  "--all-targets",
+  "--all-features",
+  "--",
+  "-D",
+  "warnings",
+]
+need_stdout = false
+extraneous_args = false
+
+# The `ci` profile carries the per-test timeout, so a hung test fails instead of stalling the
+# loop. `analyzer` is what lets bacon parse nextest output into navigable items.
+[jobs.nextest]
+command = ["cargo", "nextest", "run", "--workspace", "--all-features", "--profile", "ci"]
+analyzer = "nextest"
+need_stdout = true
+extraneous_args = false
+
+[jobs.doc]
+command = ["cargo", "doc", "--workspace", "--all-features", "--no-deps"]
+env.RUSTDOCFLAGS = "-D warnings --cfg docsrs"
+need_stdout = false
+extraneous_args = false
+
+[keybindings]
+c = "job:clippy"
+t = "job:nextest"
+d = "job:doc"

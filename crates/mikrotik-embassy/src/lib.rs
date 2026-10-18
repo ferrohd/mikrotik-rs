@@ -1,14 +1,14 @@
 #![no_std]
 //! # mikrotik-embassy
 //!
-//! Embassy async embedded client for the `MikroTik` `RouterOS` API.
+//! Embassy async embedded client for the MikroTik RouterOS API.
 //!
 //! This crate provides an embedded-friendly async adapter built on top of the
 //! sans-IO [`mikrotik_proto`] crate. It is **transport-agnostic**: it works
 //! with any type implementing [`embedded_io_async::Read`] + [`embedded_io_async::Write`]:
 //!
 //! - **Plain TCP**: `embassy_net::tcp::TcpSocket`
-//! - **TLS**: `embedded_tls::TlsConnection` (for `MikroTik` API-SSL on port 8729)
+//! - **TLS**: `embedded_tls::TlsConnection` (for MikroTik API-SSL on port 8729)
 //! - **Any other**: UART, pipes, test mocks, etc. if you feel fancy.
 //!
 //! # Architecture

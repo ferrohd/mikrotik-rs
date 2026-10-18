@@ -1,7 +1,7 @@
 //! Show that the `command!` macro and `CommandBuilder` produce byte-identical wire data.
 //!
 //! The macro is sugar over the builder, including the attribute form with no value
-//! (`attribute2` below), which `RouterOS` reads as "query this field" rather than "set it".
+//! (`attribute2` below), which RouterOS reads as "query this field" rather than "set it".
 //! Nothing here talks to a router.
 
 use mikrotik_rs::CommandBuilder;

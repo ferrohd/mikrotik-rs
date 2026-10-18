@@ -1,7 +1,7 @@
 //! Integration tests for the `MikrotikDevice` async client.
 //!
 //! These tests use a mock router — a local TCP listener that speaks the
-//! `MikroTik` wire protocol. The mock reads commands, verifies them, and
+//! MikroTik wire protocol. The mock reads commands, verifies them, and
 //! sends canned responses, exercising the full async pipeline.
 
 use mikrotik_proto::codec;

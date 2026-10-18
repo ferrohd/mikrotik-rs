@@ -3,7 +3,7 @@
 //! The `command!` macro provides a convenient syntax for building MikroTik
 //! commands with compile-time validation of the command path.
 
-/// A minimal const validator that enforces basic `MikroTik` command rules:
+/// A minimal const validator that enforces basic MikroTik command rules:
 ///
 /// 1. Must start with `/`.
 /// 2. No empty segments (no `//`).
@@ -47,7 +47,7 @@ pub const fn check_mikrotik_command(cmd: &str) -> &str {
     cmd
 }
 
-/// Macro that enforces `MikroTik` command syntax **at compile time**.
+/// Macro that enforces MikroTik command syntax **at compile time**.
 ///
 /// # Examples
 ///

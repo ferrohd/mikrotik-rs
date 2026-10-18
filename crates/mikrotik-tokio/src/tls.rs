@@ -1,7 +1,7 @@
-//! TLS support for `MikroTik` device connections.
+//! TLS support for MikroTik device connections.
 //!
 //! Provides a [`NoVerifier`] that accepts any server certificate — suitable
-//! for `MikroTik` routers which use self-signed certificates by default.
+//! for MikroTik routers which use self-signed certificates by default.
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -13,7 +13,7 @@ use rustls::{ClientConfig, DigitallySignedStruct, Error, SignatureScheme};
 
 /// A TLS certificate verifier that accepts **any** server certificate.
 ///
-/// This is appropriate for `MikroTik` routers which generate self-signed
+/// This is appropriate for MikroTik routers which generate self-signed
 /// certificates for their API-SSL service (port 8729).
 ///
 /// **Important:** TLS handshake signatures are still verified to prevent
