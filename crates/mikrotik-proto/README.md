@@ -12,7 +12,7 @@ This crate provides a runtime-agnostic, `#![no_std]`-compatible implementation o
 
 ## Highlights
 
-- **`#![no_std]`** — only depends on `alloc`. No `std`, no OS, no runtime.
+- **`#![no_std]`** — only depends on `alloc`, `hashbrown` and `thiserror`. No OS, no runtime, no entropy source; built for `thumbv6m` and `thumbv7em` in CI.
 - **Zero-copy parsing** — words are parsed lazily from the receive buffer with byte-level dispatch (no redundant UTF-8 validation).
 - **Typestate command builder** — the compiler enforces correct command construction order.
 - **Compile-time validation** — the `command!` macro validates RouterOS command paths at compile time.
@@ -27,11 +27,13 @@ The `Connection` type mirrors the design of [`quinn-proto`](https://docs.rs/quin
 ```rust
 use mikrotik_proto::connection::{Connection, Event};
 use mikrotik_proto::command::CommandBuilder;
+use mikrotik_proto::tag::{Counter, TagSource};
 
+let tags = Counter::new();
 let mut conn = Connection::new();
 
 // Build and send a command
-let cmd = CommandBuilder::new()
+let cmd = CommandBuilder::with_tag(tags.next_tag())
     .command("/system/resource/print")
     .build();
 let tag = conn.send_command(cmd).unwrap();
