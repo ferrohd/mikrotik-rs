@@ -68,23 +68,35 @@ version_group = "mikrotik"
 # The examples are workspace members so that `cargo clippy --workspace --all-targets` compiles
 # them, which is the only thing keeping them from rotting. They are `publish = false` with a
 # literal 0.0.0, and nothing about them should ever appear in a release PR.
+#
+# Both keys are required, and the pairing is not obvious. `release = false` is the one that
+# matters: it drops the package from processing entirely, so no tag, no changelog, no bump.
+# But release-plz validates the whole config against every manifest before it looks at that,
+# and refuses to start if a package says `publish = false` in Cargo.toml while the config
+# leaves `publish` at its default of true. So `publish = false` gets past validation and
+# `release = false` does the work.
 
 [[package]]
 name = "check-update"
+publish = false
 release = false
 
 [[package]]
 name = "macro-example"
+publish = false
 release = false
 
 [[package]]
 name = "network-monitor"
+publish = false
 release = false
 
 [[package]]
 name = "system-resource"
+publish = false
 release = false
 
 [[package]]
 name = "users"
+publish = false
 release = false
