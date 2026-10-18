@@ -57,11 +57,7 @@ struct MockStream {
 impl MockStream {
     fn new(stream: tokio::net::TcpStream) -> Self {
         let (reader, inner) = stream.into_split();
-        Self {
-            inner,
-            reader,
-            buf: Vec::new(),
-        }
+        Self { inner, reader, buf: Vec::new() }
     }
 
     /// Read one complete sentence from the stream. Returns the decoded words.
@@ -70,14 +66,9 @@ impl MockStream {
         loop {
             // First, try to decode from what we already have buffered
             match codec::decode_sentence(&self.buf) {
-                Ok(codec::Decode::Complete {
-                    value: raw,
-                    bytes_consumed,
-                }) => {
-                    let words = raw
-                        .words()
-                        .map(|w| String::from_utf8_lossy(w).into_owned())
-                        .collect();
+                Ok(codec::Decode::Complete { value: raw, bytes_consumed }) => {
+                    let words =
+                        raw.words().map(|w| String::from_utf8_lossy(w).into_owned()).collect();
                     self.buf.drain(..bytes_consumed);
                     return words;
                 }
@@ -147,9 +138,7 @@ async fn connect_and_login() {
     });
 
     // Connect the client
-    let _device = MikrotikDevice::connect(&addr, "admin", Some("password"))
-        .await
-        .unwrap();
+    let _device = MikrotikDevice::connect(&addr, "admin", Some("password")).await.unwrap();
 
     mock.await.unwrap();
 }
@@ -178,9 +167,7 @@ async fn send_command_receive_reply() {
         mock.write_all(&response).await;
     });
 
-    let device = MikrotikDevice::connect(&addr, "admin", Some("password"))
-        .await
-        .unwrap();
+    let device = MikrotikDevice::connect(&addr, "admin", Some("password")).await.unwrap();
 
     let cmd = CommandBuilder::new().command("/interface/print").build();
     let mut rx = device.send_command(cmd).await.unwrap();
@@ -189,14 +176,8 @@ async fn send_command_receive_reply() {
     let event = rx.recv().await.expect("should receive reply");
     match event {
         Event::Reply { response, .. } => {
-            assert_eq!(
-                response.attributes.get("name").unwrap(),
-                &Some("ether1".to_string())
-            );
-            assert_eq!(
-                response.attributes.get("type").unwrap(),
-                &Some("ether".to_string())
-            );
+            assert_eq!(response.attributes.get("name").unwrap(), &Some("ether1".to_string()));
+            assert_eq!(response.attributes.get("type").unwrap(), &Some("ether".to_string()));
         }
         other => panic!("expected Reply, got {other:?}"),
     }
@@ -224,8 +205,7 @@ async fn login_failure() {
         let tag = extract_tag(&words);
 
         // Send trap (auth failure)
-        mock.write_all(&encode_trap(&tag, "invalid user name or password"))
-            .await;
+        mock.write_all(&encode_trap(&tag, "invalid user name or password")).await;
     });
 
     let result = MikrotikDevice::connect(&addr, "admin", Some("wrong")).await;
@@ -254,9 +234,7 @@ async fn connection_closed_by_remote() {
         drop(mock);
     });
 
-    let device = MikrotikDevice::connect(&addr, "admin", Some("password"))
-        .await
-        .unwrap();
+    let device = MikrotikDevice::connect(&addr, "admin", Some("password")).await.unwrap();
 
     let cmd = CommandBuilder::new().command("/test").build();
     let mut rx = device.send_command(cmd).await.unwrap();
@@ -301,9 +279,7 @@ async fn concurrent_commands() {
         mock.write_all(&response).await;
     });
 
-    let device = MikrotikDevice::connect(&addr, "admin", Some("pass"))
-        .await
-        .unwrap();
+    let device = MikrotikDevice::connect(&addr, "admin", Some("pass")).await.unwrap();
 
     // Send 3 commands
     let cmd1 = CommandBuilder::new().command("/test1").build();
@@ -358,9 +334,7 @@ async fn graceful_shutdown_on_drop() {
     });
 
     {
-        let device = MikrotikDevice::connect(&addr, "admin", Some("pass"))
-            .await
-            .unwrap();
+        let device = MikrotikDevice::connect(&addr, "admin", Some("pass")).await.unwrap();
 
         let cmd = CommandBuilder::new()
             .command("/tool/torch")
@@ -398,9 +372,7 @@ async fn fatal_error_propagates_to_all_receivers() {
         mock.write_all(&encode_fatal("out of memory")).await;
     });
 
-    let device = MikrotikDevice::connect(&addr, "admin", Some("pass"))
-        .await
-        .unwrap();
+    let device = MikrotikDevice::connect(&addr, "admin", Some("pass")).await.unwrap();
 
     let cmd1 = CommandBuilder::new().command("/test1").build();
     let cmd2 = CommandBuilder::new().command("/test2").build();

@@ -87,11 +87,7 @@ impl Display for Word<'_> {
         match self {
             Word::Category(category) => write!(f, "{category}"),
             Word::Tag(tag) => write!(f, ".tag={tag}"),
-            Word::Attribute(WordAttribute {
-                key,
-                value,
-                value_raw: _,
-            }) => {
+            Word::Attribute(WordAttribute { key, value, value_raw: _ }) => {
                 write!(f, "={}={}", key, value.unwrap_or(""))
             }
             Word::Message(generic) => write!(f, "{generic}"),
@@ -215,11 +211,7 @@ impl<'a> TryFrom<&'a [u8]> for WordAttribute<'a> {
         // If we have a non-empty value, try to decode as UTF-8
         let value = value_raw.and_then(|v| core::str::from_utf8(v).ok());
 
-        Ok(Self {
-            key,
-            value,
-            value_raw,
-        })
+        Ok(Self { key, value, value_raw })
     }
 }
 
@@ -251,20 +243,13 @@ mod tests {
 
     impl<'a> From<(&'a str, Option<&'a str>)> for WordAttribute<'a> {
         fn from(value: (&'a str, Option<&'a str>)) -> Self {
-            Self {
-                key: value.0,
-                value: value.1,
-                value_raw: value.1.map(str::as_bytes),
-            }
+            Self { key: value.0, value: value.1, value_raw: value.1.map(str::as_bytes) }
         }
     }
 
     #[test]
     fn test_word_parsing() {
-        assert_eq!(
-            Word::try_from(b"!done".as_ref()).unwrap(),
-            Word::Category(WordCategory::Done)
-        );
+        assert_eq!(Word::try_from(b"!done".as_ref()).unwrap(), Word::Category(WordCategory::Done));
 
         assert_eq!(
             Word::try_from(b".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8".as_ref()).unwrap(),
@@ -294,10 +279,7 @@ mod tests {
             Word::Category(WordCategory::Empty)
         );
 
-        assert_eq!(
-            Word::try_from(b"unknownword".as_ref()).unwrap(),
-            Word::Message("unknownword")
-        );
+        assert_eq!(Word::try_from(b"unknownword".as_ref()).unwrap(), Word::Message("unknownword"));
 
         // Invalid tag value
         assert!(Word::try_from(b".tag=not-a-valid-uuid".as_ref()).is_err());
@@ -315,10 +297,7 @@ mod tests {
             0xa1, 0xa2, 0xa3, 0xa4, 0xb1, 0xb2, 0xc1, 0xc2, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6,
             0xd7, 0xd8,
         ])));
-        assert_eq!(
-            format!("{word}"),
-            ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8"
-        );
+        assert_eq!(format!("{word}"), ".tag=a1a2a3a4-b1b2-c1c2-d1d2-d3d4d5d6d7d8");
 
         let word = Word::Attribute(("name", Some("ether1")).into());
         assert_eq!(format!("{word}"), "=name=ether1");

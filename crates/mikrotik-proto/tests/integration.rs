@@ -44,12 +44,7 @@ fn build_trap_with_category(tag: Tag, category: u8, message: &str) -> Vec<u8> {
     let tag_word = format!(".tag={tag}");
     let cat_word = format!("=category={category}");
     let msg_word = format!("=message={message}");
-    build_sentence(&[
-        b"!trap",
-        tag_word.as_bytes(),
-        cat_word.as_bytes(),
-        msg_word.as_bytes(),
-    ])
+    build_sentence(&[b"!trap", tag_word.as_bytes(), cat_word.as_bytes(), msg_word.as_bytes()])
 }
 
 fn build_fatal(message: &str) -> Vec<u8> {
@@ -75,10 +70,7 @@ fn drain_events(conn: &mut Connection) -> Vec<Event> {
 #[test]
 fn full_command_lifecycle() {
     // Build a command using the builder
-    let cmd = CommandBuilder::new()
-        .command("/interface/print")
-        .attribute("detail", None)
-        .build();
+    let cmd = CommandBuilder::new().command("/interface/print").attribute("detail", None).build();
     let tag = cmd.tag;
 
     // Send it through the connection
@@ -89,17 +81,11 @@ fn full_command_lifecycle() {
 
     // Drain the outbound transmit
     let transmit = conn.poll_transmit().unwrap();
-    assert!(
-        !transmit.data.is_empty(),
-        "the queued command must produce bytes"
-    );
+    assert!(!transmit.data.is_empty(), "the queued command must produce bytes");
     assert!(conn.poll_transmit().is_none());
 
     // Simulate router response: one reply row + done
-    let reply_wire = build_reply(
-        tag,
-        &[("name", "ether1"), ("type", "ether"), ("mtu", "1500")],
-    );
+    let reply_wire = build_reply(tag, &[("name", "ether1"), ("type", "ether"), ("mtu", "1500")]);
     let done_wire = build_done(tag);
 
     let mut response = reply_wire;
@@ -114,18 +100,9 @@ fn full_command_lifecycle() {
     match &events[0] {
         Event::Reply { tag: t, response } => {
             assert_eq!(*t, tag);
-            assert_eq!(
-                response.attributes.get("name").unwrap(),
-                &Some("ether1".to_string())
-            );
-            assert_eq!(
-                response.attributes.get("type").unwrap(),
-                &Some("ether".to_string())
-            );
-            assert_eq!(
-                response.attributes.get("mtu").unwrap(),
-                &Some("1500".to_string())
-            );
+            assert_eq!(response.attributes.get("name").unwrap(), &Some("ether1".to_string()));
+            assert_eq!(response.attributes.get("type").unwrap(), &Some("ether".to_string()));
+            assert_eq!(response.attributes.get("mtu").unwrap(), &Some("1500".to_string()));
         }
         other => panic!("expected Reply, got {other:?}"),
     }
@@ -148,10 +125,7 @@ fn handshake_then_commands() {
 
     // Drain the login command transmit
     let login_transmit = hs.poll_transmit().unwrap();
-    assert!(
-        !login_transmit.data.is_empty(),
-        "the handshake must send a login command"
-    );
+    assert!(!login_transmit.data.is_empty(), "the handshake must send a login command");
     assert!(hs.poll_transmit().is_none());
 
     // Simulate router accepting login
@@ -168,21 +142,13 @@ fn handshake_then_commands() {
     assert_eq!(conn.in_flight_count(), 0);
 
     // Now send a real command
-    let cmd = CommandBuilder::new()
-        .command("/system/resource/print")
-        .build();
+    let cmd = CommandBuilder::new().command("/system/resource/print").build();
     let tag = conn.send_command(cmd).unwrap();
     drain_transmits(&mut conn);
 
     // Simulate router response
-    let reply_wire = build_reply(
-        tag,
-        &[
-            ("uptime", "3d12h"),
-            ("cpu-load", "5"),
-            ("free-memory", "1073741824"),
-        ],
-    );
+    let reply_wire =
+        build_reply(tag, &[("uptime", "3d12h"), ("cpu-load", "5"), ("free-memory", "1073741824")]);
     let done_wire = build_done(tag);
     conn.receive(&reply_wire).unwrap();
     conn.receive(&done_wire).unwrap();
@@ -192,10 +158,7 @@ fn handshake_then_commands() {
 
     match &events[0] {
         Event::Reply { response, .. } => {
-            assert_eq!(
-                response.attributes.get("uptime").unwrap(),
-                &Some("3d12h".to_string())
-            );
+            assert_eq!(response.attributes.get("uptime").unwrap(), &Some("3d12h".to_string()));
         }
         other => panic!("expected Reply, got {other:?}"),
     }
@@ -212,9 +175,7 @@ fn concurrent_multiplexing() {
     // Send 3 commands
     let cmd1 = CommandBuilder::new().command("/interface/print").build();
     let cmd2 = CommandBuilder::new().command("/ip/address/print").build();
-    let cmd3 = CommandBuilder::new()
-        .command("/system/resource/print")
-        .build();
+    let cmd3 = CommandBuilder::new().command("/system/resource/print").build();
     let tag1 = conn.send_command(cmd1).unwrap();
     let tag2 = conn.send_command(cmd2).unwrap();
     let tag3 = conn.send_command(cmd3).unwrap();
@@ -280,18 +241,14 @@ fn concurrent_multiplexing() {
 #[test]
 fn cancel_mid_stream() {
     let mut conn = Connection::new();
-    let cmd = CommandBuilder::new()
-        .command("/tool/torch")
-        .attribute("interface", Some("ether1"))
-        .build();
+    let cmd =
+        CommandBuilder::new().command("/tool/torch").attribute("interface", Some("ether1")).build();
     let tag = conn.send_command(cmd).unwrap();
     drain_transmits(&mut conn);
 
     // Simulate two streaming replies
-    conn.receive(&build_reply(tag, &[("tx", "1000"), ("rx", "2000")]))
-        .unwrap();
-    conn.receive(&build_reply(tag, &[("tx", "1100"), ("rx", "2100")]))
-        .unwrap();
+    conn.receive(&build_reply(tag, &[("tx", "1000"), ("rx", "2000")])).unwrap();
+    conn.receive(&build_reply(tag, &[("tx", "1100"), ("rx", "2100")])).unwrap();
 
     let events = drain_events(&mut conn);
     assert_eq!(events.len(), 2);
@@ -302,10 +259,7 @@ fn cancel_mid_stream() {
 
     // A cancel transmit should be queued
     let cancel_transmit = conn.poll_transmit().unwrap();
-    assert!(
-        !cancel_transmit.data.is_empty(),
-        "cancelling must enqueue a /cancel sentence"
-    );
+    assert!(!cancel_transmit.data.is_empty(), "cancelling must enqueue a /cancel sentence");
 
     // Router may still send a done for the cancelled tag — should be silently dropped
     conn.receive(&build_done(tag)).unwrap();
@@ -325,8 +279,7 @@ fn command_macro_roundtrip() {
     drain_transmits(&mut conn);
 
     // Feed a matching response
-    conn.receive(&build_reply(tag, &[("name", "ether1"), ("type", "ether")]))
-        .unwrap();
+    conn.receive(&build_reply(tag, &[("name", "ether1"), ("type", "ether")])).unwrap();
     conn.receive(&build_done(tag)).unwrap();
 
     let events = drain_events(&mut conn);
@@ -389,10 +342,7 @@ fn back_to_back_streaming_replies() {
             Event::Reply { tag: t, response } => {
                 assert_eq!(*t, tag);
                 let expected_name = format!("ether{i}");
-                assert_eq!(
-                    response.attributes.get("name").unwrap(),
-                    &Some(expected_name)
-                );
+                assert_eq!(response.attributes.get("name").unwrap(), &Some(expected_name));
             }
             other => panic!("expected Reply at index {i}, got {other:?}"),
         }
@@ -450,8 +400,7 @@ fn fatal_kills_connection() {
     drain_transmits(&mut conn);
 
     // Send a reply for cmd1 first
-    conn.receive(&build_reply(tag1, &[("data", "hello")]))
-        .unwrap();
+    conn.receive(&build_reply(tag1, &[("data", "hello")])).unwrap();
 
     // Then fatal
     conn.receive(&build_fatal("out of memory")).unwrap();

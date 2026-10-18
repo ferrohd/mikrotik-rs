@@ -31,17 +31,11 @@ pub const fn check_mikrotik_command(cmd: &str) -> &str {
         let c = bytes[i] as char;
 
         if c == '/' || c == ' ' {
-            assert!(
-                !prev_was_delimiter,
-                "No empty segments or consecutive delimiters allowed."
-            );
+            assert!(!prev_was_delimiter, "No empty segments or consecutive delimiters allowed.");
             prev_was_delimiter = true;
         } else {
             let is_valid_char = c.is_ascii_alphanumeric() || c == '-' || c == '_';
-            assert!(
-                is_valid_char,
-                "Invalid character in MikroTik command. Must be [a-zA-Z0-9_-]"
-            );
+            assert!(is_valid_char, "Invalid character in MikroTik command. Must be [a-zA-Z0-9_-]");
             prev_was_delimiter = false;
         }
 

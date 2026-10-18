@@ -73,11 +73,7 @@ impl Default for CommandBuilder<NoCmd> {
 impl CommandBuilder<NoCmd> {
     /// Begin building a new [`Command`] with a randomly generated tag.
     pub fn new() -> Self {
-        Self {
-            tag: Tag::new(),
-            buf: Vec::new(),
-            state: PhantomData,
-        }
+        Self { tag: Tag::new(), buf: Vec::new(), state: PhantomData }
     }
 
     /// Begin building a new [`Command`] with a specified tag.
@@ -87,11 +83,7 @@ impl CommandBuilder<NoCmd> {
     /// * `tag` — A [`Tag`] that identifies the command for `RouterOS` correlation.
     ///   **Must be unique** within a connection.
     pub fn with_tag(tag: Tag) -> Self {
-        Self {
-            tag,
-            buf: Vec::new(),
-            state: PhantomData,
-        }
+        Self { tag, buf: Vec::new(), state: PhantomData }
     }
 
     /// Builds a login command with the provided username and optional password.
@@ -108,10 +100,7 @@ impl CommandBuilder<NoCmd> {
     #[must_use]
     pub fn cancel(tag: Tag) -> Command {
         // Use the same tag so the cancel is correlated
-        Self::with_tag(tag)
-            .command("/cancel")
-            .attribute_tag("tag", tag)
-            .build()
+        Self::with_tag(tag).command("/cancel").attribute_tag("tag", tag).build()
     }
 
     /// Specify the command path to be executed, transitioning to the `Cmd` state.
@@ -132,11 +121,7 @@ impl CommandBuilder<NoCmd> {
         tag.encode_lower(&mut tag_buf[5..]);
         codec::encode_word(&tag_buf, &mut buf);
 
-        CommandBuilder {
-            tag,
-            buf,
-            state: PhantomData,
-        }
+        CommandBuilder { tag, buf, state: PhantomData }
     }
 }
 
@@ -165,11 +150,7 @@ impl CommandBuilder<Cmd> {
         buf.push(b'=');
         buf.extend_from_slice(value_bytes.as_bytes());
 
-        CommandBuilder {
-            tag,
-            buf,
-            state: PhantomData,
-        }
+        CommandBuilder { tag, buf, state: PhantomData }
     }
 
     /// Adds an attribute with a raw byte value to the command being built.
@@ -190,11 +171,7 @@ impl CommandBuilder<Cmd> {
         buf.push(b'=');
         buf.extend_from_slice(value_bytes);
 
-        CommandBuilder {
-            tag,
-            buf,
-            state: PhantomData,
-        }
+        CommandBuilder { tag, buf, state: PhantomData }
     }
 
     /// Adds an attribute with a Tag value (used internally for cancel tags).
@@ -217,11 +194,7 @@ impl CommandBuilder<Cmd> {
         encode_word_len(word_len, &mut buf);
         buf.push(b'?');
         buf.extend_from_slice(name.as_bytes());
-        CommandBuilder {
-            tag,
-            buf,
-            state: PhantomData,
-        }
+        CommandBuilder { tag, buf, state: PhantomData }
     }
 
     /// Adds a query to check if a property is absent.
@@ -235,11 +208,7 @@ impl CommandBuilder<Cmd> {
         encode_word_len(word_len, &mut buf);
         buf.extend_from_slice(b"?-");
         buf.extend_from_slice(name.as_bytes());
-        CommandBuilder {
-            tag,
-            buf,
-            state: PhantomData,
-        }
+        CommandBuilder { tag, buf, state: PhantomData }
     }
 
     /// Adds a query to check if a property equals a value.
@@ -255,11 +224,7 @@ impl CommandBuilder<Cmd> {
         buf.extend_from_slice(name.as_bytes());
         buf.push(b'=');
         buf.extend_from_slice(value.as_bytes());
-        CommandBuilder {
-            tag,
-            buf,
-            state: PhantomData,
-        }
+        CommandBuilder { tag, buf, state: PhantomData }
     }
 
     /// Adds a query to check if a property is greater than a value.
@@ -275,11 +240,7 @@ impl CommandBuilder<Cmd> {
         buf.extend_from_slice(key.as_bytes());
         buf.push(b'=');
         buf.extend_from_slice(value.as_bytes());
-        CommandBuilder {
-            tag,
-            buf,
-            state: PhantomData,
-        }
+        CommandBuilder { tag, buf, state: PhantomData }
     }
 
     /// Adds a query to check if a property is less than a value.
@@ -295,11 +256,7 @@ impl CommandBuilder<Cmd> {
         buf.extend_from_slice(key.as_bytes());
         buf.push(b'=');
         buf.extend_from_slice(value.as_bytes());
-        CommandBuilder {
-            tag,
-            buf,
-            state: PhantomData,
-        }
+        CommandBuilder { tag, buf, state: PhantomData }
     }
 
     /// Adds query operations (combination operators for the query stack).
@@ -319,11 +276,7 @@ impl CommandBuilder<Cmd> {
         buf.extend_from_slice(b"?#");
         buf.extend_from_slice(&ops);
 
-        CommandBuilder {
-            tag,
-            buf,
-            state: PhantomData,
-        }
+        CommandBuilder { tag, buf, state: PhantomData }
     }
 
     /// Finalizes the command construction, producing a [`Command`].
@@ -479,9 +432,7 @@ mod tests {
 
     #[test]
     fn test_command_no_attributes() {
-        let cmd = CommandBuilder::new()
-            .command("/system/resource/print")
-            .build();
+        let cmd = CommandBuilder::new().command("/system/resource/print").build();
         let words = parse_words(&cmd.data);
 
         assert_eq!(words[0], "/system/resource/print");

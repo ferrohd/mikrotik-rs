@@ -65,9 +65,7 @@ impl CommandResponse {
     pub fn parse(raw: &RawSentence<'_>) -> Result<Self, ProtocolError> {
         let mut words = raw.typed_words();
 
-        let word = words
-            .next()
-            .ok_or::<ProtocolError>(MissingWord::Category.into())??;
+        let word = words.next().ok_or::<ProtocolError>(MissingWord::Category.into())??;
 
         let category = word.category().ok_or(ProtocolError::WordSequence {
             word: word.word_type(),
@@ -75,15 +73,11 @@ impl CommandResponse {
         })?;
 
         match category {
-            WordCategory::Done => Ok(Self::Done(DoneResponse {
-                tag: next_tag(&mut words)?,
-            })),
+            WordCategory::Done => Ok(Self::Done(DoneResponse { tag: next_tag(&mut words)? })),
             WordCategory::Reply => parse_reply(words).map(Self::Reply),
             WordCategory::Trap => parse_trap(words).map(Self::Trap),
             WordCategory::Fatal => parse_fatal(&mut words).map(Self::Fatal),
-            WordCategory::Empty => Ok(Self::Empty(EmptyResponse {
-                tag: next_tag(&mut words)?,
-            })),
+            WordCategory::Empty => Ok(Self::Empty(EmptyResponse { tag: next_tag(&mut words)? })),
         }
     }
 }
@@ -95,9 +89,7 @@ fn next_tag<'a, I>(words: &mut I) -> Result<Tag, ProtocolError>
 where
     I: Iterator<Item = Result<Word<'a>, SentenceError>>,
 {
-    let word = words
-        .next()
-        .ok_or::<ProtocolError>(MissingWord::Tag.into())??;
+    let word = words.next().ok_or::<ProtocolError>(MissingWord::Tag.into())??;
 
     word.tag().ok_or(ProtocolError::WordSequence {
         word: word.into(),
@@ -117,11 +109,7 @@ where
     for word in words {
         match word? {
             Word::Tag(t) => tag = Some(t),
-            Word::Attribute(WordAttribute {
-                key,
-                value,
-                value_raw,
-            }) => {
+            Word::Attribute(WordAttribute { key, value, value_raw }) => {
                 attributes.insert(String::from(key), value.map(String::from));
                 attributes_raw.insert(String::from(key), value_raw.map(Vec::from));
             }
@@ -154,11 +142,7 @@ where
     for word in words {
         match word? {
             Word::Tag(t) => tag = Some(t),
-            Word::Attribute(WordAttribute {
-                key,
-                value,
-                value_raw: _,
-            }) => match key {
+            Word::Attribute(WordAttribute { key, value, value_raw: _ }) => match key {
                 "category" => category = value.map(TrapCategory::try_from).transpose()?,
                 "message" => message = value.map(String::from),
                 key => {
@@ -190,9 +174,7 @@ fn parse_fatal<'a, I>(words: &mut I) -> Result<FatalResponse, ProtocolError>
 where
     I: Iterator<Item = Result<Word<'a>, SentenceError>>,
 {
-    let word = words
-        .next()
-        .ok_or::<ProtocolError>(MissingWord::Message.into())??;
+    let word = words.next().ok_or::<ProtocolError>(MissingWord::Message.into())??;
 
     let reason = word.generic().ok_or(ProtocolError::WordSequence {
         word: word.word_type(),
@@ -243,11 +225,7 @@ pub struct ReplyResponse {
 
 impl Display for ReplyResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "ReplyResponse {{ tag: {}, attributes: {:?} }}",
-            self.tag, self.attributes
-        )
+        write!(f, "ReplyResponse {{ tag: {}, attributes: {:?} }}", self.tag, self.attributes)
     }
 }
 
@@ -383,14 +361,8 @@ mod tests {
         match response {
             CommandResponse::Reply(reply) => {
                 assert_eq!(reply.tag, TEST_TAG);
-                assert_eq!(
-                    reply.attributes.get("name"),
-                    Some(&Some(String::from("ether1")))
-                );
-                assert_eq!(
-                    reply.attributes.get("type"),
-                    Some(&Some(String::from("ether")))
-                );
+                assert_eq!(reply.attributes.get("name"), Some(&Some(String::from("ether1"))));
+                assert_eq!(reply.attributes.get("type"), Some(&Some(String::from("ether"))));
             }
             other => panic!("expected Reply, got {other:?}"),
         }
@@ -407,10 +379,7 @@ mod tests {
         match response {
             CommandResponse::Reply(reply) => {
                 assert_eq!(reply.tag, TEST_TAG);
-                assert_eq!(
-                    reply.attributes.get("name"),
-                    Some(&Some(String::from("ether1")))
-                );
+                assert_eq!(reply.attributes.get("name"), Some(&Some(String::from("ether1"))));
             }
             other => panic!("expected Reply, got {other:?}"),
         }

@@ -76,12 +76,7 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Plaintext> {
     /// The connection starts as plaintext TCP. Use [`.tls_insecure()`](Self::tls_insecure)
     /// or [`.tls_config()`](Self::tls_config) to enable TLS.
     pub(crate) fn new(addr: A) -> Self {
-        Self {
-            addr,
-            username: String::new(),
-            password: None,
-            transport: Plaintext,
-        }
+        Self { addr, username: String::new(), password: None, transport: Plaintext }
     }
 
     /// Set the login credentials.
@@ -126,10 +121,7 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Plaintext> {
             addr: self.addr,
             username: self.username,
             password: self.password,
-            transport: Tls {
-                config,
-                server_name,
-            },
+            transport: Tls { config, server_name },
         }
     }
 
@@ -147,10 +139,7 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Plaintext> {
             addr: self.addr,
             username: self.username,
             password: self.password,
-            transport: Tls {
-                config,
-                server_name,
-            },
+            transport: Tls { config, server_name },
         }
     }
 }
@@ -171,9 +160,7 @@ impl<A: ToSocketAddrs> DeviceBuilder<A, Tls> {
         tcp_stream.set_nodelay(true)?;
 
         let connector = tokio_rustls::TlsConnector::from(self.transport.config);
-        let tls_stream = connector
-            .connect(self.transport.server_name, tcp_stream)
-            .await?;
+        let tls_stream = connector.connect(self.transport.server_name, tcp_stream).await?;
 
         crate::device::handshake_and_spawn(tls_stream, &self.username, self.password.as_deref())
             .await
