@@ -51,9 +51,7 @@
       matchManagers: ["cargo"],
       groupName: "cargo dependencies",
       groupSlug: "cargo",
-      // The cargo default is `update-lockfile`, which leaves [workspace.dependencies] untouched
-      // and turns the declared minimum into a claim nothing tests. `bump` moves both.
-      rangeStrategy: "bump",
+      rangeStrategy: "update-lockfile",
       // Majors ride along: deny.toml sets multiple-versions = "deny", so a half-applied update
       // is exactly what leaves two versions in the graph. The group therefore contains majors
       // and is not automerged.
@@ -80,6 +78,7 @@
   ],
 
   vulnerabilityAlerts: {
+    rangeStrategy: "bump",
     semanticCommitType: "fix",
     minimumReleaseAge: "1 day",
     internalChecksFilter: "strict",
